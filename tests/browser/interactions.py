@@ -57,8 +57,11 @@ def run(page, check, engine):
     # the laboratory: two Fire Bolts make a spell
     hold_until(page, "KeyD", lambda: attr(page, "station") == "lab")
     check(attr(page, "station") == "lab", "the archmage reached the laboratory")
-    page.click("button[data-action='lab.add'][data-value='fire_bolt']")
-    page.click("button[data-action='lab.add'][data-value='fire_bolt']")
+    # each click waits for the panel to redraw with the piece added, so the
+    # next click does not land on the panel it replaced (SECOND-ORDER R4.11)
+    for n in (1, 2):
+        page.click("button[data-action='lab.add'][data-value='fire_bolt']")
+        page.wait_for_function(f"document.querySelectorAll(\"#station .chain .act\").length === {n}", timeout=LONG)
     page.click("button[data-action='lab.save']")
     page.wait_for_selector("body[data-spells='2']", state="attached", timeout=LONG)
     check(page.is_visible("#station"), "the laboratory's panel is visible")

@@ -84,6 +84,7 @@ R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 - `./scripts/count-tests.sh`: `174 passed, 0 failed, 2 ignored`.
 - `python3 scripts/break_tests.py`: `70 of 70 breaks caught` (three breaks had rotted after `cargo fmt` and were rewritten against the formatted lines, as in R3.23).
 - `tests/browser/online.py`: `ONLINE CHECK PASSED` in chromium, firefox and webkit, run by hand.
+- The live site (build 25fae87): CI's check, deploy and live jobs passed; by hand, two Chromium browsers met by room code over the public relays and started a match.
 
 ## The next action
 

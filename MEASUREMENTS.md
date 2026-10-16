@@ -41,6 +41,16 @@ Worst damage taken in one match: 6,165 (score starts at 10,000). Ties count as a
 
 Machine: Apple silicon Mac (aarch64-apple-darwin), the person's laptop.
 
+## Online play (PLAN.md decision 15), 2026-10-16
+
+- `tests/browser/online.py`: two browsers on one machine met by pasted codes with no relay and no STUN, and played a one-day match to its summary; the two summaries were the same text. Passed in Chromium, Firefox and WebKit.
+- `every_browser_of_an_online_match_ends_with_the_same_scores`: a host and two joiners, wired in the test, played two days with invasions crossing; all three ended with the same scores and checksum.
+- Live, by hand: two Chromium browsers on one machine met by room code over the public Nostr relays in `web/net/config.js` and started a match.
+- The WebAssembly module is 1,336,496 bytes (`dist/pkg/tool_shim_bg.wasm`, this build).
+
 ## Not measured
 
 Devices, browsers and conditions no measurement here covers.
+
+- Online play between two real networks, behind strict NATs, or with four people at once.
+- Any phone or tablet; any computer but the author's Mac.

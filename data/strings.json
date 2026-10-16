@@ -75,7 +75,7 @@
  "lab.no_payload_first": "Start with a payload: a trigger needs something to start from.",
  "lab.trigger_at_end": "A trigger needs a payload after it.",
  "lab.modifier_at_end": "A modifier needs a payload after it.",
- "lab.invade_without_summon": "Invade needs a summon after it.",
+ "lab.invade_without_summon": "Invade needs a summon after it, before any trigger.",
  "lab.too_deep": "Three triggers is the most a spell can hold.",
  "lab.helper": "A helper is summoned on its own, at the podium or the recruitment table.",
  "lab.place_only": "Raise Sub-tower is placed from the map table.",
@@ -304,5 +304,6 @@
  "gloss.spell_detail": "{pieces}. Power {power}, cooldown {cooldown} s, {mana} mana.",
  "view.reset": "Reset the views",
  "view.hint": "Drag a view to turn it, right-drag or Shift-drag to move it, and turn the mouse wheel to zoom. Each view keeps its own camera.",
- "map.rising_short": "Rising: {name}"
+ "map.rising_short": "Rising: {name}",
+ "lab.invade_first": "Invade goes first: an invasion is a spell that starts with Invade."
 }

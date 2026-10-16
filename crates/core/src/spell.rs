@@ -22,6 +22,7 @@ pub enum ChainError {
     TriggerAtEnd,
     ModifierAtEnd,
     InvadeWithoutSummon,
+    InvadeNotFirst,
     TooDeep,
     Helper,
     PlaceOnly,
@@ -36,6 +37,7 @@ impl ChainError {
             ChainError::TriggerAtEnd => "lab.trigger_at_end",
             ChainError::ModifierAtEnd => "lab.modifier_at_end",
             ChainError::InvadeWithoutSummon => "lab.invade_without_summon",
+            ChainError::InvadeNotFirst => "lab.invade_first",
             ChainError::TooDeep => "lab.too_deep",
             ChainError::Helper => "lab.helper",
             ChainError::PlaceOnly => "lab.place_only",
@@ -117,8 +119,18 @@ pub fn check(c: &Content, pieces: &[u16]) -> Result<(), ChainError> {
                     return Err(ChainError::ModifierAtEnd);
                 }
             }
+            PieceKind::Invade if i > 0 => return Err(ChainError::InvadeNotFirst),
             PieceKind::Invade => {
-                let summon = pieces[i + 1..].iter().any(|&p| {
+                // the summon must come before the next trigger: an invasion
+                // is cast at the entry, where a payload before a trigger
+                // reaches nothing, so a summon behind one never comes
+                // (SECOND-ORDER R4.21, found by the spell space)
+                let rest = &pieces[i + 1..];
+                let until = rest
+                    .iter()
+                    .position(|&p| matches!(c.file.pieces[p as usize].kind, PieceKind::Trigger { .. }))
+                    .unwrap_or(rest.len());
+                let summon = rest[..until].iter().any(|&p| {
                     matches!(
                         &c.file.pieces[p as usize].kind,
                         PieceKind::Payload {
@@ -290,6 +302,24 @@ mod tests {
         let plain = stats(&c, &ids(&c, &["fire_bolt"]));
         let swift = stats(&c, &ids(&c, &["swift", "fire_bolt"]));
         assert!(swift.cooldown_ms < plain.cooldown_ms);
+    }
+
+    #[test]
+    fn an_invasion_summons_before_any_trigger() {
+        let c = shipped();
+        let r = |n: &[&str]| check(&c, &ids(&c, n));
+        assert_eq!(
+            r(&["invade", "fire_bolt", "on_expire", "skeleton"]),
+            Err(ChainError::InvadeWithoutSummon),
+            "a summon behind a trigger never comes (R4.21)"
+        );
+        assert_eq!(r(&["invade", "skeleton", "on_death", "fire_bolt"]), Ok(()));
+        assert_eq!(r(&["invade", "skeleton"]), Ok(()));
+        assert_eq!(
+            r(&["fire_bolt", "on_expire", "invade", "skeleton"]),
+            Err(ChainError::InvadeNotFirst),
+            "an invasion is a spell that starts with Invade"
+        );
     }
 
     #[test]

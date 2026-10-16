@@ -20,6 +20,7 @@ Every file in this repository that is not code written for it: its source, its a
 | From | What | Licence |
 | --- | --- | --- |
 | Builder (`sgilson7/builder-setting`) and Galactic Survivors | the online kit: `web/net/rtc.js`, `web/net/config.js`, `web/online.js`, `crates/core/tests/online_fence.rs`, `tests/browser/online.py` | MIT, Sam Gilson |
+| Galactic Survivors (`crates/core/tests/rig_space.rs`) | the logbook's structure in `crates/core/tests/spell_space.rs`: row numbering, the shuffle, stale-line keys, the index and summary files, the date and commit stamps | MIT, Sam Gilson |
 | sgilson7/long-time-comin (same author) | `web/gl.js` and `data/shaders/scene.vert` adapted from its renderer; `crates/core/src/mesh.rs` from its `mesh.rs` | MIT |
 | sgilson7/builder-setting kits (same author) | `fx.rs`, `rng.rs`, `ticks.rs`, `draw.rs`, `render2d.js` | MIT |
 

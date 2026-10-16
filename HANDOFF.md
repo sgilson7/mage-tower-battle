@@ -43,6 +43,8 @@ Mage Tower Battle is a browser game for one to four players. Each player is an a
 | `python3 scripts/break_tests.py` | `N of N breaks caught` |
 | `.venv/bin/python tests/browser/online.py chromium firefox webkit` | `ONLINE CHECK PASSED in …` |
 | `.venv/bin/python tests/browser/interactions.py` | a practice day played by keys |
+| `.venv/bin/python tests/browser/contrast.py chromium firefox webkit` | `CONTRAST CHECK PASSED …`: text stands out in the light and dark schemes (T6) |
+| `SPELL_LENGTHS=1,2,3,4 SPELL_BUDGET_S=600 cargo test --release -p tool_core --test spell_space -- --ignored --nocapture logbook` | the spell-space logbook (T4): every spell of up to four pieces played and checked; README in `tests/spell-log/` |
 | `.venv/bin/python tools/shots.py OUTDIR` | screenshots of the running game |
 | `.venv/bin/python tools/probe_wasm.py` | the physics timing (MEASUREMENTS.md) |
 
@@ -54,7 +56,9 @@ Publishing: a push to `main` on GitHub runs `.github/workflows/deploy.yml` (chec
 - A test that needs a workaround is a finding; record it in SECOND-ORDER.md, do not loosen the check.
 - A new behaviour test needs a row in `tests/breaks.json`: write it with `tools/add_breaks.py` from a fragment, since `cargo fmt` rots exact lines (R3.23).
 - An online change must keep the browsers equal: anything a battle reads must come from the seed, the plans or the start message, never from the local seat.
-- R3.28: the bots' win shares miss the plan's one-in-ten target for the spellcrafter and attack mage; judge the plans by playing.
+- R3.28: the bots' win shares miss the plan's one-in-ten target for the spellcrafter and attack mage; judge the plans by playing. Bots now also know Glass Wall from the start (T1), so the old balance numbers are stale.
+- A change to `content.json` or the rule code makes the spell log stale; re-run the logbook and commit `tests/spell-log/`.
+- Round 4 answered TRIAGE T1–T8 (rows R4.1–R4.10 and R4.20–R4.22).
 
 ## Mistakes so far
 
@@ -64,6 +68,8 @@ Publishing: a push to `main` on GitHub runs `.github/workflows/deploy.yml` (chec
 - Reversions to the textbook rule: R2.1 (a tower at zero is out; the person's rule is score only falls) and R3.25 (enemies keep attacking; the plan's rule is one leak strike). Rule: glossary entries and the score test.
 - Untrusted input (R3.38): `spell::check` indexed without a bound. Rule: `online::sane_plan`.
 - A bot aimed by the local seat (R3.37). Rule: the online equality test.
+- Checks that ran in one colour scheme only (R4.4) and drove the map through `act` where the page hid its panel (R4.3). Rule: `tests/browser/contrast.py`; the map test checks the panel's kind.
+- A spell the laboratory accepted that could never work: an invasion whose summon came after a trigger or after a payload (R4.21), found by the spell space.
 
 ## Open for the person
 
@@ -78,13 +84,14 @@ R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
 
-16 October 2026, on the commit that added online play (its parent is a102d7e):
+16 October 2026, round 4 (TRIAGE T1–T8), on the commit that last changed this section:
 
 - `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`.
-- `./scripts/count-tests.sh`: `174 passed, 0 failed, 2 ignored`.
-- `python3 scripts/break_tests.py`: `70 of 70 breaks caught` (three breaks had rotted after `cargo fmt` and were rewritten against the formatted lines, as in R3.23).
-- `tests/browser/online.py`: `ONLINE CHECK PASSED` in chromium, firefox and webkit, run by hand.
-- The live site (build 25fae87): CI's check, deploy and live jobs passed; by hand, two Chromium browsers met by room code over the public relays and started a match.
+- `./scripts/count-tests.sh`: `187 passed, 0 failed, 3 ignored`.
+- `python3 scripts/break_tests.py`: `89 of 89 breaks caught`.
+- `tests/browser/contrast.py`: `CONTRAST CHECK PASSED in chromium, firefox, webkit`; it fails at 1.1:1 with the old chip colour.
+- `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium`.
+- The spell-space logbook, lengths 1–4: 589,309 spells, none broke a rule, 2 notes.
 
 ## The next action
 

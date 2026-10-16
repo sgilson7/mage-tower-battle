@@ -579,5 +579,47 @@
     "find": "        let right = -dx * per_px;",
     "replace": "        let right = dx * per_px;",
     "test": "a_view_stays_above_the_field_and_within_its_limits"
+  },
+  {
+    "name": "an invasion's summon makes no unit",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    let mine = carry.clone().filter(|k| k.on == On::Death);",
+    "replace": "                    if team == Team::Foe { break; } let mine = carry.clone().filter(|k| k.on == On::Death);",
+    "test": "every_chain_of_one_and_two_pieces_keeps_every_rule"
+  },
+  {
+    "name": "a unit starts above its health",
+    "file": "crates/core/src/battle.rs",
+    "find": "            hp_max: hp,",
+    "replace": "            hp_max: hp - 1,",
+    "test": "every_chain_of_one_and_two_pieces_keeps_every_rule"
+  },
+  {
+    "name": "a spell costs no mana",
+    "file": "crates/core/src/spell.rs",
+    "find": "    let mana = (num + den - 1) / den.max(1);",
+    "replace": "    let mana = (num + den - 1) / den.max(1) * 0;",
+    "test": "every_chain_of_one_and_two_pieces_keeps_every_rule"
+  },
+  {
+    "name": "a summon reads past the enemy list",
+    "file": "crates/core/src/battle.rs",
+    "find": "                let kind = c.enemy(enemy).unwrap_or(0) as u16;",
+    "replace": "                let kind = c.enemy(enemy).map(|_| 9999).unwrap_or(0) as u16;",
+    "test": "every_chain_of_one_and_two_pieces_keeps_every_rule"
+  },
+  {
+    "name": "an invasion's summon may follow a trigger",
+    "file": "crates/core/src/spell.rs",
+    "find": "                let summon = rest[..until].iter().any(|&p| {",
+    "replace": "                let summon = rest[..].iter().any(|&p| {",
+    "test": "an_invasion_summons_before_any_trigger"
+  },
+  {
+    "name": "Invade may come after a trigger",
+    "file": "crates/core/src/spell.rs",
+    "find": "            PieceKind::Invade if i > 0 => return Err(ChainError::InvadeNotFirst),",
+    "replace": "            PieceKind::Invade if i > 99 => return Err(ChainError::InvadeNotFirst),",
+    "test": "an_invasion_summons_before_any_trigger"
   }
 ]

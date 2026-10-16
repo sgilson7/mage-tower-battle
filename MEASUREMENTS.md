@@ -48,6 +48,22 @@ Machine: Apple silicon Mac (aarch64-apple-darwin), the person's laptop.
 - Live, by hand: two Chromium browsers on one machine met by room code over the public Nostr relays in `web/net/config.js` and started a match.
 - The WebAssembly module is 1,336,496 bytes (`dist/pkg/tool_shim_bg.wasm`, this build).
 
+## Spell space (TRIAGE T4), 2026-10-16
+
+`crates/core/tests/spell_space.rs`, scene in `support/spell_rules.rs` (README in `tests/spell-log/`). 33 pieces may go in a spell (the 36 less the 3 helpers).
+
+| Length | Rows | Spells the laboratory accepts | Logged |
+| --- | --- | --- | --- |
+| 1 | 33 | 22 | all |
+| 2 | 1,089 | 619 | all |
+| 3 | 35,937 | 18,841 | all |
+| 4 | 1,185,921 | 569,827 | all |
+
+- Everyday test (every row of one and two pieces, each spell played twice): 1,122 rows, 641 spells, 0.21 s in a debug build on this Mac. Of the 481 refused: no payload first 176, modifier at the end 132, trigger at the end 66, place-only piece 66, Invade not first 22, Invade without a summon before a trigger 19.
+- Logbook, release build: lengths 1 to 3 in 3.8 s; length 4 in 101 s (about 5,700 spells a second on all cores). The full local log for lengths 1 to 4 is 186 MB.
+- First run: no spell of up to four pieces broke a rule. 473 were noted: 471 invasions whose summon sits behind a trigger and never came, and 2 (`heavy fire_bolt ring glass_wall`, `heavy fire_bolt ring ivory_wall`) whose bolt dealt no damage in the scene. The most units on the field at once was 36.
+- After R4.21 (Invade goes first, and summons before any trigger), re-run on the same day: 589,309 spells in 97 s, 6,897 rows behaved differently from the first run, none broke a rule, and only the 2 wall-formation notes remain.
+
 ## Not measured
 
 Devices, browsers and conditions no measurement here covers.

@@ -181,10 +181,16 @@ pub fn resample(path: &[P]) -> Vec<P> {
     out
 }
 
+/// How much nearness counts: a line half a band off on average loses this
+/// share, halved, of its score (T26).
+pub const NEAR_WEIGHT: i64 = 40;
+
 /// The score of a drawing, 0 to 100: how much of the drawing lies inside
 /// the band around the guide, times how much of the guide the drawing
-/// passes within the band of. Both matter: a dot on the line covers
-/// nothing, and a scribble over everything is mostly outside.
+/// passes within the band of, times how near to the guide's centre it runs
+/// (T26). All matter: a dot on the line covers nothing, a scribble over
+/// everything is mostly outside, and a steady line at the band's edge is
+/// not a perfect one.
 pub fn score(guide: &[P], drawn: &[P], band: i32) -> i32 {
     if guide.is_empty() || drawn.len() < 2 {
         return 0;
@@ -196,7 +202,22 @@ pub fn score(guide: &[P], drawn: &[P], band: i32) -> i32 {
     let covered = g.iter().filter(|&&p| dist2_to_path(p, drawn) <= b2).count() as i64;
     let precision = inside * 100 / d.len() as i64;
     let coverage = covered * 100 / g.len() as i64;
-    (precision * coverage / 100) as i32
+    let band = (band as i64).max(1);
+    let off: i64 = d
+        .iter()
+        .map(|&p| (crate::geom::isqrt(dist2_to_path(p, guide).max(0) as u64) as i64).min(band))
+        .sum::<i64>()
+        / d.len() as i64;
+    let near = 100 - off * NEAR_WEIGHT / band;
+    (precision * coverage * near / 10_000) as i32
+}
+
+/// Effectiveness from a drawing's score (T26): 5 + 95 × (score ÷ 100)⁴ in
+/// the balance's range, so 90 gives 66 and 95 gives 81. Only a flawless
+/// drawing, 100, reaches the top.
+pub fn effectiveness(score: i32, min: i32, max: i32) -> i32 {
+    let s = score.clamp(0, 100) as i64;
+    (min as i64 + (max - min) as i64 * s * s * s * s / 100_000_000) as i32
 }
 
 /// The band's half-width in glyph units for an audience, from the
@@ -245,11 +266,20 @@ mod tests {
     fn a_drawing_off_by_more_than_the_band_scores_0() {
         let g = vec![(0, 500), (1000, 500)];
         assert_eq!(score(&g, &[(0, 600), (1000, 600)], 50), 0);
-        assert_eq!(
-            score(&g, &[(0, 600), (1000, 600)], 120),
-            100,
-            "inside a wider band"
-        );
+        // inside a wider band, but every point 100 off the centre:
+        // nearness 100 − 100 × 40 / 120 = 67, so 100 × 100 × 67 / 10,000
+        assert_eq!(score(&g, &[(0, 600), (1000, 600)], 120), 67, "inside, off centre");
+    }
+
+    #[test]
+    fn effectiveness_climbs_steeply_and_only_a_flawless_drawing_reaches_the_top() {
+        // 5 + 95 × s⁴ / 10⁸, by hand
+        assert_eq!(effectiveness(100, 5, 100), 100);
+        assert_eq!(effectiveness(95, 5, 100), 82); // 95⁴ = 81,450,625 → 5 + 77
+        assert_eq!(effectiveness(90, 5, 100), 67); // 90⁴ = 65,610,000 → 5 + 62
+        assert_eq!(effectiveness(50, 5, 100), 10); // 50⁴ = 6,250,000 → 5 + 5
+        assert_eq!(effectiveness(0, 5, 100), 5);
+        assert_eq!(effectiveness(99, 5, 100), 96); // 99⁴ = 96,059,601 → 5 + 91
     }
 
     #[test]
@@ -270,8 +300,12 @@ mod tests {
             .filter(|&&p| dist2_to_path(p, &d) <= 2500)
             .count();
         assert_eq!(covered, 23);
-        // 23/53 → 43%, 23/41 → 56%, 43 × 56 / 100 = 24
-        assert_eq!(score(&g, &d, 50), 24);
+        // 23/53 → 43%, 23/41 → 56%. Nearness: the first 21 points are on the
+        // line (0); the drop's 12 are 25, 50 and then capped at the band, 50
+        // (575 in all); the last 20 are 300 off, capped at 50 (1,000). Mean
+        // 1,575 / 53 = 29, so nearness 100 − 29 × 40 / 50 = 77.
+        // 43 × 56 × 77 / 10,000 = 18
+        assert_eq!(score(&g, &d, 50), 18);
     }
 
     #[test]

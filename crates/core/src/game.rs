@@ -35,6 +35,14 @@ pub struct Settings {
     pub ragdoll_cap: i32,
     /// The computer rivals' skill, 30 to 95.
     pub skill: i32,
+    /// Index into `balance.difficulties` (T30); a save from before has none
+    /// and plays at the default.
+    #[serde(default = "normal")]
+    pub difficulty: i32,
+}
+
+fn normal() -> i32 {
+    1
 }
 
 impl Settings {
@@ -47,6 +55,7 @@ impl Settings {
             speed: 1,
             ragdoll_cap: b.ragdoll_cap,
             skill: 65,
+            difficulty: b.default_difficulty,
         }
     }
 }
@@ -208,7 +217,9 @@ impl Match {
         let pool = if fresh.is_empty() { &wild } else { &fresh };
         let main = pool[self.rng.below(pool.len() as u32) as usize];
         self.used_main.push(main);
-        let ramp = (100 + 35 * self.day) * c.balance().wild_pct / 100;
+        let d = c.difficulty(self.settings.difficulty);
+        let ramp = (100 + 35 * self.day) * c.balance().wild_pct / 100 * d.count_pct / 100;
+        let health = d.health_pct;
         let ticks = self.settings.battle_s * TPS;
         let count = |e: u16, base: i32| {
             let hp = c.file.enemies[e as usize].health.max(1);
@@ -218,6 +229,7 @@ impl Match {
         let mut out = vec![Wild {
             enemy: main,
             count: count(main, 6).max(2),
+            strength: health,
             // the main group arrives at once; the others a quarter and half way in
             at_tick: TPS,
         }];
@@ -226,6 +238,7 @@ impl Match {
             out.push(Wild {
                 enemy: e,
                 count: count(e, 3),
+                strength: health,
                 at_tick: ticks * (k + 1) / 4,
             });
         }
@@ -270,15 +283,14 @@ impl Match {
                     .as_ref()
                     .map(|p| p.sent.clone())
                     .unwrap_or_default();
-                for (k, (t, s)) in sent.into_iter().enumerate() {
+                for (k, (_, s)) in sent.into_iter().enumerate() {
                     let chain = self.seats[i]
                         .prep
                         .as_ref()
                         .map(|p| p.spells[s as usize].clone())
                         .unwrap_or_default();
                     let at = ticks * (3 + k as i32) / 10;
-                    self.deliver(
-                        t,
+                    self.deliver_all(
                         Incoming {
                             from: i as u8,
                             chain,
@@ -288,6 +300,15 @@ impl Match {
                         at,
                     );
                 }
+            }
+        }
+    }
+
+    /// An invasion from `inv.from` to every other active seat (T29).
+    fn deliver_all(&mut self, inv: Incoming, visible_at: i32) {
+        for t in 0..self.seats.len() as u8 {
+            if t != inv.from {
+                self.deliver(t, inv.clone(), visible_at);
             }
         }
     }
@@ -338,8 +359,7 @@ impl Match {
             .collect();
         let now = self.prep_tick;
         for (t, chain) in chains {
-            self.deliver(
-                t,
+            self.deliver_all(
                 Incoming {
                     from: l as u8,
                     chain: chain.clone(),
@@ -421,16 +441,12 @@ impl Match {
     }
 
     pub fn begin_battle(&mut self, c: &Content) {
-        // students' invasions, to the leader
+        // students' invasions, to every rival (T29)
         for i in 0..self.seats.len() {
             let inv = match &self.seats[i].prep {
                 Some(p) if self.seats[i].kind != SeatKind::Remote => p.student_invasions(c),
                 _ => self.seats[i].student_invasions.clone(),
             };
-            let target = self.leader(i as u8);
-            if target < 0 {
-                continue;
-            }
             // pooled by spell: one send each, at the class's mean
             // effectiveness, numbers growing with the square root of the
             // class (SECOND-ORDER R3.26)
@@ -453,7 +469,7 @@ impl Match {
                     strength: sum / n,
                     count_pct,
                 };
-                self.deliver(target as u8, inv, at);
+                self.deliver_all(inv, at);
             }
         }
         let ticks = self.settings.battle_s * TPS;
@@ -580,10 +596,9 @@ impl Match {
     // ---- online ----
 
     /// A remote archmage's invasion, cast during today's preparation.
-    pub fn take_invasion(&mut self, c: &Content, from: u8, target: u8, chain: Vec<u16>) {
+    pub fn take_invasion(&mut self, c: &Content, from: u8, _target: u8, chain: Vec<u16>) {
         let at = self.prep_tick;
-        self.deliver(
-            target,
+        self.deliver_all(
             Incoming {
                 from,
                 chain,
@@ -645,8 +660,14 @@ impl Match {
 
     /// A trial: one day, the local archmage at seat 0, a fixed kit.
     pub fn trial(c: &Content, k: u8) -> Match {
+        Match::trial_at(c, k, c.balance().default_difficulty)
+    }
+
+    /// A trial at a chosen difficulty (T30).
+    pub fn trial_at(c: &Content, k: u8, difficulty: i32) -> Match {
         let b = c.balance();
         let mut settings = Settings::from_content(c);
+        settings.difficulty = difficulty;
         settings.days = 1;
         let name = |s: &str| s.to_string();
         let (kinds, prep_s) = match k {
@@ -767,7 +788,7 @@ impl Match {
                             .unwrap_or(0)
                     })
                     .sum();
-                sum / n >= 80
+                sum / n >= c.file.trials[k as usize].target
             }
             _ => false,
         };

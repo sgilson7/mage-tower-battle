@@ -31,3 +31,21 @@ The agent decided:
 - 24 ragdolls per arena to start; the probe pushes the cap up; orbs and effects are drawn with Long Time Comin's instancing methods (R3.3).
 - Sound: square, triangle and noise chip sounds in the style of early NES games, for every sound (R3.4; changes D3's reach to sound bytes from the core).
 - Modes: Practice, Versus AI, Online, and single-player trials with achievements after Ape Race (R3.5). Personal bests and achievements are kept in browser storage, a change to D17 (R3.6).
+
+## 2026-10-16 (round 5 plan approved)
+
+The person's answers to PLAN.md's round 5 questions, word for word:
+
+> 1. yes, rows are branches if that is possible in the game 2. 2:30 for planning, battles unchanged 3. own desk in the room 4. yes 5. yes 6. no, the limit should be per student, not per tower 7. yes 8. yes, make indiciator you have one much smaller but hoverable to see all the description text. also sending an invasion force should send to ALL the others, not just target one person. also, make the waves slightly more difficult by default, and have a difficulty rating you can select per level. then, I want you to analyze ape race, because each map was co-designed by a friend. I want you to write a journal entry about what part of the game my friends can help co-design, at the same level of new content as a map, maybe like new characters / new spell types etc. write up the new tab on co-design with my freinds, then execute the update now, dont stop till its deployed live
+
+The agent decided:
+
+- Round 5 (PLAN.md decisions 20–31) is approved, with these changes. **Grant, this run:** build it, push to `sgilson7/mage-tower-battle` and let CI deploy it to GitHub Pages ("execute the update now, dont stop till its deployed live").
+- The wireframe's far-left red tile is the spell; its rows are branches: a trigger may start two sets, one in each row (R5.5).
+- Preparation 2:30; battles unchanged.
+- Office hours is its own desk in the tower room.
+- Summon limits are per student, not per tower (R5.6).
+- Self spells show as a small icon by the HUD; hovering shows the whole text.
+- An invasion goes to every rival, not one (T29).
+- Wild enemies a little stronger by default, and a difficulty chosen in setup for each match and trial (T30).
+- A journal tab on co-designing content with friends, after Ape Race's maps (T31).

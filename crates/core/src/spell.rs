@@ -206,7 +206,20 @@ pub fn stats(c: &Content, pieces: &[u16]) -> Stats {
     let cd = cooldown.unwrap_or(1000).max(300);
     let num = power * power * b.mana_k as i64;
     let den = cd + b.mana_c as i64;
-    let mana = (num + den - 1) / den.max(1);
+    let mut mana = (num + den - 1) / den.max(1);
+    // a spell that summons your own army costs more (T25); an invasion keeps its price
+    let summons = pieces.iter().any(|&p| {
+        matches!(
+            c.file.pieces[p as usize].kind,
+            PieceKind::Payload {
+                effect: Effect::Summon { .. },
+                ..
+            }
+        )
+    });
+    if summons && !is_invasion(c, pieces) {
+        mana = mana * b.summon_mana_pct as i64 / 100;
+    }
     Stats {
         power: power as i32,
         cooldown_ms: cd as i32,

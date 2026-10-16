@@ -210,7 +210,7 @@ pub fn sane_plan(c: &Content, plan: &Plan, students: &[(Vec<u16>, i32)]) -> bool
                 && (0..=1_000_000).contains(&s.mana_max)
                 && (0..=1_000_000).contains(&s.regen)
         })
-        && plan.placed.len() <= 64
+        && plan.placed.len() <= 1024
         && plan.placed.iter().all(|p| {
             (p.feature as usize) < c.file.features.len()
                 && !p.cells.is_empty()
@@ -567,6 +567,7 @@ mod tests {
             speed: 1,
             ragdoll_cap: 24,
             skill: 60,
+            difficulty: 1,
         }
     }
 

@@ -156,7 +156,7 @@ fn acid_halo_sends_eight_globs_and_each_hit_spills_oil_once() {
         let k = put(&mut b, &c, "ember_imp", p, Team::Foe);
         b.hex(&c, k, Status::Freeze, 600);
     }
-    let cast = b.new_budget(&c);
+    let cast = b.new_budget(&c, 255);
     // cast from just above the target so each glob drops onto its own imp
     let origin = target.add(v3(0, ONE * 3, 0));
     b.run(
@@ -196,7 +196,7 @@ fn a_piercing_bolt_springs_its_trigger_once_not_once_per_hit() {
         let i = put(&mut b, &c, "skeleton", base.add(v3(ONE * 2 * k, 0, 0)), Team::Foe);
         b.hex(&c, i, Status::Freeze, 600);
     }
-    let cast = b.new_budget(&c);
+    let cast = b.new_budget(&c, 255);
     let from = base.add(v3(-(ONE * 3), ONE / 2, 0));
     b.run(
         &c,
@@ -229,7 +229,7 @@ fn one_payload_budget_is_shared_by_a_whole_cast_with_nested_triggers() {
     let chain = ids(&c, &["invade", "ring", "skeleton", "on_death", "ring", "ghost"]);
     let mut b = empty(&c);
     let at = arena::centre(10, 20);
-    let cast = b.new_budget(&c);
+    let cast = b.new_budget(&c, 255);
     b.run(&c, &chain, 0, at, at, 100, Team::Foe, 0, cast, 2);
     // ring of 8 copies, 3 skeletons each: 24; budget 32 − 8 = 24
     assert_eq!(b.units.len(), 24);
@@ -345,11 +345,13 @@ fn a_battle_replays_to_the_same_hash_and_a_different_seed_differs() {
             enemy: c.enemy("bramble_elf").unwrap() as u16,
             count: 30,
             at_tick: 30,
+            strength: 100,
         },
         Wild {
             enemy: c.enemy("hill_giant").unwrap() as u16,
             count: 3,
             at_tick: 600,
+            strength: 100,
         },
     ];
     let run = |seed: u64| {
@@ -363,4 +365,48 @@ fn a_battle_replays_to_the_same_hash_and_a_different_seed_differs() {
     assert_eq!(a, run(7));
     assert_ne!(a.0, run(8).0);
     assert!(a.1 > 10, "students killed {} of the elves", a.1);
+}
+
+#[test]
+fn a_student_keeps_at_most_four_summons_alive_and_each_lasts_twelve_seconds() {
+    let c = shipped();
+    let mut b = empty(&c);
+    let chain = ids(&c, &["skeleton"]);
+    let at = arena::centre(16, 16);
+    let ally = |b: &Battle, who: u8| b.units.iter().filter(|u| u.caster == who && u.hp > 0).count();
+    // a foe that outlasts the test keeps the battle going
+    let far = put(&mut b, &c, "hill_giant", arena::centre(1, 1), Team::Foe);
+    b.units[far].hp = 1_000_000;
+    b.units[far].hp_max = 1_000_000;
+    // skeleton count 3 at ally_summon_pct 67 → 2 a cast; summons_per_student 4
+    for k in 0..3 {
+        let cast = b.new_budget(&c, 0);
+        b.run(&c, &chain, 0, at, at, 100, Team::Ally, 0, cast, 255);
+        assert_eq!(ally(&b, 0), [2, 4, 4][k], "cast {k}");
+    }
+    // another student has their own four
+    let cast = b.new_budget(&c, 1);
+    b.run(&c, &chain, 0, at, at, 100, Team::Ally, 0, cast, 255);
+    assert_eq!(ally(&b, 1), 2);
+    // summon_life_s 12: 720 ticks, then they fade, and no kill is counted
+    for _ in 0..719 {
+        b.step(&c);
+    }
+    assert_eq!(ally(&b, 0), 4);
+    b.step(&c);
+    assert_eq!(ally(&b, 0), 0);
+    assert_eq!(b.tally.kills, 0);
+}
+
+#[test]
+fn an_invasion_keeps_its_numbers() {
+    let c = shipped();
+    let mut b = empty(&c);
+    let chain = ids(&c, &["invade", "skeleton"]);
+    let cast = b.new_budget(&c, 255);
+    let at = arena::centre(1, 30);
+    b.run(&c, &chain, 0, at, at, 100, Team::Foe, 0, cast, 2);
+    // skeleton count 3, no limit for what a rival sends
+    assert_eq!(b.units.iter().filter(|u| u.team == Team::Foe).count(), 3);
+    assert!(b.units.iter().all(|u| u.life == 0));
 }

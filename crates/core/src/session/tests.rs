@@ -590,7 +590,8 @@ fn the_map_panel_does_not_change_while_something_rises() {
     };
     assert!(panel(&s, "rising").is_some(), "the glass wall is rising");
     let before = panel(&s, "layout").unwrap();
-    run(&mut s, 30);
+    // glass rises in 500 ms (30 ticks); look while it is still rising
+    run(&mut s, 20);
     assert_eq!(panel(&s, "layout").unwrap(), before, "the map's buttons stay put");
     assert_ne!(panel(&s, "rising"), None);
 }
@@ -791,4 +792,22 @@ fn the_host_s_lobby_offers_the_room_code_and_a_link_to_copy() {
     };
     assert!(has("page.copy"), "the code");
     assert!(has("page.copy_link"), "the link, which carries the code");
+}
+
+#[test]
+fn each_trial_has_its_own_difficulty_and_keeps_a_best_at_each() {
+    let mut s = session();
+    s.act("screen.show", "trials").unwrap();
+    no_missing(&s.ui());
+    assert!(s.ui().to_string().contains("Difficulty: Normal"));
+    s.act("trial.difficulty", "2").unwrap();
+    assert!(s.ui().to_string().contains("Difficulty: Hard"));
+    s.act("trial.start", "2").unwrap();
+    assert_eq!(s.m.as_ref().unwrap().settings.difficulty, 2);
+    assert_eq!(s.best_key(2, 2), "siege_drill@hard");
+    assert_eq!(s.best_key(2, 1), "siege_drill", "normal keeps the old key");
+    s.act("screen.show", "setup").unwrap();
+    s.act("setup.difficulty", "up").unwrap();
+    assert_eq!(s.settings.difficulty, 2);
+    no_missing(&s.ui());
 }

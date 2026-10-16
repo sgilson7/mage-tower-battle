@@ -50,6 +50,10 @@ pub struct Layout {
     pub hover: Option<(i32, i32)>,
     pub golem: bool,
     just_closed: bool,
+    /// While the pointer is down on the map: whether it rubs out, and the
+    /// last cell it touched (T23).
+    drag: Option<bool>,
+    last: Option<(i32, i32)>,
 }
 
 pub struct Session {
@@ -97,6 +101,8 @@ pub struct Session {
     /// What's new (T12): each update's notes, newest first.
     news: News,
     all_news: bool,
+    /// The difficulty chosen for each trial (T30).
+    trial_diff: Vec<i32>,
     /// The card for the book just read, and the ticks it stays (T10).
     pub card: Option<(Value, i32)>,
     /// Each battle view's own camera (T5), and the drag moving one.
@@ -253,6 +259,7 @@ impl Session {
             demo: None,
             demos: 0,
             card: None,
+            trial_diff: Vec::new(),
             cams: [scene::Orbit::start(false); 4],
             drag: None,
             build,
@@ -261,6 +268,7 @@ impl Session {
             desync_told: false,
         };
         session.online_name = session.s.t("online.default_name");
+        session.trial_diff = vec![session.c.balance().default_difficulty; session.c.file.trials.len()];
         if broken {
             session.toast(session.s.t("save.broken"));
         }
@@ -335,6 +343,21 @@ impl Session {
                     self.m = None;
                 }
             }
+            "setup.difficulty" => {
+                let n = self.c.balance().difficulties.len() as i32;
+                let d = self.settings.difficulty + if value == "up" { 1 } else { -1 };
+                self.settings.difficulty = d.clamp(0, n - 1);
+                self.save.settings = Some(self.settings.clone());
+                self.save_dirty = true;
+            }
+            "trial.difficulty" => {
+                let k: usize = value.parse().map_err(|_| self.err("error.bad"))?;
+                let n = self.c.balance().difficulties.len() as i32;
+                if k >= self.trial_diff.len() {
+                    return Err(self.err("error.bad"));
+                }
+                self.trial_diff[k] = (self.trial_diff[k] + 1) % n;
+            }
             "setup.days" | "setup.prep" | "setup.battle" | "setup.speed" | "setup.cap" | "setup.skill" => {
                 let up = value == "up";
                 let st = &mut self.settings;
@@ -369,7 +392,12 @@ impl Session {
                 if k as usize >= self.c.file.trials.len() {
                     return Err(self.err("error.bad"));
                 }
-                self.m = Some(Match::trial(&self.c, k));
+                let d = self
+                    .trial_diff
+                    .get(k as usize)
+                    .copied()
+                    .unwrap_or(self.c.balance().default_difficulty);
+                self.m = Some(Match::trial_at(&self.c, k, d));
                 self.begin_play();
             }
             // kept as typed (a name may end in a space while it is typed);
@@ -581,7 +609,7 @@ impl Session {
 
     fn pointer(&mut self, name: &str, value: &str) -> Result<(), String> {
         let n = strings::ints(value);
-        if n.len() != 4 {
+        if n.len() < 4 {
             return Err(self.err("draw.bad"));
         }
         let drawing = self
@@ -610,17 +638,45 @@ impl Session {
         if self.layout.open {
             let (lx, ly) = overlay::logical(n[0], n[1], n[2], n[3]);
             self.layout.hover = overlay::map_cell(lx, ly);
-            if name == "pointer.down" {
-                if let (Some((x, z)), Some(f)) = (self.layout.hover, self.layout.feature) {
-                    let id = self.c.file.features[f].id.clone();
-                    let v = format!("{id},{x},{z},{}", if self.layout.along_z { 1 } else { 0 });
-                    let act = if self.layout.golem {
-                        "layout.golem"
-                    } else {
-                        "layout.place"
-                    };
-                    self.forward(act, &v)?;
+            // drag to lay a cell at a time; a right button rubs out (T23).
+            // value's fifth number is the pointer's buttons, when sent.
+            match name {
+                "pointer.down" => {
+                    let erase = n.get(4).map(|b| b & 2 != 0).unwrap_or(false);
+                    self.layout.drag = Some(erase);
+                    self.layout.last = None;
+                }
+                "pointer.up" => {
+                    self.layout.drag = None;
+                    self.layout.last = None;
+                    return Ok(());
+                }
+                _ => {}
+            }
+            let (Some(erase), Some((x, z))) = (self.layout.drag, self.layout.hover) else {
+                return Ok(());
+            };
+            if self.layout.last == Some((x, z)) {
+                return Ok(());
+            }
+            self.layout.last = Some((x, z));
+            if erase {
+                self.forward("layout.erase", &format!("{x},{z}"))?;
+                return Ok(());
+            }
+            if let Some(f) = self.layout.feature {
+                let id = self.c.file.features[f].id.clone();
+                let v = format!("{id},{x},{z},{}", if self.layout.along_z { 1 } else { 0 });
+                let act = if self.layout.golem {
+                    "layout.golem"
+                } else {
+                    "layout.place"
+                };
+                // along a drag a refused cell is skipped, not an error
+                if self.forward(act, &v).is_ok() {
                     self.play("place");
+                } else if name == "pointer.down" {
+                    self.forward(act, &v)?;
                 }
             }
         }
@@ -1178,7 +1234,7 @@ impl Session {
         let Some(m) = self.m.as_ref() else { return };
         if let Mode::Trial(k) = m.mode {
             let value = m.trial_done.unwrap_or(0);
-            let id = self.c.file.trials[k as usize].id.clone();
+            let id = self.best_key(k as usize, m.settings.difficulty);
             let before = self.save.bests.get(&id).copied();
             let new_best = game::better(&self.c, k as usize, value, before);
             if new_best {
@@ -1498,16 +1554,7 @@ impl Session {
                 let a = p.field(&self.c);
                 let ghost = match (self.layout.hover, self.layout.feature) {
                     (Some((x, z)), Some(f)) => {
-                        let n = self.c.file.features[f].length.max(1);
-                        let cells = (0..n)
-                            .map(|k| {
-                                if self.layout.along_z {
-                                    (x, z + k)
-                                } else {
-                                    (x + k, z)
-                                }
-                            })
-                            .collect();
+                        let cells = vec![(x, z)];
                         let placed = crate::battle::Placed {
                             feature: f as u16,
                             cells,
@@ -1632,6 +1679,11 @@ impl Session {
             setting("setup.speed", "setup.speed", format!("{}×", st.speed)),
             setting("setup.cap", "setup.cap", st.ragdoll_cap.to_string()),
             setting("setup.skill", "setup.skill", st.skill.to_string()),
+            setting(
+                "setup.difficulty",
+                "setup.difficulty",
+                s.t(&format!("difficulty.{}", self.c.difficulty(st.difficulty).id)),
+            ),
         ];
         let rivals: Vec<Value> = (0..3)
             .map(|i| json!({"label": s.f("setup.rival", &[("n", (i + 1).to_string())]), "detail": s.t(self.rivals[i].key()), "actions": [act_json("setup.rival", &i.to_string(), s.t("setup.change"), true)]}))
@@ -1751,12 +1803,28 @@ impl Session {
         self.base("news", s.t("news.heading"), vec![p])
     }
 
+    /// Where a trial's best at a difficulty is kept: the trial's id at the
+    /// default difficulty (as saves before T30 kept it), else id@difficulty.
+    fn best_key(&self, k: usize, difficulty: i32) -> String {
+        let id = &self.c.file.trials[k].id;
+        if difficulty == self.c.balance().default_difficulty {
+            id.clone()
+        } else {
+            format!("{id}@{}", self.c.difficulty(difficulty).id)
+        }
+    }
+
     fn ui_trials(&self) -> Value {
         let s = &self.s;
         let medals = ["medal.bronze", "medal.silver", "medal.gold", "medal.archmage"];
         let mut panels = Vec::new();
         for (k, t) in self.c.file.trials.iter().enumerate() {
-            let best = self.save.bests.get(&t.id).copied();
+            let d = self
+                .trial_diff
+                .get(k)
+                .copied()
+                .unwrap_or(self.c.balance().default_difficulty);
+            let best = self.save.bests.get(&self.best_key(k, d)).copied();
             let earned = best.map(|v| game::medal(&self.c, k, v)).unwrap_or(0);
             let unit = |v: i32| {
                 if t.measure == "time" {
@@ -1779,7 +1847,7 @@ impl Session {
                 Some(v) => s.f("trial.best", &[("value", unit(v))]),
                 None => s.t("trial.no_best"),
             };
-            panels.push(json!({"id": format!("trial-{k}"), "kind": "card", "heading": t.name, "text": format!("{} {}", t.text, best_text), "rows": rows, "actions": [act_json("trial.start", &k.to_string(), s.t("trial.start"), true)]}));
+            panels.push(json!({"id": format!("trial-{k}"), "kind": "card", "heading": t.name, "text": format!("{} {}", t.text, best_text), "rows": rows, "actions": [act_json("trial.start", &k.to_string(), s.t("trial.start"), true), act_json("trial.difficulty", &k.to_string(), s.f("trial.difficulty", &[("name", s.t(&format!("difficulty.{}", self.c.difficulty(d).id)))]), true)]}));
         }
         panels.push(json!({"id": "trials-back", "kind": "bottom", "actions": [act_json("screen.show", "title", s.t("back"), true)]}));
         self.base("trials", s.t("title.trials"), panels)
@@ -1815,7 +1883,7 @@ impl Session {
                     .file
                     .features
                     .iter()
-                    .map(|f| f.raise_s)
+                    .map(|f| f.raise_ms / 1000)
                     .max()
                     .unwrap_or(0)
                     .to_string(),
@@ -1942,7 +2010,7 @@ impl Session {
                     let f = &c.file.features[f];
                     lines.push(s.f(
                         "gloss.raises",
-                        &[("mana", f.mana.to_string()), ("s", f.raise_s.to_string())],
+                        &[("mana", f.mana.to_string()), ("s", strings::seconds(f.raise_ms))],
                     ));
                 }
                 None => {
@@ -2118,17 +2186,23 @@ impl Session {
             panels.push(self.ui_layout(p));
             // what is rising changes every second, so it has a panel of its
             // own and the map's buttons stay put (T9)
-            let rising: Vec<Value> = p
-                .jobs
-                .iter()
-                .filter_map(|j| match &j.work {
-                    prep::Work::Raise(pl) | prep::Work::Build(pl) => {
-                        let left_s = (j.left + TPS - 1) / TPS;
-                        let total_s = ((j.total + TPS - 1) / TPS).max(1);
-                        Some(json!({"label": s.f("map.rising", &[("name", self.c.file.features[pl.feature as usize].name.clone()), ("s", left_s.to_string())]), "bar": strings::css_pct((total_s - left_s) * 1000 / total_s)}))
+            // rising cells by feature: how many, and the seconds until the last stands
+            let mut groups: Vec<(u16, i32, i32)> = Vec::new();
+            for j in &p.jobs {
+                if let prep::Work::Raise(pl) | prep::Work::Build(pl) = &j.work {
+                    let left_s = (j.left + TPS - 1) / TPS;
+                    match groups.iter_mut().find(|g| g.0 == pl.feature) {
+                        Some(g) => {
+                            g.1 += 1;
+                            g.2 = g.2.max(left_s);
+                        }
+                        None => groups.push((pl.feature, 1, left_s)),
                     }
-                    _ => None,
-                })
+                }
+            }
+            let rising: Vec<Value> = groups
+                .iter()
+                .map(|&(f, n, left)| json!({"label": s.f("map.rising_cells", &[("n", n.to_string()), ("name", self.c.file.features[f as usize].name.clone()), ("s", left.to_string())])}))
                 .collect();
             if !rising.is_empty() {
                 panels.push(
@@ -2381,24 +2455,29 @@ impl Session {
                 }
                 rows.push(row(s.t("book.students_heading"), s.t("book.students_hidden")));
                 let mut actions = Vec::new();
+                // an invasion goes to every rival at once (T29)
+                let rivals = m
+                    .seats
+                    .iter()
+                    .enumerate()
+                    .filter(|(t, seat)| *t != m.local as usize && seat.active())
+                    .count();
                 for (k, ch) in p.spells.iter().enumerate() {
-                    if !spell::is_invasion(c, ch) {
+                    if !spell::is_invasion(c, ch) || rivals == 0 {
                         continue;
                     }
-                    for (t, seat) in m.seats.iter().enumerate() {
-                        if t == m.local as usize || !seat.active() {
-                            continue;
-                        }
-                        actions.push(act_json(
-                            "book.cast",
-                            &format!("{k},{t}"),
-                            s.f(
-                                "book.cast",
-                                &[("spell", spell::name(c, ch)), ("who", seat.name.clone())],
-                            ),
-                            true,
-                        ));
-                    }
+                    let cost = spell::stats(c, ch).mana * c.balance().invasion_mana_pct / 100;
+                    let mut a = act_json(
+                        "book.cast",
+                        &k.to_string(),
+                        s.f(
+                            "book.cast_all",
+                            &[("spell", spell::name(c, ch)), ("n", rivals.to_string())],
+                        ),
+                        true,
+                    );
+                    a["mana"] = mana(s, cost);
+                    actions.push(a);
                 }
                 json!({"id": "station", "kind": "side", "heading": s.t("station.book"), "text": s.t("book.text"), "rows": rows, "actions": actions})
             }
@@ -2415,7 +2494,7 @@ impl Session {
             .into_iter()
             .map(|f| {
                 let ft = &self.c.file.features[f];
-                let detail = if self.layout.golem { s.f("map.golem_cost", &[("s", ft.golem_s.to_string())]) } else { s.f("map.mana_cost", &[("mana", ft.mana.to_string()), ("s", ft.raise_s.to_string())]) };
+                let detail = if self.layout.golem { s.f("map.golem_cost", &[("s", ft.golem_s.to_string())]) } else { s.f("map.mana_cost", &[("mana", ft.mana.to_string()), ("s", strings::seconds(ft.raise_ms))]) };
                 let cost = (!self.layout.golem).then(|| mana(s, ft.mana));
                 json!({"label": ft.name, "detail": detail, "mana": cost, "chip": if self.layout.feature == Some(f) { s.t("map.selected") } else { String::new() }, "actions": [act_json("layout.feature", &ft.id, s.t("map.pick"), true)]})
             })
@@ -2425,23 +2504,21 @@ impl Session {
         } else {
             s.t("map.how")
         };
-        let placed: Vec<Value> = p
-            .placed
-            .iter()
-            .enumerate()
-            .map(|(k, pl)| {
-                act_json(
-                    "layout.remove",
-                    &k.to_string(),
-                    s.f(
-                        "map.remove",
-                        &[("name", self.c.file.features[pl.feature as usize].name.clone())],
-                    ),
-                    true,
-                )
-            })
-            .collect();
-        json!({"id": "layout", "kind": "map", "heading": s.t("station.map"), "text": text, "rows": rows, "saved_actions": placed, "actions": [act_json("layout.turn", "", s.t("map.turn"), true), act_json("layout.mode", if self.layout.golem { "mana" } else { "golem" }, s.t(if self.layout.golem { "map.use_mana" } else { "map.use_golem" }), true), act_json("layout.close", "", s.t("map.close"), true)]})
+        // the route's length, against the bare field's (T23)
+        let route = p.field(&self.c).route().len();
+        let bare = crate::battle::field(p.field_seed).route().len();
+        let text = format!(
+            "{text} {}",
+            s.f(
+                "map.route",
+                &[("n", route.to_string()), ("was", bare.to_string())]
+            )
+        );
+        let placed = vec![
+            act_json("layout.undo", "", s.t("map.undo"), !p.laid.is_empty()),
+            act_json("layout.clear", "", s.t("map.clear"), !p.laid.is_empty()),
+        ];
+        json!({"id": "layout", "kind": "map", "heading": s.t("station.map"), "text": text, "rows": rows, "saved_actions": placed, "actions": [act_json("layout.mode", if self.layout.golem { "mana" } else { "golem" }, s.t(if self.layout.golem { "map.use_mana" } else { "map.use_golem" }), true), act_json("layout.close", "", s.t("map.close"), true)]})
     }
 
     fn ui_battle(&self, m: &Match) -> Value {

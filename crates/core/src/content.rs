@@ -195,8 +195,9 @@ pub struct Feature {
     pub mana: i32,
     /// Seconds a builder golem takes instead, or 0 if golems cannot build it.
     pub golem_s: i32,
-    /// Seconds it takes to rise once the archmage places it with mana (T1).
-    pub raise_s: i32,
+    /// Milliseconds a cell takes to rise once the archmage places it with
+    /// mana (T1, T23); `mana` is per cell too.
+    pub raise_ms: i32,
     /// How long it stands when a student casts it in a battle, ms; 0 if
     /// only the archmage can place it.
     pub cast_life: i32,
@@ -231,6 +232,13 @@ pub struct Balance {
     pub score_start: i32,
     /// The pieces a new archmage knows before reading a book (T1).
     pub start_pieces: Vec<String>,
+    /// Your own summons (T25): percent of a summon's count, at most this
+    /// many alive for each student, each lasting this long; and percent of
+    /// a summoning spell's mana.
+    pub ally_summon_pct: i32,
+    pub summons_per_student: i32,
+    pub summon_life_s: i32,
+    pub summon_mana_pct: i32,
     /// Seconds a book's card stays on screen (T10).
     pub card_s: i32,
     /// Seconds the title's camera takes to circle its battle once (T11).
@@ -283,6 +291,10 @@ pub struct Balance {
     pub archmage_count_pct: i32,
     /// Percent of the wild enemies' base numbers.
     pub wild_pct: i32,
+    /// The difficulties a match or a trial may be played at (T30): each
+    /// scales the wild enemies' numbers (on top of `wild_pct`) and health.
+    pub difficulties: Vec<Difficulty>,
+    pub default_difficulty: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -310,6 +322,14 @@ pub struct ContentFile {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct Difficulty {
+    pub id: String,
+    pub count_pct: i32,
+    pub health_pct: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Trial {
     pub id: String,
     pub name: String,
@@ -319,6 +339,9 @@ pub struct Trial {
     pub measure: String,
     /// Bronze, Silver, Gold and Archmage, in the measure's units.
     pub medals: [i32; 4],
+    /// A trial's own goal where it has one: the crash course's class average.
+    #[serde(default)]
+    pub target: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -539,6 +562,14 @@ impl Content {
             .map(|p| p as u16)
             .collect()
     }
+    /// A difficulty by index, the default one when out of range.
+    pub fn difficulty(&self, i: i32) -> &Difficulty {
+        let d = &self.balance().difficulties;
+        d.get(i.max(0) as usize)
+            .or_else(|| d.get(self.balance().default_difficulty as usize))
+            .unwrap_or(&d[0])
+    }
+
     pub fn balance(&self) -> &Balance {
         &self.file.balance
     }

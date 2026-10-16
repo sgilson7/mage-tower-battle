@@ -73,6 +73,7 @@ pub fn crowd(c: &Content) -> Vec<Wild> {
             enemy: e as u16,
             count: 4,
             at_tick: 1 + k as i32 * 4,
+            strength: 100,
         })
         .collect()
 }

@@ -25,6 +25,8 @@ pub const REACH: Fx = ONE * 3;
 pub const PROP: Fx = ONE * 13 / 10;
 pub const BODY: Fx = ONE * 2 / 5;
 pub const MAX_SPELLS: usize = 12;
+/// The target an invasion is sent at: every rival (T29).
+pub const EVERY_RIVAL: u8 = 255;
 
 /// Input bits from `web/input.js`, by the actions in `data/controls.json`.
 pub const UP: u32 = 1;
@@ -184,6 +186,10 @@ pub struct Note {
 
 #[derive(Debug, Clone)]
 pub struct Prep {
+    /// The keys held last tick, to find the ones pressed this tick.
+    pub held: u32,
+    /// Cells laid on the map today, in order, for undo (T23).
+    pub laid: Vec<(i32, i32)>,
     pub seat: u8,
     pub pos: V3,
     pub prev: V3,
@@ -257,6 +263,8 @@ impl Prep {
             pile.swap(i, j);
         }
         let mut p = Prep {
+            held: 0,
+            laid: Vec::new(),
             seat,
             pos: v3(0, 0, 3 * ONE),
             prev: v3(0, 0, 3 * ONE),
@@ -377,6 +385,10 @@ impl Prep {
     }
 
     pub fn step(&mut self, c: &Content, bits: u32) {
+        // keys that went down this tick: a note or a use counts once a press,
+        // however long the key is held (T19, SECOND-ORDER R5.1)
+        let down = bits & !self.held;
+        self.held = bits;
         if self.clock > 0 {
             self.clock -= 1;
         }
@@ -394,7 +406,7 @@ impl Prep {
             Activity::Interview { lane, one, by_helper } => {
                 lane.step();
                 for (k, bit) in NOTE.iter().enumerate() {
-                    if bits & bit != 0 {
+                    if down & bit != 0 {
                         lane.press(k as u8);
                     }
                 }
@@ -458,7 +470,7 @@ impl Prep {
                 }
             }
         }
-        if bits & USE != 0 {
+        if down & USE != 0 {
             let _ = self.primary(c);
         }
     }
@@ -543,7 +555,16 @@ impl Prep {
                 continue;
             }
             let roll = self.rng.between(-s.variance, s.variance);
-            let eff = (score + s.mods[school] + roll).clamp(b.effect_min_pct, b.effect_max_pct);
+            // the drawing's score through a steep curve (T26); the school
+            // and the roll move it a little, and only a flawless drawing
+            // reaches the top
+            let base = glyph::effectiveness(score, b.effect_min_pct, b.effect_max_pct);
+            let top = if score >= 100 {
+                b.effect_max_pct
+            } else {
+                b.effect_max_pct - 1
+            };
+            let eff = (base + s.mods[school] + roll).clamp(b.effect_min_pct, top);
             match s.known.iter_mut().find(|k| k.0 == spell) {
                 Some(k) => k.1 = k.1.max(eff),
                 None => s.known.push((spell, eff)),
@@ -600,6 +621,28 @@ impl Prep {
                 }
             }
         }
+    }
+
+    /// Takes away what stands or rises in a cell, giving its mana back.
+    fn erase(&mut self, c: &Content, cell: (i32, i32)) {
+        let before = self.jobs.len();
+        let mut refund = 0;
+        self.jobs.retain(|j| match &j.work {
+            Work::Raise(p) if p.cells.contains(&cell) => {
+                refund += c.file.features[p.feature as usize].mana;
+                false
+            }
+            _ => true,
+        });
+        if self.jobs.len() == before {
+            if let Some(i) = self.placed.iter().position(|p| p.cells.contains(&cell)) {
+                refund += c.file.features[self.placed[i].feature as usize].mana;
+                self.placed.remove(i);
+            }
+        }
+        self.laid.retain(|&l| l != cell);
+        let cap = c.balance().archmage_mana * 100;
+        self.mana = (self.mana + refund * 100).min(cap);
     }
 
     /// Walls and towers placed with mana that have not risen yet.
@@ -677,14 +720,10 @@ impl Prep {
         }
         let x: i32 = parts[1].parse().map_err(|_| "layout.bad")?;
         let z: i32 = parts[2].parse().map_err(|_| "layout.bad")?;
-        let along_z = parts[3] == "1";
-        let n = c.file.features[f].length.max(1);
-        let cells = (0..n)
-            .map(|k| if along_z { (x, z + k) } else { (x + k, z) })
-            .collect();
+        // one cell at a time: a wall is laid by dragging along it (T23)
         Ok(Placed {
             feature: f as u16,
-            cells,
+            cells: vec![(x, z)],
         })
     }
 
@@ -870,7 +909,7 @@ impl Prep {
                     return Err("draw.none");
                 };
                 let n = crate::strings::ints(value);
-                if n.len() != 4 || n[2] <= 0 || n[3] <= 0 {
+                if n.len() < 4 || n[2] <= 0 || n[3] <= 0 {
                     return Err("draw.bad");
                 }
                 let (ox, oy) = draw_origin(*glyphs);
@@ -916,7 +955,8 @@ impl Prep {
                 self.can_place(c, &p)?;
                 let f = &c.file.features[p.feature as usize];
                 self.spend(f.mana)?;
-                let total = content::ticks(f.raise_s.max(0) * 1000).max(1);
+                self.laid.push(p.cells[0]);
+                let total = content::ticks(f.raise_ms.max(0)).max(1);
                 let golem = c.helper("builder_golem").unwrap_or(0) as u16;
                 self.jobs.push(Job {
                     helper: golem,
@@ -954,13 +994,37 @@ impl Prep {
                     self.placed.remove(i);
                 }
             }
+            "layout.erase" => {
+                // value "x,z": rubs out what stands or rises in that cell, and
+                // gives its mana back (T23)
+                self.at(Station::Map)?;
+                let n = crate::strings::ints(value);
+                if n.len() != 2 {
+                    return Err("layout.bad");
+                }
+                self.erase(c, (n[0], n[1]));
+            }
+            "layout.clear" => {
+                self.at(Station::Map)?;
+                for cell in std::mem::take(&mut self.laid) {
+                    self.erase(c, cell);
+                }
+            }
+            "layout.undo" => {
+                self.at(Station::Map)?;
+                if let Some(cell) = self.laid.pop() {
+                    self.erase(c, cell);
+                }
+            }
             "book.cast" => {
-                // value: "spell,target"
+                // value: the spell; an invasion goes to every rival (T29)
                 self.at(Station::Book)?;
-                let n: Vec<u16> = value.split(',').filter_map(|s| s.parse().ok()).collect();
-                if n.len() != 2 || n[1] as u8 == self.seat || n[1] > 3 {
+                let mut n: Vec<u16> = value.split(',').filter_map(|s| s.parse().ok()).collect();
+                if n.is_empty() || n.len() > 2 {
                     return Err("book.bad");
                 }
+                n.truncate(1);
+                n.push(EVERY_RIVAL as u16);
                 let chain = self.spells.get(n[0] as usize).ok_or("book.bad")?;
                 if !spell::is_invasion(c, chain) {
                     return Err("book.not_invasion");

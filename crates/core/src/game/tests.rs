@@ -212,3 +212,51 @@ fn invasions_reach_a_battle_in_sender_order_whatever_order_they_arrived_in() {
     assert_eq!(froms([2, 1]), vec![1, 2]);
     assert_eq!(froms([1, 2]), vec![1, 2]);
 }
+
+#[test]
+fn an_archmage_s_invasion_reaches_every_rival() {
+    let c = shipped();
+    let mut m = versus(&c);
+    let parade: Vec<u16> = ["invade", "skeleton"]
+        .iter()
+        .map(|n| c.piece(n).unwrap() as u16)
+        .collect();
+    let p = m.local_prep_mut().unwrap();
+    p.spells.push(parade.clone());
+    let k = p.spells.len() - 1;
+    p.sent.push((crate::prep::EVERY_RIVAL, k as u16));
+    m.step(&c, 0);
+    for seat in 1..4 {
+        assert!(
+            m.seats[seat]
+                .incoming
+                .iter()
+                .any(|(i, _)| i.from == 0 && i.chain == parade),
+            "seat {seat} receives it"
+        );
+    }
+    assert!(
+        m.seats[0].incoming.iter().all(|(i, _)| i.from != 0),
+        "not yourself"
+    );
+}
+
+#[test]
+fn a_harder_difficulty_brings_more_and_tougher_wild_enemies() {
+    let c = shipped();
+    let at = |d: i32| {
+        let mut s = quick(&c);
+        s.difficulty = d;
+        let kinds = [SeatKind::Local, SeatKind::Empty, SeatKind::Empty, SeatKind::Empty];
+        let m = Match::new(&c, 42, Mode::Practice, s, kinds, Default::default(), 0);
+        (m.wild.iter().map(|w| w.count).sum::<i32>(), m.wild[0].strength)
+    };
+    let (easy, normal, brutal) = (at(0), at(1), at(3));
+    assert!(
+        easy.0 < normal.0 && normal.0 < brutal.0,
+        "{easy:?} {normal:?} {brutal:?}"
+    );
+    // health_pct from content.json: easy 85, normal 110, brutal 160
+    assert_eq!((easy.1, normal.1, brutal.1), (85, 110, 160));
+    assert_eq!(Settings::from_content(&c).difficulty, 1, "normal by default");
+}

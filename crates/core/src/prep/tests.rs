@@ -233,11 +233,15 @@ fn the_invasion_book_casts_only_invasions_at_a_rival_for_mana() {
         .collect();
     p.spells.push(parade.clone());
     go(&mut p, Station::Book);
-    assert_eq!(p.act(&c, "book.cast", "0,1"), Err("book.not_invasion"));
-    assert_eq!(p.act(&c, "book.cast", "1,0"), Err("book.bad"), "not at yourself");
+    assert_eq!(p.act(&c, "book.cast", "0"), Err("book.not_invasion"));
+    assert_eq!(p.act(&c, "book.cast", ""), Err("book.bad"));
     let before = p.mana;
-    p.act(&c, "book.cast", "1,2").unwrap();
-    assert_eq!(p.sent, vec![(2, 1)]);
+    p.act(&c, "book.cast", "1").unwrap();
+    assert_eq!(
+        p.sent,
+        vec![(crate::prep::EVERY_RIVAL, 1)],
+        "at every rival (T29)"
+    );
     // invasion_mana_pct 150: one and a half times the spell's mana, rounded down
     assert_eq!(before - p.mana, spell::stats(&c, &parade).mana * 150 / 100 * 100);
 }
@@ -256,23 +260,23 @@ fn a_wall_needs_its_spell_and_mana_and_may_not_close_the_route() {
     let before = p.mana;
     // a new archmage already knows glass walls (T1)
     p.act(&c, "layout.place", "glass_wall,10,20,0").unwrap();
-    // glass wall: 20 mana at once, 3 cells along x
-    assert_eq!(before - p.mana, 2000);
+    // glass wall: 2 mana a cell, at once, one cell (T23)
+    assert_eq!(before - p.mana, 200);
     assert!(p.placed.is_empty(), "it has not risen yet");
     assert_eq!(
-        p.act(&c, "layout.place", "glass_wall,11,20,0"),
+        p.act(&c, "layout.place", "glass_wall,10,20,0"),
         Err("layout.taken"),
-        "a rising wall holds its cells"
+        "a rising wall holds its cell"
     );
     p.finish_raises(&c);
-    assert_eq!(p.placed[0].cells, vec![(10, 20), (11, 20), (12, 20)]);
+    assert_eq!(p.placed[0].cells, vec![(10, 20)]);
     assert_eq!(
-        p.act(&c, "layout.place", "glass_wall,11,20,0"),
+        p.act(&c, "layout.place", "ivory_wall,10,20,0"),
         Err("layout.taken")
     );
-    // a row of ivory walls across the field must leave a gap
+    // a row of ivory wall cells across the field must leave a gap
     let mut err = Ok(());
-    for x in (0..arena::SIZE).step_by(3) {
+    for x in 0..arena::SIZE {
         p.mana = 100_000;
         err = p.act(&c, "layout.place", &format!("ivory_wall,{x},8,0"));
         if err.is_err() {
@@ -299,9 +303,9 @@ fn a_wall_placed_with_mana_rises_after_its_delay_and_not_before() {
     let mut p = prep(&c);
     go(&mut p, Station::Map);
     p.act(&c, "layout.place", "sub_tower,10,20,0").unwrap();
-    // sub_tower raise_s 60: 3600 ticks, and the archmage may walk away
+    // sub_tower raise_ms 10,000: 600 ticks, and the archmage may walk away
     go(&mut p, Station::Library);
-    for _ in 0..3599 {
+    for _ in 0..599 {
         p.step(&c, 0);
     }
     assert!(p.placed.is_empty());
@@ -388,11 +392,66 @@ fn a_rising_pool_holds_its_cells() {
     go(&mut p, Station::Map);
     p.act(&c, "layout.place", "lava_pool,10,20,0").unwrap();
     assert_eq!(
-        p.act(&c, "layout.place", "lava_pool,11,20,0"),
+        p.act(&c, "layout.place", "lava_pool,10,20,0"),
         Err("layout.taken")
     );
     assert_eq!(
-        p.act(&c, "layout.place", "glass_wall,9,20,0"),
+        p.act(&c, "layout.place", "glass_wall,10,20,0"),
         Err("layout.taken")
     );
+}
+
+#[test]
+fn an_interview_played_with_held_keys_hires_the_applicant() {
+    // a person's tap holds a key for about six ticks; each note key starts
+    // down two ticks before its note and stays down six (T19)
+    let c = shipped();
+    let mut p = prep(&c);
+    go(&mut p, Station::Recruit);
+    let before = p.students.len();
+    p.act(&c, "recruit.one", "0").unwrap();
+    let mut guard = 0;
+    while matches!(p.activity, Activity::Interview { .. }) && guard < 10_000 {
+        let mut bits = 0;
+        if let Activity::Interview { lane, .. } = &p.activity {
+            for n in &lane.notes {
+                let d = lane.tick + 1 - n.at;
+                if (-2..4).contains(&d) {
+                    bits |= crate::prep::NOTE[n.lane as usize];
+                }
+            }
+        }
+        p.step(&c, bits);
+        guard += 1;
+    }
+    assert_eq!(p.students.len(), before + 1, "held keys still hire");
+}
+
+#[test]
+fn a_cell_rubbed_out_or_undone_gives_its_mana_back() {
+    let c = shipped();
+    let mut p = prep(&c);
+    go(&mut p, Station::Map);
+    let full = p.mana;
+    for x in 5..9 {
+        p.act(&c, "layout.place", &format!("glass_wall,{x},20,0"))
+            .unwrap();
+    }
+    // four glass cells at 2 mana each
+    assert_eq!(full - p.mana, 800);
+    p.act(&c, "layout.erase", "6,20").unwrap();
+    assert_eq!(full - p.mana, 600, "a rising cell rubbed out");
+    p.finish_raises(&c);
+    assert_eq!(p.placed.len(), 3);
+    p.act(&c, "layout.erase", "5,20").unwrap();
+    assert_eq!(p.placed.len(), 2, "a standing cell rubbed out");
+    p.act(&c, "layout.undo", "").unwrap();
+    assert_eq!(
+        p.placed.iter().map(|q| q.cells[0]).collect::<Vec<_>>(),
+        vec![(7, 20)],
+        "undo takes the last laid"
+    );
+    p.act(&c, "layout.clear", "").unwrap();
+    assert!(p.placed.is_empty());
+    assert_eq!(p.mana, full, "every cell's mana is back");
 }

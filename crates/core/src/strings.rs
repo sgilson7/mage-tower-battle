@@ -67,6 +67,15 @@ pub fn clock(ticks: i32) -> String {
     format!("{}:{:02}", s / 60, s % 60)
 }
 
+/// Milliseconds as seconds for reading: 10000 → "10", 500 → "0.5".
+pub fn seconds(ms: i32) -> String {
+    if ms % 1000 == 0 {
+        (ms / 1000).to_string()
+    } else {
+        format!("{}.{}", ms / 1000, ms % 1000 / 100)
+    }
+}
+
 /// A whole number with thousands marked: 10,000.
 pub fn number(n: i32) -> String {
     let neg = n < 0;

@@ -80,6 +80,13 @@ pub struct Wild {
     pub enemy: u16,
     pub count: i32,
     pub at_tick: i32,
+    /// Percent of the enemy's health, from the difficulty (T30).
+    #[serde(default = "full")]
+    pub strength: i32,
+}
+
+fn full() -> i32 {
+    100
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,6 +124,10 @@ pub struct Unit {
     pub summoned_for_owner: bool,
     /// It reached the tower and was spent: no kill.
     pub leaked: bool,
+    /// The student who summoned it (255 for none), and the ticks it has
+    /// left (0 for no limit): a summon is held to its caster (T25).
+    pub caster: u8,
+    pub life: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -255,6 +266,10 @@ pub struct Battle {
     pub tally: Tally,
     pub events: Vec<(Ev, V3)>,
     budgets: Vec<i32>,
+    /// The student who began each cast (255 for an invasion), and the cast
+    /// being resolved now.
+    cast_caster: Vec<u8>,
+    cur_cast: u32,
     next_id: u32,
     rng: Rng,
     cap: usize,
@@ -361,6 +376,8 @@ impl Battle {
             tally: Tally::default(),
             events: Vec::new(),
             budgets: Vec::new(),
+            cast_caster: Vec::new(),
+            cur_cast: 0,
             next_id: 1,
             rng,
             cap,
@@ -413,14 +430,14 @@ impl Battle {
         for w in wild {
             for k in 0..w.count {
                 b.queue
-                    .push((w.at_tick + k * 12, w.enemy, Team::Foe, 255, None, 100));
+                    .push((w.at_tick + k * 12, w.enemy, Team::Foe, 255, None, w.strength));
             }
         }
         // invasions: each chain is cast from the entry when the battle starts
         b.queue.sort_by_key(|q| q.0);
         let entry = arena::centre(b.arena.entry.0, b.arena.entry.1);
         for (k, inv) in incoming.iter().enumerate() {
-            let cast = b.new_budget(c);
+            let cast = b.new_budget(c, 255);
             let at = entry.add(v3(0, 0, -(k as i32 % 3) * ONE));
             b.count_pct = inv.count_pct.max(1);
             b.run(
@@ -440,8 +457,9 @@ impl Battle {
         b
     }
 
-    fn new_budget(&mut self, c: &Content) -> u32 {
+    fn new_budget(&mut self, c: &Content, caster: u8) -> u32 {
         self.budgets.push(c.balance().cast_budget);
+        self.cast_caster.push(caster);
         (self.budgets.len() - 1) as u32
     }
 
@@ -502,6 +520,8 @@ impl Battle {
             from,
             summoned_for_owner: team == Team::Ally,
             leaked: false,
+            caster: 255,
+            life: 0,
         });
     }
 
@@ -522,6 +542,7 @@ impl Battle {
         from: u8,
     ) {
         let bal = c.balance();
+        self.cur_cast = cast;
         let mut dmg_pct = 0;
         let mut area_pct = 0;
         let mut speed_pct = 0;
@@ -728,7 +749,26 @@ impl Battle {
             }
             Effect::Summon { enemy, count } => {
                 let kind = c.enemy(enemy).unwrap_or(0) as u16;
-                let n = pct(pct(*count, eff), self.count_pct).max(1);
+                let mut n = pct(pct(*count, eff), self.count_pct).max(1);
+                // your own army is held in check: fewer a cast, a few alive
+                // for each student, for a while each (T25); invasions keep
+                // their numbers
+                let caster = self
+                    .cast_caster
+                    .get(self.cur_cast as usize)
+                    .copied()
+                    .unwrap_or(255);
+                let mut life = 0;
+                if team == Team::Ally && caster != 255 {
+                    n = pct(n, bal.ally_summon_pct).max(1);
+                    let alive = self
+                        .units
+                        .iter()
+                        .filter(|u| u.caster == caster && u.team == Team::Ally && u.hp > 0)
+                        .count() as i32;
+                    n = n.min(bal.summons_per_student - alive).max(0);
+                    life = content::ticks(bal.summon_life_s * 1000);
+                }
                 self.events.push((Ev::Summon, origin));
                 let at = if team == Team::Ally {
                     // in front of the tower, toward the entry
@@ -741,6 +781,10 @@ impl Battle {
                 for _ in 0..n {
                     let mine = carry.clone().filter(|k| k.on == On::Death);
                     self.spawn(c, kind, at, team, from, mine, eff);
+                    if let Some(u) = self.units.last_mut() {
+                        u.caster = caster;
+                        u.life = life;
+                    }
                 }
             }
             Effect::Raise { feature } => {
@@ -985,6 +1029,16 @@ impl Battle {
             self.spawn(c, kind, entry, team, from, carry, strength);
         }
         self.cast_all(c);
+        // a summon's time runs out: it fades, and counts as no kill
+        for u in self.units.iter_mut() {
+            if u.life > 0 {
+                u.life -= 1;
+                if u.life == 0 {
+                    u.hp = 0;
+                    u.leaked = true;
+                }
+            }
+        }
         self.move_units(c);
         self.fly_shots(c);
         self.tick_zones(c);
@@ -1066,7 +1120,7 @@ impl Battle {
                 self.casters[ci].casting = 10;
                 let school = c.piece_school[chain[0] as usize] as u8;
                 self.events.push((Ev::Cast(school), pos));
-                let cast = self.new_budget(c);
+                let cast = self.new_budget(c, ci as u8);
                 self.run(c, &chain, 0, pos, target, eff, Team::Ally, 0, cast, 255);
             }
         }

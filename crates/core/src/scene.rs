@@ -952,6 +952,7 @@ mod tests {
             enemy: c.enemy("bramble_elf").unwrap() as u16,
             count: 120,
             at_tick: 1,
+            strength: 100,
         }];
         let mut total = 0;
         for seat in 0..4u8 {

@@ -1018,10 +1018,10 @@
    "length": 3,
    "blocks": true,
    "health": 400,
-   "mana": 20,
+   "mana": 2,
    "golem_s": 25,
    "cast_life": 6000,
-   "raise_s": 15
+   "raise_ms": 500
   },
   {
    "id": "ivory_wall",
@@ -1029,10 +1029,10 @@
    "length": 3,
    "blocks": true,
    "health": 0,
-   "mana": 40,
+   "mana": 4,
    "golem_s": 45,
    "cast_life": 6000,
-   "raise_s": 30
+   "raise_ms": 1000
   },
   {
    "id": "lava_pool",
@@ -1040,12 +1040,12 @@
    "length": 2,
    "blocks": false,
    "health": 0,
-   "mana": 30,
+   "mana": 6,
    "golem_s": 0,
    "cast_life": 6000,
    "dps": 30,
    "damage_type": "fire",
-   "raise_s": 20
+   "raise_ms": 1000
   },
   {
    "id": "bait",
@@ -1053,11 +1053,11 @@
    "length": 1,
    "blocks": false,
    "health": 300,
-   "mana": 20,
+   "mana": 5,
    "golem_s": 30,
    "cast_life": 6000,
    "lure": 600,
-   "raise_s": 15
+   "raise_ms": 1000
   },
   {
    "id": "sub_tower",
@@ -1065,11 +1065,11 @@
    "length": 1,
    "blocks": true,
    "health": 0,
-   "mana": 60,
+   "mana": 40,
    "golem_s": 40,
    "cast_life": 0,
    "seats": 1,
-   "raise_s": 60
+   "raise_ms": 10000
   }
  ],
  "helpers": [
@@ -1110,10 +1110,14 @@
    "glass_wall",
    "sub_tower"
   ],
+  "ally_summon_pct": 67,
+  "summons_per_student": 4,
+  "summon_life_s": 12,
+  "summon_mana_pct": 150,
   "card_s": 3,
   "demo_turn_s": 90,
   "days": 4,
-  "prep_s": 240,
+  "prep_s": 150,
   "battle_s": 90,
   "practice_prep_s": 60,
   "ragdoll_cap": 24,
@@ -1175,7 +1179,30 @@
   "invasion_leak_mult": 1,
   "invasion_mana_pct": 150,
   "archmage_count_pct": 150,
-  "wild_pct": 60
+  "wild_pct": 60,
+  "difficulties": [
+   {
+    "id": "easy",
+    "count_pct": 85,
+    "health_pct": 85
+   },
+   {
+    "id": "normal",
+    "count_pct": 125,
+    "health_pct": 110
+   },
+   {
+    "id": "hard",
+    "count_pct": 160,
+    "health_pct": 130
+   },
+   {
+    "id": "brutal",
+    "count_pct": 200,
+    "health_pct": 160
+   }
+  ],
+  "default_difficulty": 1
  },
  "names": {
   "first": [
@@ -1290,14 +1317,15 @@
   {
    "id": "crash_course",
    "name": "Crash Course",
-   "text": "Teach Fire Fan to all 8 students until their average effectiveness reaches 80%.",
+   "text": "Teach Fire Fan to all 8 students until their average effectiveness reaches 60%. A steady hand matters: effectiveness climbs steeply near a perfect drawing.",
    "measure": "time",
    "medals": [
     90,
     60,
     40,
     28
-   ]
+   ],
+   "target": 60
   },
   {
    "id": "siege_drill",

@@ -194,7 +194,11 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
                 break;
             }
             let (x, z, d) = (rng.between(2, 28), rng.between(6, 26), rng.below(2));
-            let _ = p.act(c, "layout.place", &format!("{w},{x},{z},{d}"));
+            // a wall of three cells, laid a cell at a time (T23)
+            for k in 0..3 {
+                let (cx, cz) = if d == 1 { (x, z + k) } else { (x + k, z) };
+                let _ = p.act(c, "layout.place", &format!("{w},{cx},{cz},0"));
+            }
         }
     }
     p.finish_raises(c);

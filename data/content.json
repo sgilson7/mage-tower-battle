@@ -1110,6 +1110,13 @@
    "model": "golem",
    "mana": 0,
    "job_s": 0
+  },
+  {
+   "id": "librarian_golem",
+   "name": "Librarian Golem",
+   "model": "golem",
+   "mana": 30,
+   "job_s": 45
   }
  ],
  "balance": {
@@ -1125,6 +1132,11 @@
   "summons_per_student": 4,
   "summon_life_s": 12,
   "summon_mana_pct": 150,
+  "sort_books": 10,
+  "sort_fall_ms": 1600,
+  "sort_faster_pct": 85,
+  "sort_min_ms": 600,
+  "dud_books": 8,
   "card_s": 3,
   "demo_turn_s": 90,
   "days": 4,

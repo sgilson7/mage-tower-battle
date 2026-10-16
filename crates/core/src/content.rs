@@ -242,6 +242,14 @@ pub struct Balance {
     pub summons_per_student: i32,
     pub summon_life_s: i32,
     pub summon_mana_pct: i32,
+    /// The book-sorting game (T20): books to shelve for one find, how long a
+    /// book takes to fall, how much faster after a miss, the fastest; and
+    /// copies of known books in the pile.
+    pub sort_books: i32,
+    pub sort_fall_ms: i32,
+    pub sort_faster_pct: i32,
+    pub sort_min_ms: i32,
+    pub dud_books: i32,
     /// Seconds a book's card stays on screen (T10).
     pub card_s: i32,
     /// Seconds the title's camera takes to circle its battle once (T11).

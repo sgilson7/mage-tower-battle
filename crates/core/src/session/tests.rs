@@ -42,6 +42,38 @@ fn no_missing(v: &Value) {
     );
 }
 
+/// Plays the laboratory's seal through the session (T22).
+fn seal(s: &mut Session) {
+    let mut guard = 0;
+    loop {
+        let bits = match s.m.as_ref().and_then(|m| m.local_prep()).map(|p| &p.activity) {
+            Some(Activity::Sealing { rings, at }) if rings[*at] == 0 => prep::NOTE[3],
+            Some(Activity::Sealing { .. }) => prep::LEFT,
+            _ => break,
+        };
+        for b in [bits, 0] {
+            let now = s.tick as i64 * 16_667 + 16_667;
+            s.frame(now, b);
+        }
+        guard += 1;
+        assert!(guard < 1000, "the seal ends");
+    }
+}
+
+/// Plays the library's sorting game through the session (T20).
+fn sort(s: &mut Session) {
+    let mut guard = 0;
+    while let Some(Activity::Sorting { book, .. }) =
+        s.m.as_ref()
+            .and_then(|m| m.local_prep())
+            .map(|p| p.activity.clone())
+    {
+        s.act("sort.shelf", &book.to_string()).unwrap();
+        guard += 1;
+        assert!(guard < 100, "the sort ends");
+    }
+}
+
 fn run(s: &mut Session, ticks: i32) {
     for _ in 0..ticks {
         let now = s.tick as i64 * 16_667 + 16_667;
@@ -70,13 +102,19 @@ fn a_practice_day_runs_from_the_title_to_its_results() {
     run(&mut s, 2);
     no_missing(&s.ui());
     s.act("library.read", "").unwrap();
-    run(&mut s, 160);
+    assert!(!s.overlay().is_empty(), "the sorting game is drawn");
+    no_missing(&s.ui());
+    sort(&mut s);
+    run(&mut s, 2);
     s.teleport(Station::Lab);
     run(&mut s, 2);
     no_missing(&s.ui());
     s.act("lab.add", "fire_bolt").unwrap();
     s.act("lab.add", "fire_bolt").unwrap();
     s.act("lab.save", "").unwrap();
+    assert!(!s.overlay().is_empty(), "the seal is drawn");
+    no_missing(&s.ui());
+    seal(&mut s);
     // the podium: draw a straight line across the board through the pointer
     s.teleport(Station::Podium);
     run(&mut s, 2);
@@ -216,6 +254,12 @@ fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) {
                     if let Some(p) = m.local_prep_mut() {
                         if !p.ready {
                             let mut rng = crate::rng::Rng::new(day as u64 * 31 + seat as u64);
+                            // what the pile hands out depends on the seed; an
+                            // invasion must cross the wire, so they know one
+                            for piece in ["invade", "skeleton"] {
+                                let k = c.piece(piece).unwrap();
+                                p.known[k] = true;
+                            }
                             crate::bot::day(&c, p, Style::AttackMage, 80, target, true, &mut rng);
                             p.ready = true;
                         }
@@ -603,11 +647,13 @@ fn a_book_read_shows_its_card_for_three_seconds_or_until_the_next_book() {
     s.teleport(Station::Library);
     let read = |s: &mut Session| {
         let before = s.card.clone().map(|c| c.0);
-        s.act("library.read", "").unwrap();
-        let mut waited = 0;
-        while s.card.clone().map(|c| c.0) == before && waited < TPS * 30 {
+        // a book already known shows no card: sort again until a new one
+        let mut tries = 0;
+        while s.card.clone().map(|c| c.0) == before && tries < 20 {
+            s.act("library.read", "").unwrap();
+            sort(s);
             run(s, 1);
-            waited += 1;
+            tries += 1;
         }
         s.card.clone().expect("a card for the book")
     };
@@ -736,6 +782,7 @@ fn mana_costs_are_sent_for_the_mana_symbol() {
     assert_eq!(lab["mana"]["label"], format!("{bolt} mana"));
     s.act("lab.add", "ice_shard").unwrap();
     s.act("lab.save", "").unwrap();
+    seal(&mut s);
     let ui = s.ui();
     let lab = ui["panels"]
         .as_array()

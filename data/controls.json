@@ -1,5 +1,5 @@
 {
  "_about": "Which key sets which action. Bits come from the core (numbers().actions); acts are sent through act() on a key press.",
  "bits": {"KeyW": "up", "ArrowUp": "up", "KeyS": "down", "ArrowDown": "down", "KeyA": "left", "ArrowLeft": "left", "KeyD": "right", "ArrowRight": "right", "KeyE": "use", "Escape": "back", "KeyJ": "note0", "KeyK": "note1", "KeyL": "note2", "Space": "note3"},
- "acts": {"KeyR": ["layout.turn", ""], "KeyM": ["sound.mute", ""], "KeyG": ["glossary.toggle", ""]}
+ "acts": {"KeyR": ["layout.turn", ""], "KeyM": ["sound.mute", ""], "KeyG": ["glossary.toggle", ""], "Digit1": ["sort.shelf", "0"], "Digit2": ["sort.shelf", "1"], "Digit3": ["sort.shelf", "2"], "Digit4": ["sort.shelf", "3"], "Digit5": ["sort.shelf", "4"], "KeyQ": ["self.cast", ""]}
 }

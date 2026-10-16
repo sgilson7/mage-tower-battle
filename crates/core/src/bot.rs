@@ -144,7 +144,7 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
     };
     put(p, Station::Library);
     for _ in 0..reads {
-        if !spend(READ_S, &mut left) || p.act(c, "library.read", "").is_err() {
+        if !spend(READ_S, &mut left) || p.read_now(c).is_err() {
             break;
         }
         while p.busy() {
@@ -159,7 +159,7 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
         }
         if !p.spells.contains(&ch) && p.spells.len() < crate::prep::MAX_SPELLS {
             p.draft = ch;
-            let _ = p.act(c, "lab.save", "");
+            let _ = p.save_now(c);
             p.draft.clear();
         }
     }
@@ -226,7 +226,8 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
         let targets: Vec<u8> = std::iter::once(leader)
             .chain((0..4u8).filter(|&t| t != leader && t != p.seat))
             .collect();
-        let casts = if style == Style::AttackMage { 12 } else { 1 };
+        // each cast reaches every rival now (T29), so fewer casts
+        let casts = if style == Style::AttackMage { 4 } else { 1 };
         let regen = c.balance().archmage_regen.max(1);
         let mut k = 0;
         'cast: for _ in 0..casts {

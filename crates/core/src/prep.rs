@@ -114,6 +114,8 @@ pub enum Work {
     Build(Placed),
     /// A wall or tower the archmage placed with mana, rising (T1).
     Raise(Placed),
+    /// The librarian golem searching the pile for an unread book (T21).
+    Search,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -158,7 +160,25 @@ pub enum Activity {
         audience: i32,
         glyphs: usize,
     },
+    /// Sealing a spell at the laboratory (T22): one ring a piece, each at a
+    /// turn of 0 to `SEAL_STEPS - 1`; 0 is under the mark. `at` is the ring
+    /// being turned. How it goes changes only how long saving takes.
+    Sealing {
+        rings: Vec<i32>,
+        at: usize,
+    },
+    /// Sorting the pile to find a book (T20): the falling book's school,
+    /// how far it has fallen of `fall` ticks, and how many are shelved.
+    Sorting {
+        book: u8,
+        y: i32,
+        fall: i32,
+        shelved: i32,
+    },
 }
+
+/// The turns a seal's ring can stand at.
+pub const SEAL_STEPS: i32 = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Book {
@@ -264,6 +284,16 @@ impl Prep {
             .map(|i| Book::Piece(i as u16))
             .collect();
         pile.extend((0..c.file.tomes.len()).map(|t| Book::Tome(t as u16)));
+        // books that teach nothing new: copies of what a new archmage knows (T20)
+        let known_ids: Vec<u16> = (0..c.file.pieces.len())
+            .filter(|&i| known[i])
+            .map(|i| i as u16)
+            .collect();
+        for k in 0..c.balance().dud_books.max(0) as usize {
+            if let Some(&p) = known_ids.get(k % known_ids.len().max(1)) {
+                pile.push(Book::Piece(p));
+            }
+        }
         // shuffle by the seed (Fisher–Yates)
         for i in (1..pile.len()).rev() {
             let j = rng.below(i as u32 + 1) as usize;
@@ -407,11 +437,44 @@ impl Prep {
         self.work_jobs(c);
         self.prev = self.pos;
         let mut finished_reading = false;
+        let mut sealed = false;
         let mut finished_lane: Option<(i32, Option<usize>, bool)> = None;
         match &mut self.activity {
             Activity::Reading { left } => {
                 *left -= 1;
                 finished_reading = *left <= 0;
+            }
+            Activity::Sorting { book, y, fall, .. } => {
+                *y += 1;
+                if *y >= *fall {
+                    // it landed: back on the pile, and the next falls faster
+                    *fall = (*fall * b.sort_faster_pct / 100)
+                        .max(content::ticks(b.sort_min_ms))
+                        .max(1);
+                    *y = 0;
+                    *book = self.rng.below(c.file.schools.len() as u32) as u8;
+                }
+            }
+            Activity::Sealing { rings, at } => {
+                // A and D turn the ring, Space locks it; a lock off the mark
+                // turns it a step further away
+                let n = SEAL_STEPS;
+                if let Some(r) = rings.get_mut(*at) {
+                    if down & LEFT != 0 {
+                        *r = (*r + n - 1) % n;
+                    }
+                    if down & RIGHT != 0 {
+                        *r = (*r + 1) % n;
+                    }
+                    if down & NOTE[3] != 0 {
+                        if *r == 0 {
+                            *at += 1;
+                        } else {
+                            *r = (*r + 1) % n;
+                        }
+                    }
+                }
+                sealed = *at >= rings.len();
             }
             Activity::Interview { lane, one, by_helper } => {
                 lane.step();
@@ -426,9 +489,13 @@ impl Prep {
             }
             _ => {}
         }
+        if sealed {
+            self.activity = Activity::Idle;
+            let _ = self.save_now(c);
+        }
         if finished_reading {
             self.activity = Activity::Idle;
-            self.read_book(c);
+            self.read_book(c, true);
         }
         if let Some((score, one, _)) = finished_lane {
             self.activity = Activity::Idle;
@@ -496,11 +563,16 @@ impl Prep {
         }
     }
 
-    fn read_book(&mut self, c: &Content) {
-        // skip books that teach only what is already known
+    /// The next book off the pile. A book you know teaches nothing: found
+    /// by sorting, it is a find wasted (T20); the golem passes it by.
+    fn read_book(&mut self, c: &Content, skip_known: bool) {
         while let Some(book) = self.pile.pop() {
             match book {
-                Book::Piece(p) if self.known[p as usize] => continue,
+                Book::Piece(p) if self.known[p as usize] && skip_known => continue,
+                Book::Piece(p) if self.known[p as usize] => {
+                    self.note("library.dud", c.file.pieces[p as usize].name.clone());
+                    return;
+                }
                 Book::Piece(p) => {
                     self.known[p as usize] = true;
                     self.record.books += 1;
@@ -609,6 +681,19 @@ impl Prep {
                         self.note("helper.trained", name);
                     }
                 }
+                Work::Search => {
+                    let before = self.record.books;
+                    self.read_book(c, true);
+                    // it goes on looking while there are books to find
+                    let left = self
+                        .pile
+                        .iter()
+                        .any(|bk| !matches!(bk, Book::Piece(p) if self.known[*p as usize]));
+                    if left && self.record.books > before {
+                        let total = j.total;
+                        self.jobs.push(Job { left: total, ..j });
+                    }
+                }
                 Work::Raise(p) => {
                     if self.can_place(c, &p).is_ok() {
                         let name = c.file.features[p.feature as usize].name.clone();
@@ -631,6 +716,43 @@ impl Prep {
                 }
             }
         }
+    }
+
+    fn can_save(&self, c: &Content) -> Result<(), &'static str> {
+        spell::check(c, &self.draft).map_err(|e| e.key())?;
+        if self.spells.contains(&self.draft) {
+            return Err("lab.already");
+        }
+        if self.spells.len() >= MAX_SPELLS {
+            return Err("lab.full");
+        }
+        Ok(())
+    }
+
+    /// Reads the next new book at once: a computer rival plans its whole day
+    /// in one call.
+    pub fn read_now(&mut self, c: &Content) -> Result<(), &'static str> {
+        if self
+            .pile
+            .iter()
+            .all(|bk| matches!(bk, Book::Piece(p) if self.known[*p as usize]))
+        {
+            return Err("library.empty");
+        }
+        self.read_book(c, true);
+        Ok(())
+    }
+
+    /// Keeps the draft as a spell at once: a sealed spell, or a computer
+    /// rival's, which plans its day in one go.
+    pub fn save_now(&mut self, c: &Content) -> Result<(), &'static str> {
+        self.can_save(c)?;
+        self.record.spells_made += 1;
+        self.record.longest_chain = self.record.longest_chain.max(self.draft.len() as i32);
+        self.spells.push(std::mem::take(&mut self.draft));
+        self.chosen = (self.spells.len() - 1) as u16;
+        self.note("lab.saved", spell::name(c, &self.spells[self.chosen as usize]));
+        Ok(())
     }
 
     /// Takes away what stands or rises in a cell, giving its mana back.
@@ -789,9 +911,59 @@ impl Prep {
                 {
                     return Err("library.empty");
                 }
-                self.activity = Activity::Reading {
-                    left: content::ticks(b.read_ms),
+                // finding a book takes sorting the pile (T20)
+                let fall = content::ticks(b.sort_fall_ms).max(1);
+                let book = self.rng.below(c.file.schools.len() as u32) as u8;
+                self.activity = Activity::Sorting {
+                    book,
+                    y: 0,
+                    fall,
+                    shelved: 0,
                 };
+            }
+            "sort.shelf" => {
+                // value: the shelf, by school index
+                let shelf: u8 = value.parse().map_err(|_| "sort.bad")?;
+                let Activity::Sorting {
+                    book,
+                    y,
+                    fall,
+                    shelved,
+                } = &mut self.activity
+                else {
+                    return Err("sort.none");
+                };
+                if shelf == *book {
+                    *shelved += 1;
+                } else {
+                    // back on the pile, and the next falls faster
+                    *fall = (*fall * b.sort_faster_pct / 100)
+                        .max(content::ticks(b.sort_min_ms))
+                        .max(1);
+                }
+                *y = 0;
+                *book = self.rng.below(c.file.schools.len() as u32) as u8;
+                if *shelved >= b.sort_books {
+                    self.activity = Activity::Idle;
+                    self.read_book(c, false);
+                }
+            }
+            "library.golem" => {
+                // a librarian golem finds unread books on its own (T21)
+                self.at(Station::Library)?;
+                if self.jobs.iter().any(|j| matches!(j.work, Work::Search)) {
+                    return Err("library.golem_busy");
+                }
+                let h = c.helper("librarian_golem").ok_or("helper.unknown")?;
+                self.spend(c.file.helpers[h].mana)?;
+                let total = content::ticks(c.file.helpers[h].job_s * 1000);
+                self.jobs.push(Job {
+                    helper: h as u16,
+                    score: 100,
+                    left: total,
+                    total,
+                    work: Work::Search,
+                });
             }
             "lab.add" => {
                 self.at(Station::Lab)?;
@@ -813,19 +985,18 @@ impl Prep {
             }
             "lab.clear" => self.draft.clear(),
             "lab.save" => {
+                // a spell is sealed before it is kept (T22)
                 self.at(Station::Lab)?;
-                spell::check(c, &self.draft).map_err(|e| e.key())?;
-                if self.spells.contains(&self.draft) {
-                    return Err("lab.already");
+                if self.busy() {
+                    return Err("prep.busy");
                 }
-                if self.spells.len() >= MAX_SPELLS {
-                    return Err("lab.full");
-                }
-                self.record.spells_made += 1;
-                self.record.longest_chain = self.record.longest_chain.max(self.draft.len() as i32);
-                self.spells.push(std::mem::take(&mut self.draft));
-                self.chosen = (self.spells.len() - 1) as u16;
-                self.note("lab.saved", spell::name(c, &self.spells[self.chosen as usize]));
+                self.can_save(c)?;
+                let rings = self
+                    .draft
+                    .iter()
+                    .map(|_| self.rng.between(1, SEAL_STEPS - 1))
+                    .collect();
+                self.activity = Activity::Sealing { rings, at: 0 };
             }
             "spell.choose" => {
                 let i: u16 = value.parse().map_err(|_| "lab.bad")?;

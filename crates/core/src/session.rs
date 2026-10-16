@@ -622,6 +622,21 @@ impl Session {
             .and_then(|m| m.local_prep())
             .map(|p| matches!(p.activity, Activity::Drawing { .. }))
             .unwrap_or(false);
+        let sorting = self
+            .m
+            .as_ref()
+            .and_then(|m| m.local_prep())
+            .map(|p| matches!(p.activity, Activity::Sorting { .. }))
+            .unwrap_or(false);
+        if sorting {
+            if name == "pointer.down" {
+                let (lx, _) = overlay::logical(n[0], n[1], n[2], n[3]);
+                if let Some(shelf) = overlay::shelf_at(lx, self.c.file.schools.len()) {
+                    self.forward("sort.shelf", &shelf.to_string())?;
+                }
+            }
+            return Ok(());
+        }
         if drawing {
             match name {
                 "pointer.down" => {
@@ -1554,6 +1569,39 @@ impl Session {
                     &format!("{}%", lane.score()),
                 )
             }
+            Activity::Sorting {
+                book,
+                y,
+                fall,
+                shelved,
+            } => overlay::sorting(
+                &self.c,
+                *book,
+                *y * 1000 / (*fall).max(1),
+                &self.s.f(
+                    "sort.heading",
+                    &[
+                        ("n", shelved.to_string()),
+                        ("of", self.c.balance().sort_books.to_string()),
+                    ],
+                ),
+                &self.s.t("sort.hint"),
+            ),
+            Activity::Sealing { rings, at } => overlay::seal(
+                &self.c,
+                &p.draft,
+                rings,
+                *at,
+                &self.s.f(
+                    "seal.heading",
+                    &[
+                        ("spell", spell::name(&self.c, &p.draft)),
+                        ("n", (at + 1).min(rings.len()).to_string()),
+                        ("of", rings.len().to_string()),
+                    ],
+                ),
+                &self.s.t("seal.hint"),
+            ),
             _ if self.layout.open => {
                 let a = p.field(&self.c);
                 let ghost = match (self.layout.hover, self.layout.feature) {
@@ -2025,6 +2073,105 @@ impl Session {
         self.glossary.is_some() && self.m.as_ref().map(|m| m.mode != Mode::Online).unwrap_or(false)
     }
 
+    /// A piece as a builder tile: its glyph, name and school (T17).
+    fn tile(&self, k: u16) -> Value {
+        let c = &self.c;
+        let piece = &c.file.pieces[k as usize];
+        let (d, view) = icon(std::slice::from_ref(&piece.glyph));
+        let kind = match piece.kind {
+            PieceKind::Payload { .. } => "pay",
+            PieceKind::Trigger { .. } => "trig",
+            PieceKind::Branch => "branch",
+            _ => "mod",
+        };
+        json!({"id": piece.id, "name": piece.name, "icon": d, "view": view, "school": c.file.schools[c.piece_school[k as usize]].id, "kind": kind})
+    }
+
+    /// The draft as the builder shows it (T17): rows of sets, each an
+    /// optional run of modifiers, a payload and a trigger; a branch begins
+    /// the second row. The last set is open, with slots for what may come.
+    fn lane(&self, p: &prep::Prep) -> Value {
+        let c = &self.c;
+        let s = &self.s;
+        let mut rows: Vec<Vec<Value>> = vec![Vec::new()];
+        let blank = || json!({"mods": [], "payload": null, "trigger": null, "open": false});
+        let mut cur = blank();
+        let filled = |v: &Value| {
+            !v["mods"].as_array().map(|m| m.is_empty()).unwrap_or(true) || !v["payload"].is_null()
+        };
+        for (i, &k) in p.draft.iter().enumerate() {
+            let mut t = self.tile(k);
+            t["i"] = json!(i);
+            match c.file.pieces[k as usize].kind {
+                PieceKind::Payload { .. } => {
+                    if !cur["payload"].is_null() {
+                        rows.last_mut()
+                            .unwrap()
+                            .push(std::mem::replace(&mut cur, blank()));
+                    }
+                    cur["payload"] = t;
+                }
+                PieceKind::Trigger { .. } => {
+                    cur["trigger"] = t;
+                    rows.last_mut()
+                        .unwrap()
+                        .push(std::mem::replace(&mut cur, blank()));
+                }
+                PieceKind::Branch => {
+                    if filled(&cur) {
+                        rows.last_mut()
+                            .unwrap()
+                            .push(std::mem::replace(&mut cur, blank()));
+                    }
+                    rows.push(vec![json!({"branch": t})]);
+                }
+                _ => {
+                    if !cur["payload"].is_null() {
+                        rows.last_mut()
+                            .unwrap()
+                            .push(std::mem::replace(&mut cur, blank()));
+                    }
+                    cur["mods"].as_array_mut().unwrap().push(t);
+                }
+            }
+        }
+        cur["open"] = json!(true);
+        rows.last_mut().unwrap().push(cur);
+        json!({"rows": rows, "spell": if p.draft.is_empty() { s.t("builder.new") } else { spell::name(c, &p.draft) }, "labels": {"mod": s.t("builder.slot_mod"), "pay": s.t("builder.slot_pay"), "trig": s.t("builder.slot_trig"), "branch": s.t("builder.branch_row"), "mods": s.t("kind.modifier"), "payload": s.t("kind.payload"), "trigger": s.t("kind.trigger"), "your": s.t("builder.your_spell")}})
+    }
+
+    /// The pieces you know, as tiles to add, by kind (T17).
+    fn tray(&self, p: &prep::Prep) -> Value {
+        let c = &self.c;
+        let s = &self.s;
+        let groups = [
+            ("pay", "builder.tray_pay"),
+            ("mod", "builder.tray_mod"),
+            ("trig", "builder.tray_trig"),
+            ("branch", "builder.tray_branch"),
+        ];
+        let out: Vec<Value> = groups
+            .iter()
+            .map(|(kind, label)| {
+                let tiles: Vec<Value> = (0..c.file.pieces.len())
+                    .filter(|&i| p.known[i] && !matches!(c.file.pieces[i].kind, PieceKind::Helper { .. }))
+                    .map(|i| self.tile(i as u16))
+                    .filter(|t| t["kind"] == *kind)
+                    .map(|mut t| {
+                        let k = c.piece(t["id"].as_str().unwrap_or("")).unwrap_or(0);
+                        if matches!(c.file.pieces[k].kind, PieceKind::Payload { .. }) {
+                            t["mana"] = mana(s, spell::stats(c, &[k as u16]).mana);
+                        }
+                        t
+                    })
+                    .collect();
+                json!({"label": s.t(label), "tiles": tiles})
+            })
+            .filter(|g| !g["tiles"].as_array().map(|t| t.is_empty()).unwrap_or(true))
+            .collect();
+        json!(out)
+    }
+
     /// A spell piece as a card (T10): its glyph as an icon, its name, number,
     /// school and kind, what it does, and its numbers. The glossary shows
     /// every piece this way, and reading a book shows the one it taught.
@@ -2214,11 +2361,15 @@ impl Session {
             Activity::Reading { .. } => Some("reading"),
             Activity::Interview { .. } => Some("interview"),
             Activity::Drawing { .. } => Some("drawing"),
+            Activity::Sealing { .. } => Some("sealing"),
+            Activity::Sorting { .. } => Some("sorting"),
         };
         if let Some(b) = busy {
             let text = match b {
                 "reading" => s.t("busy.reading"),
                 "interview" => s.t("busy.interview"),
+                "sealing" => s.t("busy.sealing"),
+                "sorting" => s.t("busy.sorting"),
                 _ => s.t("busy.drawing"),
             };
             panels.push(json!({"id": "busy", "kind": "bottom", "text": text, "actions": [act_json("prep.cancel", "", s.t("busy.cancel"), true)]}));
@@ -2337,7 +2488,19 @@ impl Session {
                     ),
                     None => s.t("library.none_yet"),
                 };
-                json!({"id": "station", "kind": "side", "heading": s.t("station.library"), "text": format!("{} {}", s.f("library.left", &[("n", left.to_string())]), last), "actions": [act_json("library.read", "", s.t("library.read"), left > 0)]})
+                let g = c.helper("librarian_golem").map(|h| c.file.helpers[h].clone());
+                let searching = p.jobs.iter().any(|j| matches!(j.work, prep::Work::Search));
+                let mut golem = act_json(
+                    "library.golem",
+                    "",
+                    s.f(
+                        "library.golem",
+                        &[("s", g.as_ref().map(|h| h.job_s).unwrap_or(0).to_string())],
+                    ),
+                    !searching && left > 0,
+                );
+                golem["mana"] = mana(s, g.map(|h| h.mana).unwrap_or(0));
+                json!({"id": "station", "kind": "side", "heading": s.t("station.library"), "text": format!("{} {}", s.f("library.left", &[("n", left.to_string())]), last), "actions": [act_json("library.read", "", s.t("library.read"), left > 0), golem]})
             }
             Station::Lab => {
                 let mut rows = Vec::new();
@@ -2397,7 +2560,8 @@ impl Session {
                 };
                 let saved: Vec<Value> = p.spells.iter().enumerate().map(|(k, ch)| json!({"label": spell::name(c, ch), "mana": mana(s, spell::stats(c, ch).mana), "chip": if k as u16 == p.chosen { s.t("lab.chosen") } else { String::new() }, "actions": [act_json("spell.choose", &k.to_string(), s.t("lab.choose"), true)]})).collect();
                 let draft_mana = (!p.draft.is_empty()).then(|| mana(s, spell::stats(c, &p.draft).mana));
-                json!({"id": "station", "kind": "side", "heading": s.t("station.lab"), "text": stats, "mana": draft_mana, "draft": draft, "rows": rows, "saved": saved, "actions": [act_json("lab.save", "", s.t("lab.save"), !p.draft.is_empty()), act_json("lab.clear", "", s.t("lab.clear"), !p.draft.is_empty())]})
+                let _ = rows;
+                json!({"id": "station", "kind": "builder", "heading": s.t("station.lab"), "text": stats, "mana": draft_mana, "draft": draft, "lane": self.lane(p), "tray": self.tray(p), "saved": saved, "actions": [act_json("lab.save", "", s.t("lab.save"), !p.draft.is_empty() && spell::check(c, &p.draft).is_ok()), act_json("lab.clear", "", s.t("lab.clear"), !p.draft.is_empty())]})
             }
             Station::Recruit => {
                 let rows: Vec<Value> = p

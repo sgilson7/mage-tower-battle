@@ -82,6 +82,134 @@ pub fn drawing(a: &Activity, names: &[String], heading: &str, live: &str) -> Vec
     d.finish()
 }
 
+/// The shelves of the sorting game span this much of the overlay.
+const SHELF_X: i32 = 120;
+const SHELF_W: i32 = 1040;
+
+/// Which shelf a logical x falls on, by school index.
+pub fn shelf_at(lx: i32, n: usize) -> Option<usize> {
+    let n = n.max(1) as i32;
+    ((SHELF_X..SHELF_X + SHELF_W).contains(&lx)).then(|| ((lx - SHELF_X) * n / SHELF_W) as usize)
+}
+
+/// The book-sorting game (T20): a book of a school falls toward five
+/// shelves; `fallen` is how far, in thousandths.
+pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) -> Vec<i32> {
+    let mut d = DrawList::new();
+    let schools = [
+        Color::Destruction,
+        Color::Alteration,
+        Color::Conjuration,
+        Color::Illusion,
+        Color::Restoration,
+    ];
+    let shapes = [
+        Shape::Triangle,
+        Shape::Square,
+        Shape::Diamond,
+        Shape::Star,
+        Shape::Cross,
+    ];
+    d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
+    d.rect(80, 60, 1120, 620, Color::Panel);
+    d.text(draw_w() / 2, 100, 26, Color::Ink, Align::Center, heading);
+    d.text(draw_w() / 2, 132, 17, Color::Muted, Align::Center, hint);
+    let n = c.file.schools.len().max(1) as i32;
+    let w = SHELF_W / n;
+    for k in 0..n {
+        let x = SHELF_X + k * w;
+        let colour = schools[(k as usize).min(4)];
+        d.rect(x + 6, 470, w - 12, 180, colour);
+        d.shape(
+            shapes[(k as usize).min(4)],
+            x + w / 2,
+            520,
+            Scale::Large,
+            Color::Paper,
+            Color::Ink,
+            3,
+        );
+        d.text(
+            x + w / 2,
+            600,
+            20,
+            Color::Paper,
+            Align::Center,
+            &c.file.schools[k as usize].name,
+        );
+        d.text(
+            x + w / 2,
+            632,
+            18,
+            Color::Paper,
+            Align::Center,
+            &(k + 1).to_string(),
+        );
+    }
+    // the falling book, its school's colour and shape
+    let b = (book as usize).min(4);
+    let y = 160 + fallen.clamp(0, 1000) * 280 / 1000;
+    d.rect(draw_w() / 2 - 50, y, 100, 130, schools[b]);
+    d.shape(
+        shapes[b],
+        draw_w() / 2,
+        y + 65,
+        Scale::Large,
+        Color::Paper,
+        Color::Ink,
+        3,
+    );
+    d.finish()
+}
+
+/// Sealing a spell (T22): a ring for each piece, its glyph at the ring's
+/// turn, the gold mark at the top, the ring being turned in gold.
+pub fn seal(c: &Content, pieces: &[u16], rings: &[i32], at: usize, heading: &str, hint: &str) -> Vec<i32> {
+    use crate::fx;
+    let mut d = DrawList::new();
+    d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
+    d.rect(240, 70, 800, 600, Color::Panel);
+    d.text(draw_w() / 2, 110, 26, Color::Ink, Align::Center, heading);
+    d.text(draw_w() / 2, 650, 18, Color::Muted, Align::Center, hint);
+    let (cx, cy) = (draw_w() / 2, 380);
+    let n = rings.len().max(1) as i32;
+    let point = |r: i32, a: i32| {
+        (
+            cx + fx::mul(fx::sin(a), r * fx::ONE) / fx::ONE,
+            cy - fx::mul(fx::cos(a), r * fx::ONE) / fx::ONE,
+        )
+    };
+    for (k, &turn) in rings.iter().enumerate() {
+        let r = 240 - k as i32 * 190 / n;
+        let colour = if k < at {
+            Color::Good
+        } else if k == at {
+            Color::Gold
+        } else {
+            Color::Band
+        };
+        let ring: Vec<(i32, i32)> = (0..=48).map(|i| point(r, fx::TURN * i / 48)).collect();
+        d.line(&ring, colour, if k == at { 8 } else { 5 });
+        // the piece's glyph, small, where the ring has turned it
+        let a = turn * fx::TURN / crate::prep::SEAL_STEPS;
+        let (gx, gy) = point(r, a);
+        let piece = &c.file.pieces[pieces.get(k).copied().unwrap_or(0) as usize];
+        let g: Vec<(i32, i32)> = glyph::glyph(&piece.glyph)
+            .iter()
+            .map(|&(x, y)| {
+                (
+                    gx + (x - glyph::BOX / 2) * 34 / glyph::BOX,
+                    gy + (y - glyph::BOX / 2) * 34 / glyph::BOX,
+                )
+            })
+            .collect();
+        d.line(&g, Color::Ink, 4);
+    }
+    // the mark
+    d.shape(Shape::Star, cx, cy - 262, Scale::Tile, Color::Gold, Color::Ink, 2);
+    d.finish()
+}
+
 /// The interview's note lane: notes slide left to the hit line.
 pub fn interview(lane: &Lane, heading: &str, keys: &[String; 4], last: &str) -> Vec<i32> {
     let mut d = DrawList::new();

@@ -410,6 +410,12 @@ pub fn room_dynamic(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32
                 fx::TURN * 360 / 1000,
             ),
             Work::Recruit => ("wisp_helper", rec.add(v3(cm(90), 0, cm(-100))), 0),
+            // the librarian golem goes through the pile (T21)
+            Work::Search => (
+                "golem",
+                prep::station_pos(Station::Library).add(v3(cm(160), 0, cm(220))),
+                fx::TURN * 3 / 8,
+            ),
             Work::Train => ("trainer", pod.add(v3(cm(-300), 0, cm(100))), fx::TURN / 4),
             Work::Raise(_) => continue,
             Work::Build(_) => {

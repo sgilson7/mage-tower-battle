@@ -70,25 +70,78 @@ fn an_action_away_from_its_station_is_refused() {
     assert_eq!(p.act(&c, "library.read", ""), Ok(()));
 }
 
+/// Shelves every falling book on its own school's shelf until the find.
+pub fn sort(p: &mut Prep, c: &Content) {
+    let mut guard = 0;
+    while let Activity::Sorting { book, .. } = &p.activity {
+        let shelf = book.to_string();
+        p.act(c, "sort.shelf", &shelf).unwrap();
+        guard += 1;
+        assert!(guard < 100, "the sort ends");
+    }
+}
+
 #[test]
-fn reading_takes_its_time_then_teaches_a_new_piece() {
+fn a_book_is_found_by_shelving_ten_and_a_miss_makes_the_next_fall_faster() {
     let c = shipped();
     let mut p = prep(&c);
     go(&mut p, Station::Library);
     let before = p.known.iter().filter(|&&k| k).count();
     p.act(&c, "library.read", "").unwrap();
-    // read_ms 2500 is 150 ticks
-    for _ in 0..149 {
+    let Activity::Sorting {
+        book, fall, shelved, ..
+    } = p.activity.clone()
+    else {
+        panic!("sorting")
+    };
+    // sort_fall_ms 1600: 96 ticks; none shelved yet
+    assert_eq!((fall, shelved), (96, 0));
+    // a wrong shelf: back on the pile, and 85% of the fall: 81 ticks
+    let wrong = ((book as usize + 1) % c.file.schools.len()).to_string();
+    p.act(&c, "sort.shelf", &wrong).unwrap();
+    let Activity::Sorting { fall, shelved, .. } = p.activity.clone() else {
+        panic!("still sorting")
+    };
+    assert_eq!((fall, shelved), (81, 0));
+    // a book that lands counts as a miss too
+    for _ in 0..81 {
         p.step(&c, 0);
     }
-    assert!(p.busy());
+    let Activity::Sorting { fall, .. } = p.activity.clone() else {
+        panic!("still sorting")
+    };
+    assert_eq!(fall, 68);
+    // sort_books 10 shelved finds the next book on the pile
+    sort(&mut p, &c);
+    assert!(!p.busy());
+    assert_eq!(
+        p.known.iter().filter(|&&k| k).count() + usize::from(p.notes.iter().any(|n| n.key == "library.dud")),
+        before + 1,
+        "a new piece, or a book already known"
+    );
+}
+
+#[test]
+fn the_librarian_golem_finds_a_new_book_every_45_seconds() {
+    let c = shipped();
+    let mut p = prep(&c);
+    go(&mut p, Station::Library);
+    let before = p.known.iter().filter(|&&k| k).count();
+    let mana = p.mana;
+    p.act(&c, "library.golem", "").unwrap();
+    // librarian_golem: 30 mana, 45 s (2,700 ticks); the golem passes known books by
+    assert_eq!(mana - p.mana, 3000);
+    go(&mut p, Station::Podium);
+    for _ in 0..2699 {
+        p.step(&c, 0);
+    }
     assert_eq!(p.known.iter().filter(|&&k| k).count(), before);
     p.step(&c, 0);
-    assert!(!p.busy());
     assert!(p.known.iter().filter(|&&k| k).count() > before);
-    assert_eq!(p.record.books, 1);
-    // the clock ran the whole time
-    assert_eq!(p.clock, TPS * 240 - 150);
+    assert!(
+        p.jobs.iter().any(|j| matches!(j.work, Work::Search)),
+        "and it goes on looking"
+    );
 }
 
 #[test]
@@ -103,9 +156,28 @@ fn the_lab_saves_a_spell_only_from_known_pieces_and_by_the_rules() {
     assert_eq!(p.act(&c, "lab.save", ""), Err("lab.trigger_at_end"));
     p.act(&c, "lab.add", "oil_spill").unwrap();
     p.act(&c, "lab.save", "").unwrap();
+    assert_eq!(p.spells.len(), 1, "not kept until it is sealed (T22)");
+    seal(&mut p, &c);
     assert_eq!(p.spells.len(), 2, "Fire Bolt and the new spell");
     assert!(p.draft.is_empty());
     assert_eq!(p.chosen, 1);
+}
+
+/// Plays the seal as a careful person would: turns each ring back to the
+/// mark one press at a time, then locks it.
+pub fn seal(p: &mut Prep, c: &Content) {
+    let mut guard = 0;
+    while let Activity::Sealing { rings, at } = &p.activity {
+        let bits = if rings[*at] == 0 {
+            crate::prep::NOTE[3]
+        } else {
+            crate::prep::LEFT
+        };
+        p.step(c, bits);
+        p.step(c, 0);
+        guard += 1;
+        assert!(guard < 1000, "the seal ends");
+    }
 }
 
 fn play_lane(p: &mut Prep, c: &Content) {
@@ -457,4 +529,35 @@ fn a_cell_rubbed_out_or_undone_gives_its_mana_back() {
     p.act(&c, "layout.clear", "").unwrap();
     assert!(p.placed.is_empty());
     assert_eq!(p.mana, full, "every cell's mana is back");
+}
+
+#[test]
+fn a_seal_takes_longer_when_locked_off_the_mark_and_never_changes_the_spell() {
+    let c = shipped();
+    let mut p = prep(&c);
+    go(&mut p, Station::Lab);
+    p.act(&c, "lab.add", "fire_bolt").unwrap();
+    p.act(&c, "lab.add", "ice_shard").unwrap();
+    let draft = p.draft.clone();
+    p.act(&c, "lab.save", "").unwrap();
+    let Activity::Sealing { rings, at } = &p.activity else {
+        panic!("sealing")
+    };
+    assert_eq!((rings.len(), *at), (2, 0), "one ring a piece");
+    let start = rings[0];
+    assert!(start > 0, "a ring starts off the mark");
+    // a lock off the mark turns the ring a step further
+    p.step(&c, crate::prep::NOTE[3]);
+    p.step(&c, 0);
+    let Activity::Sealing { rings, at } = &p.activity else {
+        panic!("still sealing")
+    };
+    assert_eq!((rings[0], *at), ((start + 1) % crate::prep::SEAL_STEPS, 0));
+    seal(&mut p, &c);
+    assert_eq!(
+        p.spells.last(),
+        Some(&draft),
+        "the spell is the draft, whatever the seal"
+    );
+    assert!(matches!(p.activity, Activity::Idle));
 }

@@ -79,6 +79,8 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R3.10: every name in `data/content.json` (pieces, enemies, features, helpers) and the type chart.
 - R3.28: the bots' win shares; decide whether to tune the attack mage and spellcrafter.
 - R3.40: try a room code with a friend on another network; the machine checks cover pasted codes on one machine only.
+- R5.3: what the wireframe's far-left red box and its two rows mean (PLAN.md round 5, question 1).
+- R5.4: round 5's names and numbers (PLAN.md round 5, questions 2–8). Round 5 waits for the person to read its plan before any code.
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 

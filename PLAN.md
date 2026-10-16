@@ -60,3 +60,35 @@ Numbered, so they can be answered by number.
 ## Status
 
 - [x] Read and approved by the person on 16 October 2026, with the answers in `DECISIONS.md` (2026-10-16, plan approved).
+
+## Round 5: the playtest's second list (TRIAGE T15–T27)
+
+`B2 Require step-by-step justification`. Written 16 October 2026 from the person's two messages, with mockups in the design journal (entry 5). **No code until the person has read this section** ("make the mockups and update the journal so i can check everything before the build begins").
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 20 | **Fix recruitment first (T19).** A note key counts once, on the tick it goes down (an edge, like `tapped`), not on every tick it is held. A test plays an interview with keys held for six ticks and expects the student hired. The star is the closing note, pressed with Space; the interview says so. | It blocks use today: every interview scores about 0. |
+| 21 | **Preparation of 2:30 (T18):** `balance.prep_s` 150. Battles stay at most 90 s; practice stays one minute. | "each round should only be two and a half minutes", read as the preparation (question 2). |
+| 22 | **Visual spell builder (T17)**, laid out from `image.png`: the spell's own tile on the left, then sets of three slots left to right: modifiers (blue, optional, stacking up to two), a payload (red), a trigger (yellow). Filling a trigger opens the next set to its right. A tray below holds your pieces as tiles with their glyph icons and mana; drag or click to place; a slot takes only its kind. The rules stay `spell::check`'s: what the builder can show is exactly what the laboratory accepts. | The person's wireframe and GS's rig tiles; the chain rules do not change. |
+| 23 | **Sealing a spell (T22):** saving starts a ring puzzle, one ring a piece, turned with A and D and locked with Space; a lock off the mark spins the ring back a step. It changes only how long saving takes, never the spell. | "a minigame … that does not control effectivness". |
+| 24 | **Office hours (T15, T16):** a new station, a desk in the tower room. Each student's mana, regeneration, range, proficiency by school (the hidden `mods` shown as ±%) and effectiveness in every spell they know. Deploy each student to a tower seat, a built sub-tower's seat, or the ground; set what they cast: a rotation (an ordered list, repeated), best ready (today's rule), or one spell. The battle reads the plan's seats and rotations; an empty or unreachable choice falls back to today's rule. | Today students are seated in hiring order and cast whatever they know. |
+| 25 | **Steeper effectiveness (T26):** the drawing score also measures nearness to the guide's centre, and effectiveness is `5 + 95 × (score ÷ 100)^4`, so 90 gives 66% and only a flawless trace gives 100%. The school's ± and the roll stay; the roll can never lift past what the drawing earned. | "you need to play the minigame like literally perfectly". |
+| 26 | **Harder to find books (T20):** reading takes a book-sorting mini-game: books fall one at a time, shelve each by school (keys 1–5 or a click) before it lands; ten shelved finds the next unread book, a wrong shelf drops one back and speeds the next. The pile gains books that teach nothing new. | "too easy to get crazy spells". |
+| 27 | **Librarian golem (T21):** a helper woken at the library for 30 mana a day; it brings one unread book every 45 s on its own. | "a golem to find books for you that takes a while". |
+| 28 | **Easier, faster building (T23):** drag to lay walls cell by cell along the drag, right-drag to rub out, undo; priced and timed per cell (ivory 4 mana and 1 s a cell, glass 2 and 0.5 s, lava 6 and 1 s, bait 5 and 1 s, sub-tower 40 and 10 s). A cell that would close the route is refused as you drag. The route length shows. | "build more sophisticated labyrinths". Replaces T1's 15–60 s raise times. |
+| 29 | **Spells on yourself (T24):** three new restoration pieces found in books, cast on yourself from anywhere with Q or their HUD button: Mana Spring (double regeneration for 60 s), Deep Well (more mana for the day), Quiet Mind (cheaper spells for 30 s). | "cast spells on yourself to increase mana regen". The names and numbers are mine (question 8). |
+| 30 | **Summons held in check (T25):** at most 8 allies alive at a tower; a summon lasts 12 s; skeletons 2 a cast, not 3; summon mana ×1.5; two students do not cast the same summon at once. Invasions keep their numbers. The spell-space suite gains a rule for the cap. | "conjuration is way too strong". |
+| 31 | **What stays:** score only falls; 4 days; the T1–T14 changes; online play (plans now carry seats and rotations, checked like the rest of a remote plan). | |
+
+Build order: 20 (it blocks use), 21, 25, 30, 28, 24, 22, 23, 26, 27, 29. Each lands with its tests, break rows and a What's new line; the spell log is re-run after 25 and 30.
+
+### Questions for round 5
+
+1. The wireframe: is the red box on the far left the spell itself, and do the two rows mean two branches of one spell (as when a trigger fires twice), or something else?
+2. "Each round two and a half minutes": the preparation at 2:30 with battles unchanged (as planned), or the whole day at 2:30?
+3. Office hours as its own desk in the tower room, or a tab at the podium?
+4. The sorting game: ten books shelved to find one, and the golem at one book every 45 s: right pace?
+5. The per-cell building prices and times in decision 28?
+6. The summon limits in decision 30?
+7. The effectiveness curve in decision 25 (power 4)?
+8. The three self spells, their names, and Q to cast?

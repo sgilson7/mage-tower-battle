@@ -309,6 +309,6 @@
  "card.learned": "New",
  "gloss.number": "No. {n}",
  "gloss.tome_kind": "A whole spell",
- "gloss.tome_text": "A tome: every piece it holds is now yours, and its spell goes to your laboratory when there is room.",
+ "gloss.tome_text": "A book of a whole spell: every piece in it is now yours, and the spell goes to your laboratory when there is room.",
  "card.kind": "{school} {kind}"
 }

@@ -1864,7 +1864,7 @@ impl Session {
             }
             PieceKind::Invade | PieceKind::Trigger { .. } => {}
         }
-        let (d, view) = icon(&[piece.glyph.clone()]);
+        let (d, view) = icon(std::slice::from_ref(&piece.glyph));
         json!({"number": s.f("gloss.number", &[("n", (i + 1).to_string())]), "name": piece.name, "kind": s.f("card.kind", &[("school", school.name.clone()), ("kind", s.t(kind))]), "school": school.id, "text": piece.text, "facts": lines.join(" "), "chip": chip, "icon": d, "view": view})
     }
 

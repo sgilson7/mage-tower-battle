@@ -59,16 +59,15 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
 
   // a spell piece's card (T10): its glyph, name, number, school and kind,
   // what it does and its numbers; the core sends every part
-  const SVG = "http://www.w3.org/2000/svg";
+  // the icon is fixed markup parsed as HTML, which places <svg> in its
+  // namespace without naming it; the core's values go in as attributes
   function cardOf(c) {
     const box = make("article", `card school-${c.school}`);
-    const svg = document.createElementNS(SVG, "svg");
+    const holder = make("div");
+    holder.innerHTML = "<svg class=\"card-icon\" aria-hidden=\"true\"><path></path></svg>";
+    const svg = holder.firstChild;
     svg.setAttribute("viewBox", c.view);
-    svg.setAttribute("class", "card-icon");
-    svg.setAttribute("aria-hidden", "true");
-    const path = document.createElementNS(SVG, "path");
-    path.setAttribute("d", c.icon);
-    svg.append(path);
+    svg.firstChild.setAttribute("d", c.icon);
     const body = make("div", "card-body");
     const top = make("div", "card-top");
     top.append(make("span", "card-number", c.number), make("span", "card-kind", c.kind));

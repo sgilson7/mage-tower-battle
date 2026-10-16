@@ -621,5 +621,33 @@
     "find": "            PieceKind::Invade if i > 0 => return Err(ChainError::InvadeNotFirst),",
     "replace": "            PieceKind::Invade if i > 99 => return Err(ChainError::InvadeNotFirst),",
     "test": "an_invasion_summons_before_any_trigger"
+  },
+  {
+    "name": "the map panel ticks",
+    "file": "crates/core/src/session.rs",
+    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "replace": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"tick\": self.tick, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "test": "the_map_panel_does_not_change_while_something_rises"
+  },
+  {
+    "name": "a card stays twice as long",
+    "file": "crates/core/src/session.rs",
+    "find": "                self.card = Some((card, self.c.balance().card_s.max(1) * TPS));",
+    "replace": "                self.card = Some((card, self.c.balance().card_s.max(1) * TPS * 2));",
+    "test": "a_book_read_shows_its_card_for_three_seconds_or_until_the_next_book"
+  },
+  {
+    "name": "the next book does not replace a card",
+    "file": "crates/core/src/session.rs",
+    "find": "            if let Some(card) = card {",
+    "replace": "            if let Some(card) = card.filter(|_| self.card.is_none()) {",
+    "test": "a_book_read_shows_its_card_for_three_seconds_or_until_the_next_book"
+  },
+  {
+    "name": "the glossary has no cards",
+    "file": "crates/core/src/session.rs",
+    "find": "        json!({\"id\": \"glossary\", \"kind\": \"glossary\", \"heading\": s.t(\"gloss.heading\"), \"text\": text, \"saved_actions\": tabs, \"rows\": rows, \"cards\": cards, \"actions\": [act_json(\"glossary.close\", \"\", s.t(\"gloss.close\"), true)]})",
+    "replace": "        json!({\"id\": \"glossary\", \"kind\": \"glossary\", \"heading\": s.t(\"gloss.heading\"), \"text\": text, \"saved_actions\": tabs, \"rows\": rows, \"cards\": [], \"actions\": [act_json(\"glossary.close\", \"\", s.t(\"gloss.close\"), true)]})",
+    "test": "the_glossary_opens_over_any_screen_lists_every_piece_and_pauses_a_solo_day"
   }
 ]

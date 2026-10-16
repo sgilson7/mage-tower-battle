@@ -28,13 +28,16 @@ def attr(page, name):
 
 
 def hold_until(page, key, done, limit_s=90):
-    page.keyboard.down(key)
+    """Holds a key (or none) until done() or the limit."""
+    if key:
+        page.keyboard.down(key)
     start = time.time()
     try:
         while not done() and time.time() - start < limit_s:
             page.wait_for_timeout(40)
     finally:
-        page.keyboard.up(key)
+        if key:
+            page.keyboard.up(key)
 
 
 def run(page, check, engine):
@@ -43,6 +46,28 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-phase='prep']", state="attached", timeout=LONG)
     first = len(CONTENT["balance"]["start_pieces"])
     check(attr(page, "known") == str(first), f"a new archmage knows the {first} starting pieces in content.json")
+
+    # the map table: place a glass wall, then the map's buttons still work
+    # while it rises, and Esc closes the map (TRIAGE T3, T9)
+    hold_until(page, "KeyW", lambda: attr(page, "station") == "map")
+    page.keyboard.press("KeyE")
+    page.wait_for_selector("body[data-overlay='on']", state="attached", timeout=LONG)
+    page.click("button[data-action='layout.feature'][data-value='glass_wall']")
+    box = page.locator("#overlay").bounding_box()
+    page.mouse.click(box["x"] + box["width"] * 0.4, box["y"] + box["height"] * 0.25)
+    page.wait_for_selector("#rising", state="attached", timeout=LONG)
+    # a slow press and release, as a person clicks, while the wall rises
+    pick = page.locator("button[data-action='layout.feature'][data-value='sub_tower']").bounding_box()
+    page.mouse.move(pick["x"] + pick["width"] / 2, pick["y"] + pick["height"] / 2)
+    page.mouse.down()
+    page.wait_for_timeout(150)
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    picked = STRINGS["map.selected"] in page.locator("#layout li", has_text=CONTENT["features"][-1]["name"]).inner_text().lower()
+    check(picked, "a map button still works after placing something")
+    page.keyboard.press("Escape")
+    page.wait_for_selector("body[data-overlay='off']", state="attached", timeout=LONG)
+    check(True, "Esc closes the map")
 
     # walk to the library: left, then up
     hold_until(page, "KeyA", lambda: int(attr(page, "x") or 0) <= -60)
@@ -61,7 +86,8 @@ def run(page, check, engine):
     # next click does not land on the panel it replaced (SECOND-ORDER R4.11)
     for n in (1, 2):
         page.click("button[data-action='lab.add'][data-value='fire_bolt']")
-        page.wait_for_function(f"document.querySelectorAll(\"#station .chain .act\").length === {n}", timeout=LONG)
+        # polled from here: WebKit runs no page function under the page's CSP
+        hold_until(page, None, lambda: page.locator("#station .chain .act").count() == n, limit_s=LONG / 1000)
     page.click("button[data-action='lab.save']")
     page.wait_for_selector("body[data-spells='2']", state="attached", timeout=LONG)
     check(page.is_visible("#station"), "the laboratory's panel is visible")

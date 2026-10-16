@@ -231,6 +231,8 @@ pub struct Balance {
     pub score_start: i32,
     /// The pieces a new archmage knows before reading a book (T1).
     pub start_pieces: Vec<String>,
+    /// Seconds a book's card stays on screen (T10).
+    pub card_s: i32,
     pub days: i32,
     pub prep_s: i32,
     pub battle_s: i32,

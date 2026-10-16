@@ -2,8 +2,9 @@
 // knowing what any panel means (after Peter's Mandible). A panel is redrawn
 // only when its description changes. Labels over the 3D view arrive with
 // their positions already worked out by the core, as CSS text.
-export function makeUi(panelsEl, labelsEl, toastsEl, act) {
+export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
   const drawn = new Map();
+  let shownCard = "";
   let hints = [];
 
   const make = (tag, cls, text) => {
@@ -27,7 +28,6 @@ export function makeUi(panelsEl, labelsEl, toastsEl, act) {
     b.disabled = !a.enabled;
     b.dataset.action = a.name;
     b.dataset.value = a.value;
-    b.addEventListener("click", () => act(a.name, a.value));
     return b;
   }
 
@@ -55,6 +55,27 @@ export function makeUi(panelsEl, labelsEl, toastsEl, act) {
     if (r.chip) li.append(make("span", "chip", r.chip));
     if (r.actions) li.append(buttons(r.actions, "row-actions"));
     return li;
+  }
+
+  // a spell piece's card (T10): its glyph, name, number, school and kind,
+  // what it does and its numbers; the core sends every part
+  const SVG = "http://www.w3.org/2000/svg";
+  function cardOf(c) {
+    const box = make("article", `card school-${c.school}`);
+    const svg = document.createElementNS(SVG, "svg");
+    svg.setAttribute("viewBox", c.view);
+    svg.setAttribute("class", "card-icon");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(SVG, "path");
+    path.setAttribute("d", c.icon);
+    svg.append(path);
+    const body = make("div", "card-body");
+    const top = make("div", "card-top");
+    top.append(make("span", "card-number", c.number), make("span", "card-kind", c.kind));
+    if (c.chip) top.append(make("span", "chip", c.chip));
+    body.append(top, make("h3", "card-name", c.name), make("p", "card-text", c.text), make("p", "card-facts", c.facts));
+    box.append(svg, body);
+    return box;
   }
 
   function panel(p) {
@@ -104,8 +125,37 @@ export function makeUi(panelsEl, labelsEl, toastsEl, act) {
       for (const r of p.rows) ul.append(rowOf(r));
       box.append(ul);
     }
+    if (p.cards && p.cards.length) {
+      const grid = make("div", "cards");
+      for (const c of p.cards) grid.append(cardOf(c));
+      box.append(grid);
+    }
     return box;
   }
+
+  // A press and a release on the same action count as a click, even when
+  // the panel was redrawn between them: a panel that changes every frame
+  // replaced its buttons under the pointer, and the browser's own click
+  // never came (TRIAGE T9). A key press on a focused button clicks with
+  // detail 0.
+  const target = (e) => {
+    const b = e.target.closest && e.target.closest("button.act");
+    return b && !b.disabled ? b : null;
+  };
+  let pressed = null;
+  panelsEl.addEventListener("pointerdown", (e) => {
+    const b = target(e);
+    pressed = b ? [b.dataset.action, b.dataset.value] : null;
+  });
+  panelsEl.addEventListener("pointerup", (e) => {
+    const b = target(e);
+    if (pressed && b && b.dataset.action === pressed[0] && b.dataset.value === pressed[1]) act(pressed[0], pressed[1]);
+    pressed = null;
+  });
+  panelsEl.addEventListener("click", (e) => {
+    const b = target(e);
+    if (b && e.detail === 0) act(b.dataset.action, b.dataset.value);
+  });
 
   return {
     draw(ui) {
@@ -143,6 +193,11 @@ export function makeUi(panelsEl, labelsEl, toastsEl, act) {
         }),
       );
       toastsEl.replaceChildren(...(ui.toasts || []).map((t) => make("div", "toast", t)));
+      const cardKey = JSON.stringify(ui.card || null);
+      if (cardKey !== shownCard) {
+        shownCard = cardKey;
+        cardEl.replaceChildren(...(ui.card ? [cardOf(ui.card)] : []));
+      }
       const body = document.body.dataset;
       body.screen = ui.screen;
       body.phase = ui.phase || "";

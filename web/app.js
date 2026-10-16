@@ -113,7 +113,7 @@ async function main() {
     const r = JSON.parse(game.act(name, value));
     message(r.error || "");
   }
-  const ui = makeUi(el("panels"), el("labels"), el("toasts"), act);
+  const ui = makeUi(el("panels"), el("labels"), el("toasts"), el("card"), act);
 
   window.addEventListener("keydown", (e) => {
     const a = C.acts[e.code];

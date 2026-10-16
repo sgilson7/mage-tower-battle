@@ -305,5 +305,10 @@
  "view.reset": "Reset the views",
  "view.hint": "Drag a view to turn it, right-drag or Shift-drag to move it, and turn the mouse wheel to zoom. Each view keeps its own camera.",
  "map.rising_short": "Rising: {name}",
- "lab.invade_first": "Invade goes first: an invasion is a spell that starts with Invade."
+ "lab.invade_first": "Invade goes first: an invasion is a spell that starts with Invade.",
+ "card.learned": "New",
+ "gloss.number": "No. {n}",
+ "gloss.tome_kind": "A whole spell",
+ "gloss.tome_text": "A tome: every piece it holds is now yours, and its spell goes to your laboratory when there is room.",
+ "card.kind": "{school} {kind}"
 }

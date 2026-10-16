@@ -105,6 +105,7 @@ body[data-screen="play"] .panel-corner .actions { justify-content: flex-end; }
 body[data-overlay="on"] .panel-side { display: none; }
 body[data-screen="play"] .panel-jobs { position: absolute; left: 12px; top: 84px; width: min(280px, 24%); max-height: 50%; overflow: auto; padding: 8px 12px; }
 body[data-overlay="on"] .panel-jobs { display: none; }
+body[data-screen="play"] .panel-rising { position: absolute; right: 12px; top: 84px; width: min(300px, 24%); max-height: 60%; overflow: auto; padding: 8px 12px; }
 body[data-screen="play"] .panel-hint { position: absolute; left: 12px; top: 84px; width: min(300px, 26%); font-size: 13px; padding: 8px 12px; opacity: 0.92; pointer-events: none; }
 body[data-phase="battle"] #gl { cursor: grab; }
 /* the map's own panel sits left of the map, so it stays usable while the map is open (T3) */
@@ -126,3 +127,23 @@ body[data-busy="drawing"] .panel-bottom, body[data-busy="interview"] .panel-bott
 #ask { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(640px, 92%); z-index: 5; }
 #ask textarea { display: block; width: 100%; box-sizing: border-box; min-height: 64px; font: 12px ui-monospace, monospace; margin: 0 0 10px; }
 #ask .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* spell piece cards (T10): the one a book just taught, and the glossary's */
+.card { --school: var(--accent); display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: start; background: var(--paper); color: var(--ink); border: var(--line) solid var(--ink); border-left: 10px solid var(--school); border-radius: var(--radius); padding: 12px 14px; box-shadow: 0 4px 0 rgba(43, 33, 64, 0.35); }
+.card.school-destruction { --school: var(--destruction); }
+.card.school-alteration { --school: var(--alteration); }
+.card.school-conjuration { --school: var(--conjuration); }
+.card.school-illusion { --school: var(--illusion); }
+.card.school-restoration { --school: var(--restoration); }
+.card-icon { width: 96px; height: 96px; background: var(--chip-bg); border: 2px solid var(--ink); border-radius: 14px; }
+.card-icon path { fill: none; stroke: var(--school); stroke-width: 80; stroke-linecap: round; stroke-linejoin: round; }
+.card-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 700 12px var(--font); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.card-name { margin: 2px 0 4px; font: 800 26px/1.15 var(--font); }
+.card-text { margin: 0 0 4px; font-size: 16px; }
+.card-facts { margin: 0; font-size: 14px; color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; margin-top: 8px; }
+#card { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); width: min(560px, 70%); z-index: 3; pointer-events: none; }
+#card:not(:empty) { animation: card-in 0.25s ease-out; }
+#card .card { box-shadow: 0 8px 0 rgba(43, 33, 64, 0.45); }
+#card .card-name { font-size: 34px; }
+@keyframes card-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }

@@ -413,13 +413,20 @@ fn the_glossary_opens_over_any_screen_lists_every_piece_and_pauses_a_solo_day() 
         .find(|p| p["id"] == "glossary")
         .cloned()
         .expect("over the title");
-    let rows = g["rows"].as_array().unwrap();
+    let cards = g["cards"].as_array().unwrap();
     assert_eq!(
-        rows.len(),
+        cards.len(),
         s.c.file.pieces.len(),
-        "one entry for every spell piece"
+        "one card for every spell piece"
     );
-    assert!(rows[0]["label"].as_str().unwrap().starts_with("No. 1 · "));
+    assert_eq!(cards[0]["number"], "No. 1");
+    assert_eq!(cards[0]["name"], s.c.file.pieces[0].name.as_str());
+    assert!(
+        cards
+            .iter()
+            .all(|c| c["icon"].as_str().unwrap().starts_with('M') && !c["text"].as_str().unwrap().is_empty()),
+        "each has an icon and an explanation"
+    );
     for tab in ["spells", "terms", "how"] {
         s.act("glossary.tab", tab).unwrap();
         no_missing(&s.ui());
@@ -459,7 +466,11 @@ fn the_glossary_opens_over_any_screen_lists_every_piece_and_pauses_a_solo_day() 
         .cloned()
         .unwrap();
     assert!(
-        g["rows"].as_array().unwrap().iter().any(|r| r["chip"] == "known"),
+        g["cards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["chip"] == "known"),
         "known pieces are marked"
     );
     s.act("glossary.toggle", "").unwrap();
@@ -555,4 +566,60 @@ fn a_view_stays_above_the_field_and_within_its_limits() {
     let x0 = o.at.x;
     o.pan(50, 0, 500);
     assert!(o.at.x < x0);
+}
+
+#[test]
+fn the_map_panel_does_not_change_while_something_rises() {
+    // a panel that changes every tick is redrawn under the pointer and its
+    // buttons cannot be clicked (T9)
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Map);
+    s.act("layout.open", "").unwrap();
+    s.act("layout.feature", "glass_wall").unwrap();
+    s.act("pointer.move", "500,200,1280,720").unwrap();
+    s.act("pointer.down", "500,200,1280,720").unwrap();
+    let panel = |s: &Session, id: &str| {
+        s.ui()["panels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == id)
+            .cloned()
+    };
+    assert!(panel(&s, "rising").is_some(), "the glass wall is rising");
+    let before = panel(&s, "layout").unwrap();
+    run(&mut s, 30);
+    assert_eq!(panel(&s, "layout").unwrap(), before, "the map's buttons stay put");
+    assert_ne!(panel(&s, "rising"), None);
+}
+
+#[test]
+fn a_book_read_shows_its_card_for_three_seconds_or_until_the_next_book() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Library);
+    let read = |s: &mut Session| {
+        let before = s.card.clone().map(|c| c.0);
+        s.act("library.read", "").unwrap();
+        let mut waited = 0;
+        while s.card.clone().map(|c| c.0) == before && waited < TPS * 30 {
+            run(s, 1);
+            waited += 1;
+        }
+        s.card.clone().expect("a card for the book")
+    };
+    let (card, _) = read(&mut s);
+    assert_eq!(s.ui()["card"], card, "the page is sent the card");
+    assert!(!card["name"].as_str().unwrap().is_empty() && card["icon"].as_str().unwrap().starts_with('M'));
+    no_missing(&s.ui());
+    // card_s 3: still there just before three seconds, gone after
+    run(&mut s, TPS * 3 - 2);
+    assert!(s.card.is_some());
+    run(&mut s, 3);
+    assert!(s.card.is_none(), "it goes after three seconds");
+    let (a, _) = read(&mut s);
+    let (b, left) = read(&mut s);
+    assert_ne!(a["name"], b["name"], "the next book replaces the card");
+    assert!(left > TPS * 3 - 5, "and starts its own three seconds");
 }

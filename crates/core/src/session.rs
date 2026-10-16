@@ -11,6 +11,7 @@ use crate::content::{Content, PieceKind};
 use crate::game::{self, Match, Mode, Phase, SeatKind, Settings};
 use crate::geom::{self, v3, TPS};
 use crate::glossary;
+use crate::glyph;
 use crate::look::Look;
 use crate::online::{self, Event, Msg, Online, Role};
 use crate::overlay;
@@ -89,6 +90,8 @@ pub struct Session {
     pasted: bool,
     /// The glossary's open tab, while it is open (T8).
     pub glossary: Option<String>,
+    /// The card for the book just read, and the ticks it stays (T10).
+    pub card: Option<(Value, i32)>,
     /// Each battle view's own camera (T5), and the drag moving one.
     pub cams: [scene::Orbit; 4],
     drag: Option<Drag>,
@@ -97,6 +100,22 @@ pub struct Session {
     net_queue: Vec<Event>,
     sums: Vec<(i32, u8, u64)>,
     desync_told: bool,
+}
+
+/// An SVG path and view box drawing glyphs side by side, in glyph units,
+/// for a card's icon (T10).
+fn icon(glyphs: &[Vec<String>]) -> (String, String) {
+    let pts = glyph::incantation(glyphs);
+    let mut d = String::new();
+    for (k, (x, y)) in pts.iter().enumerate() {
+        d.push_str(&format!("{}{x} {y} ", if k == 0 { "M" } else { "L" }));
+    }
+    let w = glyph::width(glyphs.len().max(1));
+    let pad = glyph::BOX / 8;
+    (
+        d.trim_end().to_string(),
+        format!("{} {} {} {}", -pad, -pad, w + 2 * pad, glyph::BOX + 2 * pad),
+    )
 }
 
 /// A drag in a battle view: which seat's camera, where the pointer was, and
@@ -198,6 +217,7 @@ impl Session {
             online_code: String::new(),
             pasted: false,
             glossary: None,
+            card: None,
             cams: [scene::Orbit::start(false); 4],
             drag: None,
             build,
@@ -922,6 +942,10 @@ impl Session {
             t.1 -= 1;
         }
         self.toasts.retain(|t| t.1 > 0);
+        if let Some(card) = self.card.as_mut() {
+            card.1 -= 1;
+        }
+        self.card = self.card.take().filter(|c| c.1 > 0);
         self.pump_online();
         if self.glossary_pauses() {
             return;
@@ -955,8 +979,10 @@ impl Session {
         // the archmage's notes become toasts and sounds
         let mut notes = Vec::new();
         let mut lane_hits = None;
+        let mut last_read = None;
         if let Some(p) = m.local_prep_mut() {
             notes = std::mem::take(&mut p.notes);
+            last_read = p.last_read.clone();
             if let Activity::Interview { lane, .. } = &p.activity {
                 lane_hits = Some(
                     lane.notes
@@ -988,7 +1014,17 @@ impl Session {
             if !sound.is_empty() {
                 self.play(sound);
             }
-            if n.key != "draw.score" {
+            // a book read shows its card for a while, or until the next one (T10)
+            let card = match (n.key.as_str(), &last_read) {
+                ("library.learned", Some(prep::Book::Piece(k))) => {
+                    Some(self.piece_card(*k as usize, self.s.t("card.learned")))
+                }
+                ("library.tome", Some(prep::Book::Tome(t))) => Some(self.tome_card(*t as usize)),
+                _ => None,
+            };
+            if let Some(card) = card {
+                self.card = Some((card, self.c.balance().card_s.max(1) * TPS));
+            } else if n.key != "draw.score" {
                 let text = self.s.f(&n.key, &[("value", n.value.clone())]);
                 self.toast(text);
             }
@@ -1445,6 +1481,7 @@ impl Session {
             out["glossary"] = json!(true);
         }
         out["glossary_label"] = json!(self.s.t("gloss.button"));
+        out["card"] = self.card.as_ref().map(|c| c.0.clone()).unwrap_or(Value::Null);
         out["hints"] = json!(hints);
         out["toasts"] = json!(toasts);
         out["muted"] = json!(self.save.muted);
@@ -1670,7 +1707,7 @@ impl Session {
             .map(|t| act_json("glossary.tab", t, s.t(&format!("gloss.tab.{t}")), *t != tab))
             .collect();
         let secs = |ms: i32| format!("{}.{}", ms / 1000, ms % 1000 / 100);
-        let (text, rows): (String, Vec<Value>) = match tab {
+        let (text, rows, cards): (String, Vec<Value>, Vec<Value>) = match tab {
             "spells" => {
                 let rows: Vec<Value> = prep
                     .map(|p| {
@@ -1703,7 +1740,7 @@ impl Session {
                     (Some(_), true) => s.t("gloss.no_spells"),
                     _ => s.t("gloss.spells_text"),
                 };
-                (text, rows)
+                (text, rows, Vec::new())
             }
             "terms" => (
                 s.t("gloss.terms_text"),
@@ -1711,70 +1748,21 @@ impl Session {
                     .iter()
                     .map(|(t, d)| row(t.clone(), d.clone()))
                     .collect(),
+                Vec::new(),
             ),
-            "how" => (s.t("gloss.how_text"), self.help_rows()),
+            "how" => (s.t("gloss.how_text"), self.help_rows(), Vec::new()),
             _ => {
-                let rows = c
-                    .file
-                    .pieces
-                    .iter()
-                    .enumerate()
-                    .map(|(i, piece)| {
-                        let kind = match piece.kind {
-                            PieceKind::Payload { .. } => "kind.payload",
-                            PieceKind::Modifier { .. } => "kind.modifier",
-                            PieceKind::Formation { .. } => "kind.formation",
-                            PieceKind::Invade => "kind.invade",
-                            PieceKind::Trigger { .. } => "kind.trigger",
-                            PieceKind::Helper { .. } => "kind.helper",
-                        };
-                        let school = &c.file.schools[c.piece_school[i]];
-                        let mut lines = vec![s.f("gloss.kind_line", &[("school", school.name.clone()), ("kind", s.t(kind))]), piece.text.clone()];
-                        match &piece.kind {
-                            PieceKind::Payload { .. } => match spell::raises(c, i as u16) {
-                                Some(f) => {
-                                    let f = &c.file.features[f];
-                                    lines.push(s.f("gloss.raises", &[("mana", f.mana.to_string()), ("s", f.raise_s.to_string())]));
-                                }
-                                None => {
-                                    let st = spell::stats(c, &[i as u16]);
-                                    lines.push(s.f("gloss.payload", &[("power", st.power.to_string()), ("cooldown", secs(st.cooldown_ms)), ("mana", st.mana.to_string())]));
-                                }
-                            },
-                            PieceKind::Modifier { mods, .. } => {
-                                let list: Vec<String> = [
-                                    ("gloss.mod.damage", mods.damage_pct),
-                                    ("gloss.mod.area", mods.area_pct),
-                                    ("gloss.mod.speed", mods.speed_pct),
-                                    ("gloss.mod.cooldown", mods.cooldown_pct),
-                                    ("gloss.mod.pierce", mods.pierce),
-                                ]
-                                .iter()
-                                .filter(|(_, v)| *v != 0)
-                                .map(|(k, v)| s.f(k, &[("v", if *v > 0 && *k != "gloss.mod.pierce" { format!("+{v}") } else { v.to_string() })]))
-                                .collect();
-                                lines.push(s.f("gloss.mods", &[("list", list.join(", "))]));
-                            }
-                            PieceKind::Formation { copies, share_pct, .. } => {
-                                lines.push(s.f("gloss.formation", &[("copies", copies.to_string()), ("share", share_pct.to_string())]));
-                            }
-                            PieceKind::Helper { helper } => {
-                                if let Some(h) = c.helper(helper) {
-                                    let h = &c.file.helpers[h];
-                                    lines.push(s.f("gloss.helper", &[("mana", h.mana.to_string()), ("s", h.job_s.to_string())]));
-                                }
-                            }
-                            PieceKind::Invade | PieceKind::Trigger { .. } => {}
-                        }
+                let cards = (0..c.file.pieces.len())
+                    .map(|i| {
                         let chip = match prep {
                             Some(p) if p.known[i] => s.t("gloss.known"),
                             Some(_) => s.t("gloss.unknown"),
                             None => String::new(),
                         };
-                        json!({"label": s.f("gloss.entry", &[("n", (i + 1).to_string()), ("name", piece.name.clone())]), "detail": lines.join(" "), "chip": chip, "school": school.id})
+                        self.piece_card(i, chip)
                     })
                     .collect();
-                (s.t("gloss.pieces_text"), rows)
+                (s.t("gloss.pieces_text"), Vec::new(), cards)
             }
         };
         let paused = self.glossary_pauses();
@@ -1783,13 +1771,135 @@ impl Session {
         } else {
             text
         };
-        json!({"id": "glossary", "kind": "glossary", "heading": s.t("gloss.heading"), "text": text, "saved_actions": tabs, "rows": rows, "actions": [act_json("glossary.close", "", s.t("gloss.close"), true)]})
+        json!({"id": "glossary", "kind": "glossary", "heading": s.t("gloss.heading"), "text": text, "saved_actions": tabs, "rows": rows, "cards": cards, "actions": [act_json("glossary.close", "", s.t("gloss.close"), true)]})
     }
 
     /// A game against the computer waits while the glossary is open; an
     /// online one cannot, since the other players' days go on.
     fn glossary_pauses(&self) -> bool {
         self.glossary.is_some() && self.m.as_ref().map(|m| m.mode != Mode::Online).unwrap_or(false)
+    }
+
+    /// A spell piece as a card (T10): its glyph as an icon, its name, number,
+    /// school and kind, what it does, and its numbers. The glossary shows
+    /// every piece this way, and reading a book shows the one it taught.
+    fn piece_card(&self, i: usize, chip: String) -> Value {
+        let s = &self.s;
+        let c = &self.c;
+        let piece = &c.file.pieces[i];
+        let secs = |ms: i32| format!("{}.{}", ms / 1000, ms % 1000 / 100);
+        let kind = match piece.kind {
+            PieceKind::Payload { .. } => "kind.payload",
+            PieceKind::Modifier { .. } => "kind.modifier",
+            PieceKind::Formation { .. } => "kind.formation",
+            PieceKind::Invade => "kind.invade",
+            PieceKind::Trigger { .. } => "kind.trigger",
+            PieceKind::Helper { .. } => "kind.helper",
+        };
+        let school = &c.file.schools[c.piece_school[i]];
+        let mut lines: Vec<String> = Vec::new();
+        match &piece.kind {
+            PieceKind::Payload { .. } => match spell::raises(c, i as u16) {
+                Some(f) => {
+                    let f = &c.file.features[f];
+                    lines.push(s.f(
+                        "gloss.raises",
+                        &[("mana", f.mana.to_string()), ("s", f.raise_s.to_string())],
+                    ));
+                }
+                None => {
+                    let st = spell::stats(c, &[i as u16]);
+                    lines.push(s.f(
+                        "gloss.payload",
+                        &[
+                            ("power", st.power.to_string()),
+                            ("cooldown", secs(st.cooldown_ms)),
+                            ("mana", st.mana.to_string()),
+                        ],
+                    ));
+                }
+            },
+            PieceKind::Modifier { mods, .. } => {
+                let list: Vec<String> = [
+                    ("gloss.mod.damage", mods.damage_pct),
+                    ("gloss.mod.area", mods.area_pct),
+                    ("gloss.mod.speed", mods.speed_pct),
+                    ("gloss.mod.cooldown", mods.cooldown_pct),
+                    ("gloss.mod.pierce", mods.pierce),
+                ]
+                .iter()
+                .filter(|(_, v)| *v != 0)
+                .map(|(k, v)| {
+                    s.f(
+                        k,
+                        &[(
+                            "v",
+                            if *v > 0 && *k != "gloss.mod.pierce" {
+                                format!("+{v}")
+                            } else {
+                                v.to_string()
+                            },
+                        )],
+                    )
+                })
+                .collect();
+                lines.push(s.f("gloss.mods", &[("list", list.join(", "))]));
+            }
+            PieceKind::Formation {
+                copies, share_pct, ..
+            } => {
+                lines.push(s.f(
+                    "gloss.formation",
+                    &[("copies", copies.to_string()), ("share", share_pct.to_string())],
+                ));
+            }
+            PieceKind::Helper { helper } => {
+                if let Some(h) = c.helper(helper) {
+                    let h = &c.file.helpers[h];
+                    lines.push(s.f(
+                        "gloss.helper",
+                        &[("mana", h.mana.to_string()), ("s", h.job_s.to_string())],
+                    ));
+                }
+            }
+            PieceKind::Invade | PieceKind::Trigger { .. } => {}
+        }
+        let (d, view) = icon(&[piece.glyph.clone()]);
+        json!({"number": s.f("gloss.number", &[("n", (i + 1).to_string())]), "name": piece.name, "kind": s.f("card.kind", &[("school", school.name.clone()), ("kind", s.t(kind))]), "school": school.id, "text": piece.text, "facts": lines.join(" "), "chip": chip, "icon": d, "view": view})
+    }
+
+    /// A whole spell a tome taught, as a card.
+    fn tome_card(&self, t: usize) -> Value {
+        let s = &self.s;
+        let c = &self.c;
+        let pieces = c.tome(t);
+        let glyphs: Vec<Vec<String>> = pieces
+            .iter()
+            .map(|&k| c.file.pieces[k as usize].glyph.clone())
+            .collect();
+        let (d, view) = icon(&glyphs);
+        let school = pieces
+            .first()
+            .map(|&k| c.file.schools[c.piece_school[k as usize]].id.clone())
+            .unwrap_or_default();
+        let names: Vec<String> = pieces
+            .iter()
+            .map(|&k| c.file.pieces[k as usize].name.clone())
+            .collect();
+        let st = spell::stats(c, &pieces);
+        let facts = s.f(
+            "gloss.spell_detail",
+            &[
+                ("pieces", names.join(" → ")),
+                ("power", st.power.to_string()),
+                (
+                    "cooldown",
+                    format!("{}.{}", st.cooldown_ms / 1000, st.cooldown_ms % 1000 / 100),
+                ),
+                ("mana", st.mana.to_string()),
+            ],
+        );
+        json!({"number": "", "name": c.file.tomes[t].name, "kind": s.t("gloss.tome_kind"), "school": school, "text": s.t("gloss.tome_text"), "facts": facts, "chip": "", "icon": d, "view": view})
     }
 
     fn ui_help(&self) -> Value {
@@ -1859,6 +1969,25 @@ impl Session {
             panels.push(json!({"id": "busy", "kind": "bottom", "text": text, "actions": [act_json("prep.cancel", "", s.t("busy.cancel"), true)]}));
         } else if self.layout.open {
             panels.push(self.ui_layout(p));
+            // what is rising changes every second, so it has a panel of its
+            // own and the map's buttons stay put (T9)
+            let rising: Vec<Value> = p
+                .jobs
+                .iter()
+                .filter_map(|j| match &j.work {
+                    prep::Work::Raise(pl) | prep::Work::Build(pl) => {
+                        let left_s = (j.left + TPS - 1) / TPS;
+                        let total_s = ((j.total + TPS - 1) / TPS).max(1);
+                        Some(json!({"label": s.f("map.rising", &[("name", self.c.file.features[pl.feature as usize].name.clone()), ("s", left_s.to_string())]), "bar": strings::css_pct((total_s - left_s) * 1000 / total_s)}))
+                    }
+                    _ => None,
+                })
+                .collect();
+            if !rising.is_empty() {
+                panels.push(
+                    json!({"id": "rising", "kind": "rising", "heading": s.t("jobs.heading"), "rows": rising}),
+                );
+            }
         } else if let Some(st) = station {
             panels.push(self.ui_station(m, p, st));
         } else {
@@ -1875,7 +2004,11 @@ impl Session {
                         prep::Work::Raise(pl) => s.f("map.rising_short", &[("name", self.c.file.features[pl.feature as usize].name.clone())]),
                         _ => self.c.file.helpers[j.helper as usize].name.clone(),
                     };
-                    json!({"label": label, "detail": strings::clock(j.left), "bar": strings::css_pct(1000 - j.left * 1000 / j.total.max(1))})
+                    {
+                        // in whole seconds, so the panel changes once a second, not every tick
+                        let (left_s, total_s) = ((j.left + TPS - 1) / TPS, ((j.total + TPS - 1) / TPS).max(1));
+                        json!({"label": label, "detail": strings::clock(j.left), "bar": strings::css_pct((total_s - left_s) * 1000 / total_s)})
+                    }
                 })
                 .collect();
             // beside the station's panel, not on top of it
@@ -2156,15 +2289,7 @@ impl Session {
                 )
             })
             .collect();
-        let rising: Vec<Value> = p
-            .jobs
-            .iter()
-            .filter_map(|j| match &j.work {
-                prep::Work::Raise(pl) | prep::Work::Build(pl) => Some(json!({"label": s.f("map.rising", &[("name", self.c.file.features[pl.feature as usize].name.clone()), ("s", ((j.left + TPS - 1) / TPS).to_string())]), "bar": strings::css_pct((j.total - j.left) * 1000 / j.total.max(1))})),
-                _ => None,
-            })
-            .collect();
-        json!({"id": "layout", "kind": "map", "heading": s.t("station.map"), "text": text, "rows": rows, "saved": rising, "saved_actions": placed, "actions": [act_json("layout.turn", "", s.t("map.turn"), true), act_json("layout.mode", if self.layout.golem { "mana" } else { "golem" }, s.t(if self.layout.golem { "map.use_mana" } else { "map.use_golem" }), true), act_json("layout.close", "", s.t("map.close"), true)]})
+        json!({"id": "layout", "kind": "map", "heading": s.t("station.map"), "text": text, "rows": rows, "saved_actions": placed, "actions": [act_json("layout.turn", "", s.t("map.turn"), true), act_json("layout.mode", if self.layout.golem { "mana" } else { "golem" }, s.t(if self.layout.golem { "map.use_mana" } else { "map.use_golem" }), true), act_json("layout.close", "", s.t("map.close"), true)]})
     }
 
     fn ui_battle(&self, m: &Match) -> Value {

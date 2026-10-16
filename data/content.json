@@ -1110,6 +1110,7 @@
    "glass_wall",
    "sub_tower"
   ],
+  "card_s": 3,
   "days": 4,
   "prep_s": 240,
   "battle_s": 90,

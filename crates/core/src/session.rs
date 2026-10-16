@@ -1691,6 +1691,8 @@ impl Session {
         let mut actions = Vec::new();
         if !self.pasted && !o.room.is_empty() {
             actions.push(act_json("page.copy", &o.room, s.t("online.copy_code"), true));
+            // a link that joins this room when opened (T14)
+            actions.push(act_json("page.copy_link", &o.room, s.t("online.copy_link"), true));
         }
         if self.pasted && o.role == Role::Host {
             actions.push(act_json("page.invite", "", s.t("online.invite_more"), true));

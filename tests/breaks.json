@@ -684,5 +684,12 @@
     "find": "                let draft_mana = (!p.draft.is_empty()).then(|| mana(s, spell::stats(c, &p.draft).mana));",
     "replace": "                let draft_mana = false.then(|| mana(s, spell::stats(c, &p.draft).mana));",
     "test": "mana_costs_are_sent_for_the_mana_symbol"
+  },
+  {
+    "name": "the lobby has no link to copy",
+    "file": "crates/core/src/session.rs",
+    "find": "            actions.push(act_json(\"page.copy_link\", &o.room, s.t(\"online.copy_link\"), true));",
+    "replace": "            actions.push(act_json(\"page.copy_nothing\", &o.room, s.t(\"online.copy_link\"), true));",
+    "test": "the_host_s_lobby_offers_the_room_code_and_a_link_to_copy"
   }
 ]

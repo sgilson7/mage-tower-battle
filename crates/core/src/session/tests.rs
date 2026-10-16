@@ -768,3 +768,27 @@ fn mana_costs_are_sent_for_the_mana_symbol() {
         .unwrap();
     assert_eq!(card["mana"]["n"], bolt.to_string());
 }
+
+#[test]
+fn the_host_s_lobby_offers_the_room_code_and_a_link_to_copy() {
+    let (host, _) = online_room(1);
+    let ui = host.ui();
+    no_missing(&ui);
+    let lobby = ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "lobby")
+        .cloned()
+        .unwrap();
+    let code = host.online.as_ref().unwrap().room.clone();
+    let has = |name: &str| {
+        lobby["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["name"] == name && a["value"] == code.as_str())
+    };
+    assert!(has("page.copy"), "the code");
+    assert!(has("page.copy_link"), "the link, which carries the code");
+}

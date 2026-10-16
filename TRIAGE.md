@@ -19,3 +19,4 @@ Compare at least one result with a case worked out by hand. **Severity** is *blo
 | T11 | "i also want an animated landing page like ape race has when you start the game" | An animated title screen. | A plain menu over a dark background. | wanted | M | done (R4.16) |
 | T12 | "and a whats new tracker" | A list of what changed in each update, with what is new since your last visit marked. | None. | wanted | S | done (R4.17) |
 | T13 | "there should also be little mana symbols to show the mana cost of spells when created" | Mana costs shown with a mana symbol. | Mana was a number in a sentence. | wanted | S | done (R4.18) |
+| T14 | "gotta add the copy link" | The online lobby copies a link that joins the room when opened, as in Galactic Survivors. | Only the room code could be copied. | wanted | S | done (R4.19) |

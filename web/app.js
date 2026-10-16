@@ -73,8 +73,12 @@ async function main() {
   }
 
   // the page's own actions: the ones that need the transport or the clipboard
+  // the address of this page with a room in its fragment: opening it joins
+  const roomLink = (code) => `${location.origin}${location.pathname}#room=${code}`;
+
   async function page(name, value) {
     if (name === "page.copy") return copy(value);
+    if (name === "page.copy_link") return copy(roomLink(value));
     const net = await transport();
     if (name === "page.host") net.host();
     if (name === "page.join" && !net.join(value)) message(S["page.bad_code"]);
@@ -199,6 +203,13 @@ async function main() {
   }
   requestAnimationFrame(frame);
   document.body.dataset.ready = "true";
+  // a room link: take the room out of the address, then join it (T14)
+  const room = new URLSearchParams(location.hash.slice(1)).get("room");
+  if (room) {
+    history.replaceState(null, "", location.pathname + location.search);
+    act("screen.show", "online");
+    page("page.join", room);
+  }
 }
 
 main();

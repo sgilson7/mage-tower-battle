@@ -213,7 +213,7 @@
  "help.9.text": "Your score starts at {score} and only falls. The highest score after the last day wins.",
  "page.no_webgl": "This game needs WebGL 2, which this browser does not offer.",
  "online.heading": "Online play",
- "online.text": "Up to four archmages, each in their own browser. One hosts and shares a room code; the others type it in and join. Empty seats go to computer rivals. If a room code will not connect, try pasted codes: the host sends an invitation by any message app, and the joiner sends a reply back.",
+ "online.text": "Up to four archmages, each in their own browser. One hosts and shares a room code or a link; the others type the code in, or open the link, and join. Empty seats go to computer rivals. If a room code will not connect, try pasted codes: the host sends an invitation by any message app, and the joiner sends a reply back.",
  "online.name": "Your name",
  "online.code": "Room code",
  "online.default_name": "Archmage",
@@ -222,7 +222,7 @@
  "online.invite": "Host by pasted codes",
  "online.reply": "Join by pasted codes",
  "online.lobby": "The room",
- "online.code_is": "Room code: {code}. Send it to the people you are playing with.",
+ "online.code_is": "Room code: {code}. Send it, or the link, to the people you are playing with: opening the link joins this room.",
  "online.by_paste": "Connected by pasted codes.",
  "online.copy_code": "Copy the room code",
  "online.settings": "The match: {days} days, {prep} of preparation and {battle} of battle each day, from the host's Versus settings.",
@@ -335,5 +335,6 @@
  "controls.camera": "Battle views",
  "controls.camera.keys": "Drag, right-drag, wheel",
  "controls.mute": "Sound",
- "controls.mute.keys": "M"
+ "controls.mute.keys": "M",
+ "online.copy_link": "Copy the link"
 }

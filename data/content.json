@@ -1,0 +1,1396 @@
+{
+ "_about": "Every rule-bearing number and name in the game. The core parses and checks this file (crates/core/src/content.rs). Distances in cm, times in ms, speeds in cm/s.",
+ "schools": [
+  {
+   "id": "destruction",
+   "name": "Destruction",
+   "shape": "triangle",
+   "colour": "#e06a3a"
+  },
+  {
+   "id": "alteration",
+   "name": "Alteration",
+   "shape": "square",
+   "colour": "#3fae8c"
+  },
+  {
+   "id": "conjuration",
+   "name": "Conjuration",
+   "shape": "diamond",
+   "colour": "#6b46c1"
+  },
+  {
+   "id": "illusion",
+   "name": "Illusion",
+   "shape": "star",
+   "colour": "#ff6fa8"
+  },
+  {
+   "id": "restoration",
+   "name": "Restoration",
+   "shape": "cross",
+   "colour": "#e8b23a"
+  }
+ ],
+ "types": [
+  {
+   "id": "fire",
+   "name": "Fire",
+   "colour": "#ff7a2a"
+  },
+  {
+   "id": "frost",
+   "name": "Frost",
+   "colour": "#9be7ff"
+  },
+  {
+   "id": "acid",
+   "name": "Acid",
+   "colour": "#8cff5a"
+  },
+  {
+   "id": "leaf",
+   "name": "Leaf",
+   "colour": "#5fae4f"
+  },
+  {
+   "id": "earth",
+   "name": "Earth",
+   "colour": "#b08a5a"
+  },
+  {
+   "id": "bone",
+   "name": "Bone",
+   "colour": "#f3eee0"
+  },
+  {
+   "id": "spirit",
+   "name": "Spirit",
+   "colour": "#c9a7ff"
+  }
+ ],
+ "chart": [
+  [
+   "fire",
+   "leaf",
+   200
+  ],
+  [
+   "fire",
+   "frost",
+   200
+  ],
+  [
+   "fire",
+   "earth",
+   50
+  ],
+  [
+   "fire",
+   "fire",
+   50
+  ],
+  [
+   "frost",
+   "earth",
+   200
+  ],
+  [
+   "frost",
+   "leaf",
+   200
+  ],
+  [
+   "frost",
+   "fire",
+   50
+  ],
+  [
+   "frost",
+   "frost",
+   50
+  ],
+  [
+   "acid",
+   "bone",
+   200
+  ],
+  [
+   "acid",
+   "leaf",
+   200
+  ],
+  [
+   "acid",
+   "spirit",
+   50
+  ],
+  [
+   "acid",
+   "acid",
+   50
+  ],
+  [
+   "leaf",
+   "earth",
+   200
+  ],
+  [
+   "leaf",
+   "bone",
+   200
+  ],
+  [
+   "leaf",
+   "fire",
+   50
+  ],
+  [
+   "leaf",
+   "leaf",
+   50
+  ],
+  [
+   "earth",
+   "fire",
+   200
+  ],
+  [
+   "earth",
+   "frost",
+   200
+  ],
+  [
+   "earth",
+   "leaf",
+   50
+  ],
+  [
+   "earth",
+   "spirit",
+   50
+  ],
+  [
+   "bone",
+   "spirit",
+   200
+  ],
+  [
+   "bone",
+   "leaf",
+   200
+  ],
+  [
+   "bone",
+   "bone",
+   50
+  ],
+  [
+   "bone",
+   "earth",
+   50
+  ],
+  [
+   "spirit",
+   "bone",
+   200
+  ],
+  [
+   "spirit",
+   "acid",
+   200
+  ],
+  [
+   "spirit",
+   "spirit",
+   50
+  ],
+  [
+   "spirit",
+   "fire",
+   50
+  ]
+ ],
+ "pieces": [
+  {
+   "id": "fire_bolt",
+   "name": "Fire Bolt",
+   "school": "destruction",
+   "text": "A bolt of flame at the nearest enemy.",
+   "glyph": [
+    "bolt"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "bolt",
+    "damage_type": "fire",
+    "damage": 30,
+    "speed": 1400,
+    "range": 1800,
+    "radius": 25,
+    "knock": 120
+   },
+   "power": 30,
+   "cooldown": 900
+  },
+  {
+   "id": "ice_shard",
+   "name": "Ice Shard",
+   "school": "destruction",
+   "text": "A fast shard of ice.",
+   "glyph": [
+    "vee",
+    "line"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "bolt",
+    "damage_type": "frost",
+    "damage": 22,
+    "speed": 1800,
+    "range": 2000,
+    "radius": 20,
+    "knock": 60
+   },
+   "power": 26,
+   "cooldown": 700
+  },
+  {
+   "id": "acid_glob",
+   "name": "Acid Glob",
+   "school": "destruction",
+   "text": "A slow glob of acid that splashes.",
+   "glyph": [
+    "hook"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "bolt",
+    "damage_type": "acid",
+    "damage": 26,
+    "speed": 1100,
+    "range": 1600,
+    "radius": 35,
+    "knock": 80
+   },
+   "power": 28,
+   "cooldown": 1000
+  },
+  {
+   "id": "fireball",
+   "name": "Fireball",
+   "school": "destruction",
+   "text": "A blast of fire that throws enemies.",
+   "glyph": [
+    "spiral"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "burst",
+    "damage_type": "fire",
+    "damage": 60,
+    "range": 1800,
+    "radius": 250,
+    "knock": 600,
+    "lift": 300
+   },
+   "power": 60,
+   "cooldown": 3200
+  },
+  {
+   "id": "lava_pool",
+   "name": "Lava Pool",
+   "school": "destruction",
+   "text": "A pool of lava that burns what crosses it.",
+   "glyph": [
+    "ripple",
+    "peak"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "raise",
+    "feature": "lava_pool"
+   },
+   "power": 35,
+   "cooldown": 4000
+  },
+  {
+   "id": "heavy",
+   "name": "Heavy",
+   "school": "destruction",
+   "text": "The next payload hits harder and recharges slower.",
+   "glyph": [
+    "peak",
+    "peak"
+   ],
+   "kind": "modifier",
+   "mods": {
+    "damage_pct": 60,
+    "cooldown_pct": 50,
+    "speed_pct": -20
+   },
+   "power_pct": 60
+  },
+  {
+   "id": "swift",
+   "name": "Swift",
+   "school": "destruction",
+   "text": "The next payload flies faster and recharges sooner, for less damage.",
+   "glyph": [
+    "ripple",
+    "line"
+   ],
+   "kind": "modifier",
+   "mods": {
+    "speed_pct": 60,
+    "damage_pct": -15,
+    "cooldown_pct": -20
+   },
+   "power_pct": 10
+  },
+  {
+   "id": "on_expire",
+   "name": "On Expire",
+   "school": "destruction",
+   "text": "The rest of the spell starts where the payload ends.",
+   "glyph": [
+    "line",
+    "vee"
+   ],
+   "kind": "trigger",
+   "on": "expire"
+  },
+  {
+   "id": "ring",
+   "name": "Ring",
+   "school": "alteration",
+   "text": "The next payload is cast as a ring of copies around the caster's target.",
+   "glyph": [
+    "loop"
+   ],
+   "kind": "formation",
+   "arrange": "ring",
+   "copies": 8,
+   "share_pct": 25
+  },
+  {
+   "id": "twin",
+   "name": "Twin",
+   "school": "alteration",
+   "text": "The next payload is cast twice, side by side.",
+   "glyph": [
+    "eight"
+   ],
+   "kind": "formation",
+   "arrange": "twin",
+   "copies": 2,
+   "share_pct": 60
+  },
+  {
+   "id": "fan",
+   "name": "Fan",
+   "school": "alteration",
+   "text": "The next payload is cast three times in a fan.",
+   "glyph": [
+    "vee",
+    "vee"
+   ],
+   "kind": "formation",
+   "arrange": "fan",
+   "copies": 3,
+   "share_pct": 45
+  },
+  {
+   "id": "pierce",
+   "name": "Pierce",
+   "school": "alteration",
+   "text": "The next bolt passes through two more enemies.",
+   "glyph": [
+    "arch",
+    "line"
+   ],
+   "kind": "modifier",
+   "mods": {
+    "pierce": 2
+   },
+   "power_pct": 25
+  },
+  {
+   "id": "stone_spike",
+   "name": "Stone Spike",
+   "school": "alteration",
+   "text": "Stone bursts up under the target and throws it.",
+   "glyph": [
+    "tri"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "burst",
+    "damage_type": "earth",
+    "damage": 45,
+    "range": 1500,
+    "radius": 120,
+    "knock": 300,
+    "lift": 500
+   },
+   "power": 40,
+   "cooldown": 2000
+  },
+  {
+   "id": "oil_spill",
+   "name": "Oil Spill",
+   "school": "alteration",
+   "text": "A slick of oil that slows enemies.",
+   "glyph": [
+    "ripple"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "ground",
+    "field": "oil",
+    "damage_type": "fire",
+    "dps": 0,
+    "range": 1600,
+    "radius": 150,
+    "life": 6000,
+    "slow_pct": 40
+   },
+   "power": 15,
+   "cooldown": 2500
+  },
+  {
+   "id": "glass_wall",
+   "name": "Glass Wall",
+   "school": "alteration",
+   "text": "A wall of glass: cheap, and it breaks.",
+   "glyph": [
+    "square"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "raise",
+    "feature": "glass_wall"
+   },
+   "power": 20,
+   "cooldown": 8000
+  },
+  {
+   "id": "ivory_wall",
+   "name": "Ivory Wall",
+   "school": "alteration",
+   "text": "A wall of ivory that does not break.",
+   "glyph": [
+    "square",
+    "line"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "raise",
+    "feature": "ivory_wall"
+   },
+   "power": 30,
+   "cooldown": 12000
+  },
+  {
+   "id": "sub_tower",
+   "name": "Raise Sub-tower",
+   "school": "alteration",
+   "text": "A small tower nearer the path, with a seat for one student.",
+   "glyph": [
+    "tri",
+    "line"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "raise",
+    "feature": "sub_tower"
+   },
+   "power": 40,
+   "cooldown": 0
+  },
+  {
+   "id": "on_hit",
+   "name": "On Hit",
+   "school": "alteration",
+   "text": "The rest of the spell starts where the payload hits.",
+   "glyph": [
+    "zig"
+   ],
+   "kind": "trigger",
+   "on": "hit"
+  },
+  {
+   "id": "invade",
+   "name": "Invade",
+   "school": "conjuration",
+   "text": "What the rest of the spell summons is sent to a rival's battle.",
+   "glyph": [
+    "bolt",
+    "peak"
+   ],
+   "kind": "invade"
+  },
+  {
+   "id": "skeleton",
+   "name": "Skeleton",
+   "school": "conjuration",
+   "text": "Raises skeletons that fight for the caster.",
+   "glyph": [
+    "hook",
+    "hook"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "summon",
+    "enemy": "skeleton",
+    "count": 3
+   },
+   "power": 30,
+   "cooldown": 6000
+  },
+  {
+   "id": "ghost",
+   "name": "Ghost",
+   "school": "conjuration",
+   "text": "Calls ghosts that fight for the caster.",
+   "glyph": [
+    "loop",
+    "ripple"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "summon",
+    "enemy": "ghost",
+    "count": 2
+   },
+   "power": 30,
+   "cooldown": 6000
+  },
+  {
+   "id": "lava_elemental",
+   "name": "Lava Elemental",
+   "school": "conjuration",
+   "text": "Calls a lava elemental that fights for the caster.",
+   "glyph": [
+    "spiral",
+    "peak"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "summon",
+    "enemy": "lava_elemental",
+    "count": 1
+   },
+   "power": 45,
+   "cooldown": 9000
+  },
+  {
+   "id": "thorns",
+   "name": "Thorns",
+   "school": "conjuration",
+   "text": "A patch of thorns that cuts and slows.",
+   "glyph": [
+    "zig",
+    "zig"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "ground",
+    "field": "thorns",
+    "damage_type": "leaf",
+    "dps": 20,
+    "range": 1600,
+    "radius": 180,
+    "life": 5000,
+    "slow_pct": 20
+   },
+   "power": 30,
+   "cooldown": 3000
+  },
+  {
+   "id": "on_death",
+   "name": "On Death",
+   "school": "conjuration",
+   "text": "The rest of the spell starts where an enemy it hit dies, or where its summon falls.",
+   "glyph": [
+    "vee",
+    "hook"
+   ],
+   "kind": "trigger",
+   "on": "death"
+  },
+  {
+   "id": "teaching_elemental",
+   "name": "Teaching Elemental",
+   "school": "conjuration",
+   "text": "A penguin that teaches at the podium as well as you drew it.",
+   "glyph": [
+    "eight",
+    "loop"
+   ],
+   "kind": "helper",
+   "helper": "teaching_elemental"
+  },
+  {
+   "id": "recruitment_elemental",
+   "name": "Recruitment Elemental",
+   "school": "conjuration",
+   "text": "A spirit that runs interviews as well as you drew it.",
+   "glyph": [
+    "hook",
+    "loop"
+   ],
+   "kind": "helper",
+   "helper": "recruitment_elemental"
+  },
+  {
+   "id": "charm",
+   "name": "Charm",
+   "school": "illusion",
+   "text": "Enemies near the target fight for you for a while.",
+   "glyph": [
+    "loop",
+    "loop"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "hex",
+    "status": "charm",
+    "range": 1600,
+    "radius": 200,
+    "life": 5000
+   },
+   "power": 50,
+   "cooldown": 7000
+  },
+  {
+   "id": "fear",
+   "name": "Fear",
+   "school": "illusion",
+   "text": "Enemies near the target run from the tower for a while.",
+   "glyph": [
+    "zig",
+    "vee"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "hex",
+    "status": "fear",
+    "range": 1500,
+    "radius": 250,
+    "life": 3000
+   },
+   "power": 35,
+   "cooldown": 6000
+  },
+  {
+   "id": "mire",
+   "name": "Mire",
+   "school": "illusion",
+   "text": "Enemies near the target move at half speed for a while.",
+   "glyph": [
+    "ripple",
+    "ripple"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "hex",
+    "status": "slow",
+    "range": 1700,
+    "radius": 250,
+    "life": 4000
+   },
+   "power": 25,
+   "cooldown": 4000
+  },
+  {
+   "id": "bait",
+   "name": "Bait",
+   "school": "illusion",
+   "text": "A decoy that pulls enemies off their path.",
+   "glyph": [
+    "peak",
+    "loop"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "raise",
+    "feature": "bait"
+   },
+   "power": 20,
+   "cooldown": 9000
+  },
+  {
+   "id": "spirit_lance",
+   "name": "Spirit Lance",
+   "school": "illusion",
+   "text": "A long lance of light.",
+   "glyph": [
+    "line",
+    "peak"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "bolt",
+    "damage_type": "spirit",
+    "damage": 34,
+    "speed": 2200,
+    "range": 2200,
+    "radius": 20,
+    "knock": 100
+   },
+   "power": 30,
+   "cooldown": 1100
+  },
+  {
+   "id": "ward",
+   "name": "Ward",
+   "school": "restoration",
+   "text": "A shield on the tower that takes damage before your score does.",
+   "glyph": [
+    "arch",
+    "arch"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "ward",
+    "absorb": 150
+   },
+   "power": 30,
+   "cooldown": 10000
+  },
+  {
+   "id": "mana_spring",
+   "name": "Mana Spring",
+   "school": "restoration",
+   "text": "A spring at the tower that refills the mana of students near it.",
+   "glyph": [
+    "spiral",
+    "loop"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "ground",
+    "field": "mana_spring",
+    "damage_type": "spirit",
+    "dps": 0,
+    "range": 0,
+    "radius": 400,
+    "life": 8000,
+    "slow_pct": 0
+   },
+   "power": 20,
+   "cooldown": 10000
+  },
+  {
+   "id": "sunburst",
+   "name": "Sunburst",
+   "school": "restoration",
+   "text": "A burst of light.",
+   "glyph": [
+    "peak",
+    "arch"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "burst",
+    "damage_type": "spirit",
+    "damage": 40,
+    "range": 1700,
+    "radius": 200,
+    "knock": 200,
+    "lift": 100
+   },
+   "power": 40,
+   "cooldown": 2600
+  },
+  {
+   "id": "frost_ring",
+   "name": "Frostbite",
+   "school": "restoration",
+   "text": "Frost around the target freezes enemies for a moment.",
+   "glyph": [
+    "tri",
+    "ripple"
+   ],
+   "kind": "payload",
+   "effect": {
+    "does": "hex",
+    "status": "freeze",
+    "range": 1600,
+    "radius": 180,
+    "life": 2500
+   },
+   "power": 45,
+   "cooldown": 6000
+  },
+  {
+   "id": "mana_trainer",
+   "name": "Mana Trainer",
+   "school": "restoration",
+   "text": "A trainer that raises one student's mana for the rest of the match.",
+   "glyph": [
+    "tri",
+    "tri"
+   ],
+   "kind": "helper",
+   "helper": "mana_trainer"
+  }
+ ],
+ "enemies": [
+  {
+   "id": "hill_giant",
+   "name": "Hill Giant",
+   "damage_type": "earth",
+   "model": "giant",
+   "health": 900,
+   "speed": 120,
+   "radius": 110,
+   "height": 380,
+   "mass": 400,
+   "attack": 60,
+   "attack_every": 1800,
+   "reach": 220
+  },
+  {
+   "id": "bramble_elf",
+   "name": "Bramble Elf",
+   "damage_type": "leaf",
+   "model": "elf",
+   "health": 90,
+   "speed": 260,
+   "radius": 35,
+   "height": 130,
+   "mass": 40,
+   "attack": 8,
+   "attack_every": 900,
+   "reach": 120
+  },
+  {
+   "id": "skeleton",
+   "name": "Skeleton",
+   "damage_type": "bone",
+   "model": "skeleton",
+   "health": 120,
+   "speed": 200,
+   "radius": 40,
+   "height": 150,
+   "mass": 50,
+   "attack": 10,
+   "attack_every": 1000,
+   "reach": 120
+  },
+  {
+   "id": "ember_imp",
+   "name": "Ember Imp",
+   "damage_type": "fire",
+   "model": "imp",
+   "health": 70,
+   "speed": 300,
+   "radius": 30,
+   "height": 100,
+   "mass": 30,
+   "attack": 6,
+   "attack_every": 800,
+   "reach": 100
+  },
+  {
+   "id": "frost_troll",
+   "name": "Frost Troll",
+   "damage_type": "frost",
+   "model": "troll",
+   "health": 500,
+   "speed": 140,
+   "radius": 80,
+   "height": 280,
+   "mass": 250,
+   "attack": 35,
+   "attack_every": 1500,
+   "reach": 180
+  },
+  {
+   "id": "bog_slime",
+   "name": "Bog Slime",
+   "damage_type": "acid",
+   "model": "slime",
+   "health": 220,
+   "speed": 110,
+   "radius": 60,
+   "height": 90,
+   "mass": 120,
+   "attack": 14,
+   "attack_every": 1200,
+   "reach": 120
+  },
+  {
+   "id": "wisp",
+   "name": "Wisp",
+   "damage_type": "spirit",
+   "model": "wisp",
+   "health": 60,
+   "speed": 340,
+   "radius": 25,
+   "height": 120,
+   "mass": 15,
+   "attack": 5,
+   "attack_every": 700,
+   "reach": 100
+  },
+  {
+   "id": "bristle_boar",
+   "name": "Bristle Boar",
+   "damage_type": "leaf",
+   "model": "boar",
+   "health": 260,
+   "speed": 380,
+   "radius": 55,
+   "height": 110,
+   "mass": 150,
+   "attack": 20,
+   "attack_every": 1200,
+   "reach": 130
+  },
+  {
+   "id": "ghost",
+   "name": "Ghost",
+   "damage_type": "spirit",
+   "model": "ghost",
+   "health": 100,
+   "speed": 240,
+   "radius": 35,
+   "height": 160,
+   "mass": 20,
+   "attack": 9,
+   "attack_every": 900,
+   "reach": 110,
+   "summoned_only": true
+  },
+  {
+   "id": "lava_elemental",
+   "name": "Lava Elemental",
+   "damage_type": "fire",
+   "model": "lava_elemental",
+   "health": 400,
+   "speed": 150,
+   "radius": 70,
+   "height": 240,
+   "mass": 200,
+   "attack": 30,
+   "attack_every": 1400,
+   "reach": 170,
+   "summoned_only": true
+  },
+  {
+   "id": "bone_knight",
+   "name": "Bone Knight",
+   "damage_type": "bone",
+   "model": "bone_knight",
+   "health": 300,
+   "speed": 160,
+   "radius": 50,
+   "height": 190,
+   "mass": 120,
+   "attack": 25,
+   "attack_every": 1300,
+   "reach": 150,
+   "summoned_only": true
+  },
+  {
+   "id": "dragon_whelp",
+   "name": "Dragon Whelp",
+   "damage_type": "fire",
+   "model": "whelp",
+   "health": 350,
+   "speed": 260,
+   "radius": 70,
+   "height": 200,
+   "mass": 150,
+   "attack": 28,
+   "attack_every": 1200,
+   "reach": 160,
+   "summoned_only": true
+  }
+ ],
+ "features": [
+  {
+   "id": "glass_wall",
+   "name": "Glass Wall",
+   "length": 3,
+   "blocks": true,
+   "health": 400,
+   "mana": 20,
+   "golem_s": 25,
+   "cast_life": 6000
+  },
+  {
+   "id": "ivory_wall",
+   "name": "Ivory Wall",
+   "length": 3,
+   "blocks": true,
+   "health": 0,
+   "mana": 40,
+   "golem_s": 45,
+   "cast_life": 6000
+  },
+  {
+   "id": "lava_pool",
+   "name": "Lava Pool",
+   "length": 2,
+   "blocks": false,
+   "health": 0,
+   "mana": 30,
+   "golem_s": 0,
+   "cast_life": 6000,
+   "dps": 30,
+   "damage_type": "fire"
+  },
+  {
+   "id": "bait",
+   "name": "Bait",
+   "length": 1,
+   "blocks": false,
+   "health": 300,
+   "mana": 20,
+   "golem_s": 30,
+   "cast_life": 6000,
+   "lure": 600
+  },
+  {
+   "id": "sub_tower",
+   "name": "Sub-tower",
+   "length": 1,
+   "blocks": true,
+   "health": 0,
+   "mana": 60,
+   "golem_s": 40,
+   "cast_life": 0,
+   "seats": 1
+  }
+ ],
+ "helpers": [
+  {
+   "id": "teaching_elemental",
+   "name": "Teaching Elemental",
+   "model": "penguin",
+   "mana": 30,
+   "job_s": 20
+  },
+  {
+   "id": "recruitment_elemental",
+   "name": "Recruitment Elemental",
+   "model": "wisp_helper",
+   "mana": 25,
+   "job_s": 15
+  },
+  {
+   "id": "mana_trainer",
+   "name": "Mana Trainer",
+   "model": "trainer",
+   "mana": 35,
+   "job_s": 25
+  },
+  {
+   "id": "builder_golem",
+   "name": "Builder Golem",
+   "model": "golem",
+   "mana": 0,
+   "job_s": 0
+  }
+ ],
+ "balance": {
+  "score_start": 10000,
+  "days": 4,
+  "prep_s": 240,
+  "battle_s": 90,
+  "practice_prep_s": 60,
+  "ragdoll_cap": 24,
+  "mana_k": 40,
+  "mana_c": 2000,
+  "trigger_weight_pct": 50,
+  "cast_budget": 32,
+  "max_shots": 1500,
+  "max_effects": 400,
+  "max_chain": 6,
+  "max_depth": 3,
+  "effect_min_pct": 5,
+  "effect_max_pct": 100,
+  "area_floor_pct": 50,
+  "status_cap_ms": 6000,
+  "status_repeat_pct": 50,
+  "ragdoll_speed": 600,
+  "walk_cms": 450,
+  "read_ms": 2500,
+  "archmage_mana": 200,
+  "archmage_regen": 2,
+  "tower_seats": 12,
+  "seat_range_pct": 100,
+  "ground_range_pct": 70,
+  "student_mana": [
+   80,
+   200
+  ],
+  "student_regen": [
+   6,
+   18
+  ],
+  "school_mod": [
+   -20,
+   20
+  ],
+  "variance": 10,
+  "applicants": 8,
+  "start_students": 2,
+  "books": 60,
+  "band_px": [
+   [
+    1,
+    48
+   ],
+   [
+    12,
+    22
+   ],
+   [
+    25,
+    12
+   ]
+  ],
+  "perfect_ticks": 4,
+  "good_ticks": 9,
+  "wild_waves": 3,
+  "leak_mult": 3,
+  "invasion_leak_mult": 1,
+  "invasion_mana_pct": 150,
+  "archmage_count_pct": 150,
+  "wild_pct": 60
+ },
+ "names": {
+  "first": [
+   "Wren",
+   "Odo",
+   "Mim",
+   "Pell",
+   "Tansy",
+   "Bram",
+   "Ivo",
+   "Nell",
+   "Quill",
+   "Rook",
+   "Sable",
+   "Fen",
+   "Juniper",
+   "Moss",
+   "Hob",
+   "Lark",
+   "Pip",
+   "Rue",
+   "Sorrel",
+   "Tamsin",
+   "Ash",
+   "Bryony",
+   "Corin",
+   "Dill"
+  ],
+  "last": [
+   "Ashby",
+   "Pell",
+   "Tansy",
+   "Bramblewick",
+   "Fernhollow",
+   "Inkwell",
+   "Mossgrove",
+   "Quillon",
+   "Rookwood",
+   "Saltmarsh",
+   "Thistledown",
+   "Underhill",
+   "Wicklow",
+   "Yarrow",
+   "Blackmoor",
+   "Candlewick"
+  ]
+ },
+ "tomes": [
+  {
+   "name": "Acid Halo",
+   "pieces": [
+    "ring",
+    "acid_glob",
+    "on_hit",
+    "oil_spill"
+   ]
+  },
+  {
+   "name": "Bone Parade",
+   "pieces": [
+    "invade",
+    "ring",
+    "skeleton",
+    "on_death",
+    "ghost"
+   ]
+  },
+  {
+   "name": "Frost Lance",
+   "pieces": [
+    "pierce",
+    "ice_shard"
+   ]
+  },
+  {
+   "name": "Fire Fan",
+   "pieces": [
+    "fan",
+    "fire_bolt"
+   ]
+  },
+  {
+   "name": "Imp Swarm",
+   "pieces": [
+    "invade",
+    "twin",
+    "lava_elemental"
+   ]
+  },
+  {
+   "name": "Thorn Field",
+   "pieces": [
+    "stone_spike",
+    "on_hit",
+    "thorns"
+   ]
+  }
+ ],
+ "trials": [
+  {
+   "id": "errand_run",
+   "name": "Errand Run",
+   "text": "Read 4 books, save 2 spells, recruit 2 students, teach a class and place a wall, as fast as you can.",
+   "measure": "time",
+   "medals": [
+    150,
+    120,
+    95,
+    80
+   ]
+  },
+  {
+   "id": "crash_course",
+   "name": "Crash Course",
+   "text": "Teach Fire Fan to all 8 students until their average effectiveness reaches 80%.",
+   "measure": "time",
+   "medals": [
+    90,
+    60,
+    40,
+    28
+   ]
+  },
+  {
+   "id": "siege_drill",
+   "name": "Siege Drill",
+   "text": "Two minutes to prepare, then the hardest battle there is. Take as little damage as you can.",
+   "measure": "damage",
+   "medals": [
+    1600,
+    1000,
+    500,
+    200
+   ]
+  },
+  {
+   "id": "necromancers_exam",
+   "name": "Necromancer's Exam",
+   "text": "No students, no recruiting: two minutes to build invasions, then hurt the examiner's tower as much as you can.",
+   "measure": "dealt",
+   "medals": [
+    300,
+    700,
+    1200,
+    1800
+   ]
+  }
+ ],
+ "achievements": [
+  {
+   "id": "first_spell",
+   "name": "First Draft",
+   "text": "Save a spell of your own at the laboratory."
+  },
+  {
+   "id": "long_chain",
+   "name": "Run-on Sentence",
+   "text": "Save a spell of six pieces."
+  },
+  {
+   "id": "perfect_lesson",
+   "name": "Model Lecture",
+   "text": "Teach a class with a drawing that scores 95 or more."
+  },
+  {
+   "id": "big_class",
+   "name": "Lecture Hall",
+   "text": "Teach one lesson to 20 students at once."
+  },
+  {
+   "id": "perfect_interview",
+   "name": "Silver Tongue",
+   "text": "Score 100 in an interview."
+  },
+  {
+   "id": "full_house",
+   "name": "Full House",
+   "text": "Have 30 students at once."
+  },
+  {
+   "id": "bookworm",
+   "name": "Bookworm",
+   "text": "Read every book in the library in one match."
+  },
+  {
+   "id": "freezer",
+   "name": "Cold Front",
+   "text": "Freeze 25 enemies in one battle."
+  },
+  {
+   "id": "charm_giant",
+   "name": "Gentle Giant",
+   "text": "Charm a giant."
+  },
+  {
+   "id": "invader",
+   "name": "Return to Sender",
+   "text": "Send an invasion that deals 500 damage to a rival in one battle."
+  },
+  {
+   "id": "untouched",
+   "name": "Not a Scratch",
+   "text": "Finish a battle with no damage to your tower."
+  },
+  {
+   "id": "win_versus",
+   "name": "Dean's List",
+   "text": "Win a match against the computer."
+  },
+  {
+   "id": "no_recruits_win",
+   "name": "Degenerate",
+   "text": "Win a match without recruiting a single student."
+  },
+  {
+   "id": "golem_work",
+   "name": "Contractor",
+   "text": "Have a builder golem finish a wall."
+  },
+  {
+   "id": "helper_all",
+   "name": "Delegation",
+   "text": "Summon a teaching elemental, a recruitment elemental and a mana trainer in one match."
+  },
+  {
+   "id": "gold_trials",
+   "name": "Honours",
+   "text": "Earn gold or better in every trial."
+  }
+ ]
+}

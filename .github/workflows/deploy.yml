@@ -1,0 +1,94 @@
+name: Check, deploy to Pages, check the live page
+
+# The check is the same file a person runs locally (Builder R8). A push to
+# main deploys only after it passes, and the live page is then checked
+# with the same browser check (docs/checks.md: a deploy is not finished
+# until that passes). The person granted Pages deploys through Actions for
+# this project (BRIEF.md, Autonomy; DECISIONS.md 2026-10-16). After Long
+# Time Comin's and Raiders of the Lost Mart's deploy.yml.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Rust toolchain (pinned in rust-toolchain.toml)
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: wasm-bindgen CLI (pinned) and wasm-tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.127,wasm-tools
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Chromium only on CI (Builder D7): a three-engine install has hung
+      # for over fifteen minutes. All three engines run locally before a push.
+      - name: Playwright and Chromium
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet "playwright==1.63.0"
+          .venv/bin/python -m playwright install --with-deps chromium
+
+      - name: ./scripts/check.sh (Chromium)
+        run: BUILDER_ENGINES=chromium ./scripts/check.sh
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  live:
+    if: github.event_name != 'pull_request'
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Playwright and Chromium
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet "playwright==1.63.0"
+          .venv/bin/python -m playwright install --with-deps chromium
+      - name: Browser check against the live page
+        run: |
+          url="${{ needs.deploy.outputs.url }}"
+          # GitHub Pages can take a minute to serve a new build
+          sleep 60
+          BUILDER_ENGINES=chromium BUILDER_ORIGIN="${url%/}" .venv/bin/python tests/browser/check.py

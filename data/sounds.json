@@ -1,0 +1,1104 @@
+{
+ "_about": "Chip sounds as recipes: voice (pulse12, pulse25, pulse50, triangle, noise), start and length in ms, pitch from and to in Hz (noise: shift rate), volume 0-15. The core renders them (crates/core/src/sound.rs). Written by hand in the NES manner.",
+ "sounds": [
+  {
+   "id": "click",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 30,
+     "from": 880,
+     "to": 880,
+     "vol": 8
+    }
+   ]
+  },
+  {
+   "id": "error",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 90,
+     "from": 165,
+     "to": 131,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 100,
+     "ms": 120,
+     "from": 131,
+     "to": 110,
+     "vol": 10
+    }
+   ]
+  },
+  {
+   "id": "read",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 60,
+     "from": 3000,
+     "to": 1200,
+     "vol": 6
+    },
+    {
+     "voice": "pulse12",
+     "at": 40,
+     "ms": 60,
+     "from": 659,
+     "to": 659,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "learn",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 70,
+     "from": 523,
+     "to": 523,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 55,
+     "ms": 70,
+     "from": 659,
+     "to": 659,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 110,
+     "ms": 70,
+     "from": 784,
+     "to": 784,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 165,
+     "ms": 70,
+     "from": 1047,
+     "to": 1047,
+     "vol": 10
+    }
+   ]
+  },
+  {
+   "id": "whole_spell",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 80,
+     "from": 523,
+     "to": 523,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 50,
+     "ms": 80,
+     "from": 659,
+     "to": 659,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 100,
+     "ms": 80,
+     "from": 784,
+     "to": 784,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 150,
+     "ms": 80,
+     "from": 1047,
+     "to": 1047,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 200,
+     "ms": 80,
+     "from": 1319,
+     "to": 1319,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 250,
+     "ms": 80,
+     "from": 1568,
+     "to": 1568,
+     "vol": 10
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 320,
+     "from": 262,
+     "to": 262,
+     "vol": 12
+    }
+   ]
+  },
+  {
+   "id": "save_spell",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 90,
+     "from": 392,
+     "to": 392,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 60,
+     "ms": 90,
+     "from": 523,
+     "to": 523,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 120,
+     "ms": 90,
+     "from": 659,
+     "to": 659,
+     "vol": 10
+    },
+    {
+     "voice": "triangle",
+     "at": 180,
+     "ms": 200,
+     "from": 262,
+     "to": 262,
+     "vol": 12
+    }
+   ]
+  },
+  {
+   "id": "note_hit",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 50,
+     "from": 1319,
+     "to": 1319,
+     "vol": 9
+    }
+   ]
+  },
+  {
+   "id": "note_perfect",
+   "notes": [
+    {
+     "voice": "pulse12",
+     "at": 0,
+     "ms": 40,
+     "from": 1760,
+     "to": 1760,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 40,
+     "ms": 50,
+     "from": 1319,
+     "to": 1319,
+     "vol": 8
+    }
+   ]
+  },
+  {
+   "id": "note_miss",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 70,
+     "from": 900,
+     "to": 400,
+     "vol": 7
+    }
+   ]
+  },
+  {
+   "id": "interview_win",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 110,
+     "from": 523,
+     "to": 523,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 70,
+     "ms": 110,
+     "from": 659,
+     "to": 659,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 140,
+     "ms": 110,
+     "from": 784,
+     "to": 784,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 210,
+     "ms": 110,
+     "from": 1047,
+     "to": 1047,
+     "vol": 11
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 400,
+     "from": 131,
+     "to": 131,
+     "vol": 13
+    }
+   ]
+  },
+  {
+   "id": "interview_fail",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 120,
+     "from": 392,
+     "to": 392,
+     "vol": 9
+    },
+    {
+     "voice": "pulse50",
+     "at": 90,
+     "ms": 120,
+     "from": 330,
+     "to": 330,
+     "vol": 9
+    },
+    {
+     "voice": "pulse50",
+     "at": 180,
+     "ms": 120,
+     "from": 262,
+     "to": 262,
+     "vol": 9
+    }
+   ]
+  },
+  {
+   "id": "draw_done",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 90,
+     "from": 659,
+     "to": 659,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 45,
+     "ms": 90,
+     "from": 784,
+     "to": 784,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 90,
+     "ms": 90,
+     "from": 988,
+     "to": 988,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 135,
+     "ms": 90,
+     "from": 1319,
+     "to": 1319,
+     "vol": 10
+    },
+    {
+     "voice": "pulse12",
+     "at": 0,
+     "ms": 300,
+     "from": 330,
+     "to": 330,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "summon",
+   "notes": [
+    {
+     "voice": "pulse12",
+     "at": 0,
+     "ms": 260,
+     "from": 262,
+     "to": 1047,
+     "vol": 9
+    },
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 200,
+     "from": 6000,
+     "to": 2000,
+     "vol": 4
+    },
+    {
+     "voice": "triangle",
+     "at": 120,
+     "ms": 240,
+     "from": 196,
+     "to": 196,
+     "vol": 12
+    }
+   ]
+  },
+  {
+   "id": "place",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 90,
+     "from": 1500,
+     "to": 600,
+     "vol": 9
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 120,
+     "from": 131,
+     "to": 98,
+     "vol": 13
+    }
+   ]
+  },
+  {
+   "id": "golem_done",
+   "notes": [
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 140,
+     "from": 131,
+     "to": 131,
+     "vol": 14
+    },
+    {
+     "voice": "triangle",
+     "at": 160,
+     "ms": 140,
+     "from": 98,
+     "to": 98,
+     "vol": 14
+    },
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 280,
+     "from": 800,
+     "to": 300,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "invade_cast",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 250,
+     "from": 440,
+     "to": 110,
+     "vol": 11
+    },
+    {
+     "voice": "noise",
+     "at": 60,
+     "ms": 300,
+     "from": 2000,
+     "to": 500,
+     "vol": 7
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 400,
+     "from": 110,
+     "to": 82,
+     "vol": 13
+    }
+   ]
+  },
+  {
+   "id": "day_start",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 100,
+     "from": 523,
+     "to": 523,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 110,
+     "ms": 100,
+     "from": 523,
+     "to": 523,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 220,
+     "ms": 100,
+     "from": 784,
+     "to": 784,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 330,
+     "ms": 100,
+     "from": 659,
+     "to": 659,
+     "vol": 10
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 500,
+     "from": 131,
+     "to": 131,
+     "vol": 13
+    }
+   ]
+  },
+  {
+   "id": "battle_start",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 90,
+     "from": 392,
+     "to": 392,
+     "vol": 11
+    },
+    {
+     "voice": "pulse25",
+     "at": 90,
+     "ms": 90,
+     "from": 523,
+     "to": 523,
+     "vol": 11
+    },
+    {
+     "voice": "pulse25",
+     "at": 180,
+     "ms": 90,
+     "from": 659,
+     "to": 659,
+     "vol": 11
+    },
+    {
+     "voice": "pulse25",
+     "at": 270,
+     "ms": 90,
+     "from": 784,
+     "to": 784,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 360,
+     "ms": 380,
+     "from": 1047,
+     "to": 1047,
+     "vol": 10
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 740,
+     "from": 131,
+     "to": 131,
+     "vol": 14
+    },
+    {
+     "voice": "noise",
+     "at": 360,
+     "ms": 200,
+     "from": 4000,
+     "to": 1000,
+     "vol": 5
+    }
+   ]
+  },
+  {
+   "id": "cast_destruction",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 70,
+     "from": 659,
+     "to": 440,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "cast_alteration",
+   "notes": [
+    {
+     "voice": "pulse12",
+     "at": 0,
+     "ms": 70,
+     "from": 523,
+     "to": 784,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "cast_conjuration",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 70,
+     "from": 440,
+     "to": 330,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "cast_illusion",
+   "notes": [
+    {
+     "voice": "pulse12",
+     "at": 0,
+     "ms": 70,
+     "from": 1319,
+     "to": 988,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "cast_restoration",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 70,
+     "from": 784,
+     "to": 1175,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "hit",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 35,
+     "from": 5000,
+     "to": 2500,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "strong",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 50,
+     "from": 7000,
+     "to": 3000,
+     "vol": 8
+    },
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 60,
+     "from": 880,
+     "to": 659,
+     "vol": 7
+    }
+   ]
+  },
+  {
+   "id": "weak",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 40,
+     "from": 1800,
+     "to": 1200,
+     "vol": 5
+    }
+   ]
+  },
+  {
+   "id": "kill",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 90,
+     "from": 3000,
+     "to": 500,
+     "vol": 8
+    },
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 80,
+     "from": 523,
+     "to": 262,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "boom",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 260,
+     "from": 2400,
+     "to": 200,
+     "vol": 13
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 220,
+     "from": 110,
+     "to": 65,
+     "vol": 14
+    }
+   ]
+  },
+  {
+   "id": "tower_hit",
+   "notes": [
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 160,
+     "from": 82,
+     "to": 65,
+     "vol": 15
+    },
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 140,
+     "from": 700,
+     "to": 200,
+     "vol": 10
+    }
+   ]
+  },
+  {
+   "id": "freeze",
+   "notes": [
+    {
+     "voice": "pulse12",
+     "at": 0,
+     "ms": 60,
+     "from": 1976,
+     "to": 1976,
+     "vol": 7
+    },
+    {
+     "voice": "pulse12",
+     "at": 35,
+     "ms": 60,
+     "from": 1568,
+     "to": 1568,
+     "vol": 7
+    },
+    {
+     "voice": "pulse12",
+     "at": 70,
+     "ms": 60,
+     "from": 1319,
+     "to": 1319,
+     "vol": 7
+    }
+   ]
+  },
+  {
+   "id": "charm",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 70,
+     "from": 1319,
+     "to": 1319,
+     "vol": 7
+    },
+    {
+     "voice": "pulse25",
+     "at": 40,
+     "ms": 70,
+     "from": 1661,
+     "to": 1661,
+     "vol": 7
+    },
+    {
+     "voice": "pulse25",
+     "at": 80,
+     "ms": 70,
+     "from": 1976,
+     "to": 1976,
+     "vol": 7
+    }
+   ]
+  },
+  {
+   "id": "summon_battle",
+   "notes": [
+    {
+     "voice": "pulse12",
+     "at": 0,
+     "ms": 140,
+     "from": 262,
+     "to": 784,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "wall_up",
+   "notes": [
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 120,
+     "from": 131,
+     "to": 196,
+     "vol": 12
+    },
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 80,
+     "from": 1200,
+     "to": 600,
+     "vol": 6
+    }
+   ]
+  },
+  {
+   "id": "wall_down",
+   "notes": [
+    {
+     "voice": "noise",
+     "at": 0,
+     "ms": 200,
+     "from": 2500,
+     "to": 300,
+     "vol": 9
+    }
+   ]
+  },
+  {
+   "id": "summary",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 120,
+     "from": 659,
+     "to": 659,
+     "vol": 9
+    },
+    {
+     "voice": "pulse25",
+     "at": 120,
+     "ms": 120,
+     "from": 523,
+     "to": 523,
+     "vol": 9
+    },
+    {
+     "voice": "pulse25",
+     "at": 240,
+     "ms": 120,
+     "from": 587,
+     "to": 587,
+     "vol": 9
+    },
+    {
+     "voice": "pulse25",
+     "at": 360,
+     "ms": 120,
+     "from": 392,
+     "to": 392,
+     "vol": 9
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 560,
+     "from": 131,
+     "to": 131,
+     "vol": 12
+    }
+   ]
+  },
+  {
+   "id": "victory",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 130,
+     "from": 523,
+     "to": 523,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 110,
+     "ms": 130,
+     "from": 659,
+     "to": 659,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 220,
+     "ms": 130,
+     "from": 784,
+     "to": 784,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 330,
+     "ms": 130,
+     "from": 1047,
+     "to": 1047,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 440,
+     "ms": 130,
+     "from": 784,
+     "to": 784,
+     "vol": 11
+    },
+    {
+     "voice": "pulse50",
+     "at": 550,
+     "ms": 130,
+     "from": 1047,
+     "to": 1047,
+     "vol": 11
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 800,
+     "from": 131,
+     "to": 131,
+     "vol": 14
+    },
+    {
+     "voice": "triangle",
+     "at": 440,
+     "ms": 400,
+     "from": 196,
+     "to": 196,
+     "vol": 14
+    }
+   ]
+  },
+  {
+   "id": "defeat",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 180,
+     "from": 659,
+     "to": 659,
+     "vol": 9
+    },
+    {
+     "voice": "pulse50",
+     "at": 170,
+     "ms": 180,
+     "from": 622,
+     "to": 622,
+     "vol": 9
+    },
+    {
+     "voice": "pulse50",
+     "at": 340,
+     "ms": 180,
+     "from": 587,
+     "to": 587,
+     "vol": 9
+    },
+    {
+     "voice": "pulse50",
+     "at": 510,
+     "ms": 180,
+     "from": 554,
+     "to": 554,
+     "vol": 9
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 780,
+     "from": 110,
+     "to": 82,
+     "vol": 13
+    }
+   ]
+  },
+  {
+   "id": "achievement",
+   "notes": [
+    {
+     "voice": "pulse25",
+     "at": 0,
+     "ms": 80,
+     "from": 784,
+     "to": 784,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 60,
+     "ms": 80,
+     "from": 1047,
+     "to": 1047,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 120,
+     "ms": 80,
+     "from": 1319,
+     "to": 1319,
+     "vol": 10
+    },
+    {
+     "voice": "pulse25",
+     "at": 180,
+     "ms": 80,
+     "from": 1568,
+     "to": 1568,
+     "vol": 10
+    },
+    {
+     "voice": "pulse12",
+     "at": 240,
+     "ms": 300,
+     "from": 2093,
+     "to": 2093,
+     "vol": 8
+    }
+   ]
+  },
+  {
+   "id": "medal",
+   "notes": [
+    {
+     "voice": "pulse50",
+     "at": 0,
+     "ms": 100,
+     "from": 1047,
+     "to": 1047,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 80,
+     "ms": 100,
+     "from": 784,
+     "to": 784,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 160,
+     "ms": 100,
+     "from": 1047,
+     "to": 1047,
+     "vol": 10
+    },
+    {
+     "voice": "pulse50",
+     "at": 240,
+     "ms": 100,
+     "from": 1319,
+     "to": 1319,
+     "vol": 10
+    },
+    {
+     "voice": "triangle",
+     "at": 0,
+     "ms": 500,
+     "from": 262,
+     "to": 262,
+     "vol": 12
+    }
+   ]
+  }
+ ]
+}

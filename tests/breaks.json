@@ -1,0 +1,394 @@
+[
+  {
+    "name": "a wall that closes the path is allowed",
+    "file": "crates/core/src/arena.rs",
+    "find": "        if dist[idx(self.entry.0, self.entry.1)] == UNREACHABLE {\n            self.cells = before;",
+    "replace": "        if false {\n            self.cells = before;",
+    "test": "a_wall_bends_the_route_and_a_closing_wall_is_refused"
+  },
+  {
+    "name": "a route cuts a corner",
+    "file": "crates/core/src/arena.rs",
+    "find": "            if dx != 0 && dz != 0 && !(self.passable(x + dx, z) && self.passable(x, z + dz)) {\n                continue;\n            }\n            let d = self.dist[idx(nx, nz)];",
+    "replace": "            let d = self.dist[idx(nx, nz)];",
+    "test": "a_route_does_not_cut_a_corner_between_two_walls"
+  },
+  {
+    "name": "an impulse ignores mass",
+    "file": "crates/core/src/body.rs",
+    "find": "let dv = impulse.ratio(1, self.mass);",
+    "replace": "let dv = impulse.ratio(1, 40);",
+    "test": "an_impulse_changes_velocity_by_impulse_over_mass"
+  },
+  {
+    "name": "a wall does not stop a body",
+    "file": "crates/core/src/body.rs",
+    "find": "            if !blocked || !arena::inside(x, z) {",
+    "replace": "            if true || !blocked || !arena::inside(x, z) {",
+    "test": "a_body_at_top_speed_does_not_cross_a_wall"
+  },
+  {
+    "name": "separation ignores mass",
+    "file": "crates/core/src/body.rs",
+    "find": "let share_a = (overlap as i64 * mb / (ma + mb)) as Fx;",
+    "replace": "let share_a = overlap / 2;",
+    "test": "two_overlapping_bodies_part_with_the_lighter_moving_further"
+  },
+  {
+    "name": "a stick correction is not shared by weight",
+    "file": "crates/core/src/ragdoll.rs",
+    "find": "                let move_a = fix.ratio(wb, wa + wb);\n                let move_b = fix.sub(move_a);\n                self.points[a].pos",
+    "replace": "                let move_a = fix;\n                let move_b = V3::ZERO;\n                self.points[a].pos",
+    "test": "a_kicked_ragdoll_falls_settles_and_sleeps"
+  },
+  {
+    "name": "ground friction is left out",
+    "file": "crates/core/src/ragdoll.rs",
+    "find": "p.prev.x = p.pos.x - (p.pos.x - p.prev.x) * 3 / 5;",
+    "replace": "p.prev.x = p.prev.x;",
+    "test": "a_ragdoll_sliding_on_the_ground_stops_within_a_metre"
+  },
+  {
+    "name": "the ragdoll cap is ignored",
+    "file": "crates/core/src/ragdoll.rs",
+    "find": "        if awake > cap {",
+    "replace": "        if awake > cap * 100 {",
+    "test": "past_the_cap_the_oldest_awake_ragdoll_sleeps_and_fades"
+  },
+  {
+    "name": "walls do not get the last word",
+    "file": "crates/core/src/stress.rs",
+    "find": "            body::separate(&mut f.bodies, &f.buckets, &mut f.scratch);\n            for b in f.bodies.iter_mut() {\n                body::keep_out(b, &f.arena);\n            }",
+    "replace": "            for b in f.bodies.iter_mut() {\n                body::keep_out(b, &f.arena);\n            }\n            body::separate(&mut f.bodies, &f.buckets, &mut f.scratch);",
+    "test": "ragdolls_stay_under_the_cap_and_walkers_stay_on_the_grid"
+  },
+  {
+    "name": "yaw_of loses a quadrant",
+    "file": "crates/core/src/geom.rs",
+    "find": "        (true, false) => fx::HALF_TURN - ang,",
+    "replace": "        (true, false) => ang,",
+    "test": "yaw_of_points_along_each_axis_and_diagonal"
+  },
+  {
+    "name": "a chart entry below half is accepted",
+    "file": "crates/core/src/content.rs",
+    "find": "            if *pct < 50 {",
+    "replace": "            if *pct < 0 {",
+    "test": "a_chart_entry_below_half_is_refused_by_name"
+  },
+  {
+    "name": "a duplicate piece is accepted",
+    "file": "crates/core/src/content.rs",
+    "find": "    unique(&pieces, \"spell piece\")?;",
+    "replace": "",
+    "test": "an_unknown_school_and_a_duplicate_piece_are_refused"
+  },
+  {
+    "name": "an unknown glyph stroke is accepted",
+    "file": "crates/core/src/content.rs",
+    "find": "                if !crate::glyph::STROKES.contains(&s.as_str()) {",
+    "replace": "                if false {",
+    "test": "a_glyph_stroke_the_game_cannot_draw_is_refused"
+  },
+  {
+    "name": "glyph score ignores coverage",
+    "file": "crates/core/src/glyph.rs",
+    "find": "    (precision * coverage / 100) as i32",
+    "replace": "    precision as i32 + 0 * coverage as i32",
+    "test": "a_drawing_on_the_guide_scores_100_and_a_dot_scores_0"
+  },
+  {
+    "name": "glyph score ignores precision",
+    "file": "crates/core/src/glyph.rs",
+    "find": "    let precision = inside * 100 / d.len() as i64;",
+    "replace": "    let precision = 100 + 0 * inside;",
+    "test": "half_on_and_half_off_scores_by_hand"
+  },
+  {
+    "name": "the band does not narrow",
+    "file": "crates/core/src/glyph.rs",
+    "find": "            lo[1] + (hi[1] - lo[1]) * (a - lo[0]) / (hi[0] - lo[0]).max(1)",
+    "replace": "            lo[1]",
+    "test": "the_band_narrows_as_the_audience_grows"
+  },
+  {
+    "name": "mana ignores cooldown",
+    "file": "crates/core/src/spell.rs",
+    "find": "    let den = cd + b.mana_c as i64;",
+    "replace": "    let den = b.mana_c as i64 + 900;",
+    "test": "fire_bolt_alone_and_heavy_cost_what_the_formula_gives"
+  },
+  {
+    "name": "a formation does not multiply power",
+    "file": "crates/core/src/spell.rs",
+    "find": "            } => form = *copies as i64 * *share_pct as i64,",
+    "replace": "            } => form = 100 + 0 * (*copies as i64 * *share_pct as i64),",
+    "test": "acid_halo_costs_what_entry_one_worked_out"
+  },
+  {
+    "name": "after a trigger counts at full weight",
+    "file": "crates/core/src/spell.rs",
+    "find": "            PieceKind::Trigger { .. } => weight = weight * b.trigger_weight_pct as i64 / 100,",
+    "replace": "            PieceKind::Trigger { .. } => {}",
+    "test": "acid_halo_costs_what_entry_one_worked_out"
+  },
+  {
+    "name": "a trigger at the end is accepted",
+    "file": "crates/core/src/spell.rs",
+    "find": "                    return Err(ChainError::TriggerAtEnd);",
+    "replace": "                    return Ok(());",
+    "test": "chains_that_cannot_cast_are_refused_with_their_reason"
+  },
+  {
+    "name": "invade without a summon is accepted",
+    "file": "crates/core/src/spell.rs",
+    "find": "                if !summon {",
+    "replace": "                if summon && !summon {",
+    "test": "chains_that_cannot_cast_are_refused_with_their_reason"
+  },
+  {
+    "name": "type rates are ignored",
+    "file": "crates/core/src/battle.rs",
+    "find": "        let d = pct(damage, rate).max(1);",
+    "replace": "        let d = damage.max(1);",
+    "test": "fire_does_double_to_leaf_half_to_earth_and_full_to_bone"
+  },
+  {
+    "name": "a frozen enemy walks",
+    "file": "crates/core/src/battle.rs",
+    "find": "                u.body.step(V3::ZERO, ONE / 50);\n                continue;",
+    "replace": "                u.body.step(V3::ZERO, ONE / 50);",
+    "test": "a_frozen_enemy_does_not_move_and_thaws"
+  },
+  {
+    "name": "a repeat freeze lasts as long",
+    "file": "crates/core/src/battle.rs",
+    "find": "            pct(ticks, bal.status_repeat_pct)\n        } else {",
+    "replace": "            ticks\n        } else {",
+    "test": "a_repeat_freeze_within_five_seconds_lasts_half_as_long"
+  },
+  {
+    "name": "charm never wears off",
+    "file": "crates/core/src/battle.rs",
+    "find": "                if u.charm == 0 {\n                    u.team = u.home;\n                }",
+    "replace": "",
+    "test": "a_charmed_enemy_fights_its_own_side_and_then_returns"
+  },
+  {
+    "name": "charm does not switch sides",
+    "file": "crates/core/src/battle.rs",
+    "find": "                u.team = Team::Ally;\n                self.tally.charmed += 1;",
+    "replace": "                self.tally.charmed += 1;",
+    "test": "a_charmed_enemy_fights_its_own_side_and_then_returns"
+  },
+  {
+    "name": "the ward is skipped",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    let absorbed = dmg.min(self.ward);",
+    "replace": "                    let absorbed = 0;",
+    "test": "a_ward_takes_damage_before_the_score_and_the_score_never_rises"
+  },
+  {
+    "name": "a trigger springs once per hit",
+    "file": "crates/core/src/battle.rs",
+    "find": "                if let Some(k) = sh.carry.take() {\n                    springs.push((k, pos, first_hit, kills));",
+    "replace": "                if let Some(k) = sh.carry.clone() {\n                    springs.push((k, pos, first_hit, kills));",
+    "test": "a_piercing_bolt_springs_its_trigger_once_not_once_per_hit"
+  },
+  {
+    "name": "the cast budget is not spent",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    self.budgets[cast as usize] -= n;",
+    "replace": "",
+    "test": "one_payload_budget_is_shared_by_a_whole_cast_with_nested_triggers"
+  },
+  {
+    "name": "a summon's trigger forgets its sender",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    deaths.push((k, u.body.pos, u.from));",
+    "replace": "                    deaths.push((k, u.body.pos, 255));",
+    "test": "one_payload_budget_is_shared_by_a_whole_cast_with_nested_triggers"
+  },
+  {
+    "name": "invasion strength is ignored",
+    "file": "crates/core/src/battle.rs",
+    "find": "        let hp = pct(e.health, strength.clamp(10, 150)).max(1);",
+    "replace": "        let hp = e.health.max(1) + 0 * strength;",
+    "test": "an_invasion_arrives_at_the_entry_for_its_target"
+  },
+  {
+    "name": "every student gets a seat",
+    "file": "crates/core/src/battle.rs",
+    "find": "            let (pos, range_pct) = if i < seats {",
+    "replace": "            let (pos, range_pct) = if i < seats + 100 {",
+    "test": "students_beyond_the_seats_stand_on_the_ground_with_less_range"
+  },
+  {
+    "name": "a sub-tower adds no seat",
+    "file": "crates/core/src/battle.rs",
+    "find": "            if f.seats > 0 && b.standing.iter().any(|s| s.id == k as u16) {",
+    "replace": "            if f.seats > 100 && b.standing.iter().any(|s| s.id == k as u16) {",
+    "test": "a_placed_wall_bends_the_route_and_a_sub_tower_adds_a_seat"
+  },
+  {
+    "name": "a formation casts one copy",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    let n = copies.min(left).max(0);",
+    "replace": "                    let n = 1.min(left).max(0) + 0 * copies;",
+    "test": "acid_halo_sends_eight_globs_and_each_hit_spills_oil_once"
+  },
+  {
+    "name": "enemies do not reach the tower",
+    "file": "crates/core/src/battle.rs",
+    "find": "                if pos.sub(tower).flat_len() <= tower_reach + reach + self.units[i].body.radius {",
+    "replace": "                if pos.sub(tower).flat_len() <= 0 {",
+    "test": "a_ward_takes_damage_before_the_score_and_the_score_never_rises"
+  },
+  {
+    "name": "walking ignores the speed",
+    "file": "crates/core/src/prep.rs",
+    "find": "            let step = content::cms(b.walk_cms);",
+    "replace": "            let step = content::cms(b.walk_cms * 2);",
+    "test": "walking_right_for_a_second_covers_the_walking_speed"
+  },
+  {
+    "name": "furniture does not stop the archmage",
+    "file": "crates/core/src/prep.rs",
+    "find": "                if l < PROP + BODY {",
+    "replace": "                if l < 0 {",
+    "test": "the_room_wall_and_the_furniture_stop_the_archmage"
+  },
+  {
+    "name": "stations act from anywhere",
+    "file": "crates/core/src/prep.rs",
+    "find": "        if self.station() == Some(s) {",
+    "replace": "        if self.station() == Some(s) || s == s {",
+    "test": "an_action_away_from_its_station_is_refused"
+  },
+  {
+    "name": "reading is instant",
+    "file": "crates/core/src/prep.rs",
+    "find": "                    left: content::ticks(b.read_ms),",
+    "replace": "                    left: 1,",
+    "test": "reading_takes_its_time_then_teaches_a_new_piece"
+  },
+  {
+    "name": "the lab skips the chain rules",
+    "file": "crates/core/src/prep.rs",
+    "find": "                spell::check(c, &self.draft).map_err(|e| e.key())?;",
+    "replace": "                let _ = spell::check(c, &self.draft);",
+    "test": "the_lab_saves_a_spell_only_from_known_pieces_and_by_the_rules"
+  },
+  {
+    "name": "quality ignores the interview",
+    "file": "crates/core/src/prep.rs",
+    "find": "            let q = (score + a.base) / 2 + self.rng.between(-v, v);",
+    "replace": "            let q = a.base + self.rng.between(-v, v);",
+    "test": "a_perfect_interview_enrols_the_applicant_near_the_average_of_score_and_aptitude"
+  },
+  {
+    "name": "a failed interview still hires",
+    "file": "crates/core/src/prep.rs",
+    "find": "            if score >= 20 {",
+    "replace": "            if score >= 0 {",
+    "test": "an_interview_that_scores_under_twenty_persuades_nobody"
+  },
+  {
+    "name": "the band ignores the audience",
+    "file": "crates/core/src/prep.rs",
+    "find": "        let band = glyph::band(&c.balance().band_px, audience, units_per_px(glyphs.len()));",
+    "replace": "        let band = glyph::band(&c.balance().band_px, 1, units_per_px(glyphs.len()));",
+    "test": "one_on_one_teaching_has_a_wider_band_than_a_class"
+  },
+  {
+    "name": "the book casts any spell",
+    "file": "crates/core/src/prep.rs",
+    "find": "                if !spell::is_invasion(c, chain) {",
+    "replace": "                if false && !spell::is_invasion(c, chain) {",
+    "test": "the_invasion_book_casts_only_invasions_at_a_rival_for_mana"
+  },
+  {
+    "name": "placing is free",
+    "file": "crates/core/src/prep.rs",
+    "find": "                self.spend(c.file.features[p.feature as usize].mana)?;",
+    "replace": "                self.spend(c.file.features[p.feature as usize].mana * 0)?;",
+    "test": "a_wall_needs_its_spell_and_mana_and_may_not_close_the_route"
+  },
+  {
+    "name": "a golem builds at once",
+    "file": "crates/core/src/prep.rs",
+    "find": "                let total = content::ticks(f.golem_s * 1000);",
+    "replace": "                let total = 1;",
+    "test": "a_golem_builds_after_its_delay_and_not_before"
+  },
+  {
+    "name": "a helper teaches at once",
+    "file": "crates/core/src/prep.rs",
+    "find": "                        let total = content::ticks(c.file.helpers[helper as usize].job_s * 1000);",
+    "replace": "                        let total = 0 * content::ticks(c.file.helpers[helper as usize].job_s * 1000);",
+    "test": "a_teaching_elemental_teaches_the_class_when_its_job_ends"
+  },
+  {
+    "name": "rhythm good window scores perfect",
+    "file": "crates/core/src/rhythm.rs",
+    "find": "            Some(n) => n.got = Some(if (n.at - t).abs() <= self.perfect { 100 } else { 60 }),",
+    "replace": "            Some(n) => n.got = Some(if (n.at - t).abs() <= self.perfect { 100 } else { 100 }),",
+    "test": "late_inside_good_scores_60_and_outside_it_misses"
+  },
+  {
+    "name": "rhythm strays are free",
+    "file": "crates/core/src/rhythm.rs",
+    "find": "        (sum / n - self.strays * 10).clamp(0, 100)",
+    "replace": "        (sum / n - self.strays * 0).clamp(0, 100)",
+    "test": "a_stray_press_costs_ten"
+  },
+  {
+    "name": "a score can rise",
+    "file": "crates/core/src/game.rs",
+    "find": "                self.seats[i].score -= t;",
+    "replace": "                self.seats[i].score += t;",
+    "test": "a_versus_match_runs_its_days_and_scores_only_fall"
+  },
+  {
+    "name": "an archmage invasion waits for the battle",
+    "file": "crates/core/src/game.rs",
+    "find": "        let now = self.prep_tick;",
+    "replace": "        let now = self.prep_tick + 100_000;",
+    "test": "an_archmages_invasion_shows_at_once_and_students_only_when_the_battle_starts"
+  },
+  {
+    "name": "students invasions skip the leader",
+    "file": "crates/core/src/game.rs",
+    "find": "            if best.map(|b| s.score > b.0).unwrap_or(true) {",
+    "replace": "            if best.map(|b| s.score < b.0).unwrap_or(true) {",
+    "test": "students_invasions_go_to_the_rival_leading_on_score"
+  },
+  {
+    "name": "a tie is broken by seat",
+    "file": "crates/core/src/game.rs",
+    "find": "        self.seats[seat].score == top",
+    "replace": "        self.ranking().first() == Some(&seat) && top == top",
+    "test": "the_ranking_orders_by_score_and_a_tie_is_shared"
+  },
+  {
+    "name": "a main enemy repeats",
+    "file": "crates/core/src/game.rs",
+    "find": "        let pool = if fresh.is_empty() { &wild } else { &fresh };",
+    "replace": "        let pool = if fresh.is_empty() { &wild } else { &wild };",
+    "test": "no_two_days_share_a_main_enemy"
+  },
+  {
+    "name": "medals run backwards",
+    "file": "crates/core/src/game.rs",
+    "find": "        t.medals.iter().filter(|&&m| value <= m).count() as i32",
+    "replace": "        t.medals.iter().filter(|&&m| value >= m).count() as i32",
+    "test": "medals_follow_each_trials_ladder"
+  },
+  {
+    "name": "the crash course ignores the average",
+    "file": "crates/core/src/game.rs",
+    "find": "                sum / n >= 80",
+    "replace": "                sum / n >= 800",
+    "test": "the_crash_course_ends_when_the_class_averages_eighty"
+  }
+]

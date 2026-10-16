@@ -1,0 +1,5 @@
+{
+ "_about": "Presentation numbers the page uses: software renderers by name, and the sound volume.",
+ "software": ["SwiftShader", "llvmpipe", "Software", "softpipe", "Microsoft Basic Render"],
+ "volume": 0.3
+}

@@ -23,8 +23,23 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     }
   }
 
+  // a glyph as an icon: fixed markup parsed as HTML, which places <svg> in
+  // its namespace without naming it; the core's values go in as attributes
+  function iconOf(d, view, cls) {
+    const holder = make("div");
+    holder.innerHTML = "<svg aria-hidden=\"true\"><path></path></svg>";
+    const svg = holder.firstChild;
+    svg.setAttribute("class", cls);
+    svg.setAttribute("viewBox", view);
+    svg.firstChild.setAttribute("d", d);
+    return svg;
+  }
+
   function button(a) {
     const b = make("button", "act", a.label);
+    if (a.icon) b.prepend(iconOf(a.icon, a.view, "act-icon"));
+    if (a.hint) b.title = a.hint;
+    if (a.mana) b.append(manaOf(a.mana));
     if (a.badge) b.append(make("span", "badge", a.badge));
     b.disabled = !a.enabled;
     b.dataset.action = a.name;
@@ -78,11 +93,7 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
   // namespace without naming it; the core's values go in as attributes
   function cardOf(c) {
     const box = make("article", `card school-${c.school}`);
-    const holder = make("div");
-    holder.innerHTML = "<svg class=\"card-icon\" aria-hidden=\"true\"><path></path></svg>";
-    const svg = holder.firstChild;
-    svg.setAttribute("viewBox", c.view);
-    svg.firstChild.setAttribute("d", c.icon);
+    const svg = iconOf(c.icon, c.view, "card-icon");
     const body = make("div", "card-body");
     const top = make("div", "card-top");
     top.append(make("span", "card-number", c.number), make("span", "card-kind", c.kind));
@@ -90,6 +101,64 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     if (c.mana) top.append(manaOf(c.mana));
     body.append(top, make("h3", "card-name", c.name), make("p", "card-text", c.text), make("p", "card-facts", c.facts));
     box.append(svg, body);
+    return box;
+  }
+
+  // the spell builder (T17): rows of sets, each modifiers, a payload and a
+  // trigger, left to right; a placed piece is a button that takes it out
+  function slotOf(t, kind, label) {
+    if (!t) return make("div", `slot ${kind} empty`, label);
+    const b = make("button", `act slot ${kind} filled school-${t.school}`);
+    b.dataset.action = "lab.remove";
+    b.dataset.value = t.i;
+    b.append(iconOf(t.icon, t.view, "slot-icon"), make("span", "slot-name", t.name));
+    return b;
+  }
+
+  function laneOf(lane) {
+    const box = make("div", "lane");
+    const L = lane.labels;
+    const head = make("div", "slot spell", L.your);
+    head.append(make("b", "", lane.spell));
+    lane.rows.forEach((row, r) => {
+      const line = make("div", "lane-row");
+      if (r === 0) line.append(head);
+      for (const set of row) {
+        if (set.branch) {
+          line.append(make("div", "branch-from", L.branch));
+          continue;
+        }
+        const s = make("div", set.open ? "set open" : "set");
+        const mods = make("div", "mods");
+        for (const m of set.mods) mods.append(slotOf(m, "mod"));
+        if (set.open && !set.payload) mods.append(slotOf(null, "mod", L.mod));
+        s.append(mods);
+        if (set.payload || set.open) s.append(slotOf(set.payload, "pay", L.pay));
+        if (set.trigger || (set.open && set.payload)) s.append(slotOf(set.trigger, "trig", L.trig));
+        line.append(s);
+      }
+      box.append(line);
+    });
+    return box;
+  }
+
+  function trayOf(groups) {
+    const box = make("div", "tray");
+    for (const g of groups) {
+      const sec = make("section", "tray-group");
+      sec.append(make("h3", "", g.label));
+      const tiles = make("div", "tiles");
+      for (const t of g.tiles) {
+        const b = make("button", `act tile ${t.kind} school-${t.school}`);
+        b.dataset.action = "lab.add";
+        b.dataset.value = t.id;
+        b.append(iconOf(t.icon, t.view, "slot-icon"), make("span", "slot-name", t.name));
+        if (t.mana) b.append(manaOf(t.mana));
+        tiles.append(b);
+      }
+      sec.append(tiles);
+      box.append(sec);
+    }
     return box;
   }
 
@@ -132,7 +201,8 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       label.append(input);
       box.append(label);
     }
-    if (p.draft && p.draft.length) box.append(buttons(p.draft, "chain"));
+    if (p.lane) box.append(laneOf(p.lane));
+    else if (p.draft && p.draft.length) box.append(buttons(p.draft, "chain"));
     if (p.actions && p.actions.length) box.append(buttons(p.actions, "actions"));
     if (p.saved_actions && p.saved_actions.length) box.append(buttons(p.saved_actions, "chips"));
     if (p.saved && p.saved.length) {
@@ -145,6 +215,7 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       for (const r of p.rows) ul.append(rowOf(r));
       box.append(ul);
     }
+    if (p.tray) box.append(trayOf(p.tray));
     if (p.cards && p.cards.length) {
       const grid = make("div", "cards");
       for (const c of p.cards) grid.append(cardOf(c));

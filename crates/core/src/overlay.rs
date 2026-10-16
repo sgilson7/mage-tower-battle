@@ -111,19 +111,19 @@ pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) ->
         Shape::Cross,
     ];
     d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
-    d.rect(80, 60, 1120, 620, Color::Panel);
-    d.text(draw_w() / 2, 100, 26, Color::Ink, Align::Center, heading);
-    d.text(draw_w() / 2, 132, 17, Color::Muted, Align::Center, hint);
+    d.rect(80, 110, 1120, 590, Color::Panel);
+    d.text(draw_w() / 2, 148, 26, Color::Ink, Align::Center, heading);
+    d.text(draw_w() / 2, 178, 16, Color::Muted, Align::Center, hint);
     let n = c.file.schools.len().max(1) as i32;
     let w = SHELF_W / n;
     for k in 0..n {
         let x = SHELF_X + k * w;
         let colour = schools[(k as usize).min(4)];
-        d.rect(x + 6, 470, w - 12, 180, colour);
+        d.rect(x + 6, 500, w - 12, 180, colour);
         d.shape(
             shapes[(k as usize).min(4)],
             x + w / 2,
-            520,
+            550,
             Scale::Large,
             Color::Paper,
             Color::Ink,
@@ -131,7 +131,7 @@ pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) ->
         );
         d.text(
             x + w / 2,
-            600,
+            630,
             20,
             Color::Paper,
             Align::Center,
@@ -139,7 +139,7 @@ pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) ->
         );
         d.text(
             x + w / 2,
-            632,
+            662,
             18,
             Color::Paper,
             Align::Center,
@@ -148,7 +148,7 @@ pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) ->
     }
     // the falling book, its school's colour and shape
     let b = (book as usize).min(4);
-    let y = 160 + fallen.clamp(0, 1000) * 280 / 1000;
+    let y = 210 + fallen.clamp(0, 1000) * 280 / 1000;
     d.rect(draw_w() / 2 - 50, y, 100, 130, schools[b]);
     d.shape(
         shapes[b],
@@ -168,10 +168,10 @@ pub fn seal(c: &Content, pieces: &[u16], rings: &[i32], at: usize, heading: &str
     use crate::fx;
     let mut d = DrawList::new();
     d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
-    d.rect(240, 70, 800, 600, Color::Panel);
-    d.text(draw_w() / 2, 110, 26, Color::Ink, Align::Center, heading);
-    d.text(draw_w() / 2, 650, 18, Color::Muted, Align::Center, hint);
-    let (cx, cy) = (draw_w() / 2, 380);
+    d.rect(200, 120, 880, 590, Color::Panel);
+    d.text(draw_w() / 2, 158, 26, Color::Ink, Align::Center, heading);
+    d.text(draw_w() / 2, 188, 16, Color::Muted, Align::Center, hint);
+    let (cx, cy) = (draw_w() / 2, 450);
     let n = rings.len().max(1) as i32;
     let point = |r: i32, a: i32| {
         (
@@ -180,7 +180,7 @@ pub fn seal(c: &Content, pieces: &[u16], rings: &[i32], at: usize, heading: &str
         )
     };
     for (k, &turn) in rings.iter().enumerate() {
-        let r = 240 - k as i32 * 190 / n;
+        let r = 220 - k as i32 * 170 / n;
         let colour = if k < at {
             Color::Good
         } else if k == at {
@@ -206,7 +206,7 @@ pub fn seal(c: &Content, pieces: &[u16], rings: &[i32], at: usize, heading: &str
         d.line(&g, Color::Ink, 4);
     }
     // the mark
-    d.shape(Shape::Star, cx, cy - 262, Scale::Tile, Color::Gold, Color::Ink, 2);
+    d.shape(Shape::Star, cx, cy - 244, Scale::Tile, Color::Gold, Color::Ink, 2);
     d.finish()
 }
 

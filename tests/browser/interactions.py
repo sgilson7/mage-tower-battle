@@ -73,9 +73,20 @@ def run(page, check, engine):
     hold_until(page, "KeyA", lambda: int(attr(page, "x") or 0) <= -60)
     hold_until(page, "KeyW", lambda: attr(page, "station") == "library")
     check(attr(page, "station") == "library", "the archmage reached the library on foot")
-    page.keyboard.press("KeyE")
-    page.wait_for_selector("body[data-busy='reading']", state="attached", timeout=LONG)
-    page.wait_for_selector("body[data-busy='']", state="attached", timeout=LONG)
+    # finding a book is a sorting game: shelve each falling book by its
+    # school with keys 1 to 5 (T20)
+    # some books in the pile teach nothing new: sort again until one does
+    for _ in range(6):
+        page.keyboard.press("KeyE")
+        page.wait_for_selector("body[data-busy='sorting']", state="attached", timeout=LONG)
+        while attr(page, "busy") == "sorting":
+            shelf = attr(page, "book")
+            if shelf != "":
+                page.keyboard.press(f"Digit{int(shelf) + 1}")
+            page.wait_for_timeout(40)
+        page.wait_for_selector("body[data-busy='']", state="attached", timeout=LONG)
+        if int(attr(page, "known")) > first:
+            break
     # one piece, or a whole spell's pieces when the book was a tome
     check(int(attr(page, "known")) >= first + 1, "reading a book taught at least one more piece")
 
@@ -87,11 +98,16 @@ def run(page, check, engine):
     for n in (1, 2):
         page.click("button[data-action='lab.add'][data-value='fire_bolt']")
         # polled from here: WebKit runs no page function under the page's CSP
-        hold_until(page, None, lambda: page.locator("#station .chain .act").count() == n, limit_s=LONG / 1000)
+        hold_until(page, None, lambda: page.locator("#station .lane .slot.filled").count() == n, limit_s=LONG / 1000)
     # one more spell than before: a book of a whole spell may already have
     # saved one (SECOND-ORDER R4.11)
     before = int(attr(page, "spells") or 0)
     page.click("button[data-action='lab.save']")
+    # the seal: turn each ring back to the mark with A, lock it with Space (T22)
+    page.wait_for_selector("body[data-busy='sealing']", state="attached", timeout=LONG)
+    while attr(page, "busy") == "sealing":
+        page.keyboard.press("Space" if attr(page, "ring") == "0" else "KeyA")
+        page.wait_for_timeout(40)
     page.wait_for_selector(f"body[data-spells='{before + 1}']", state="attached", timeout=LONG)
     check(page.is_visible("#station"), "the laboratory's panel is visible")
 

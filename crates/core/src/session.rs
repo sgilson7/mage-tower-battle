@@ -2161,6 +2161,12 @@ impl Session {
                                 PieceKind::Helper { .. } | PieceKind::SelfCast { .. }
                             )
                     })
+                    // what only the map table places is not a spell's piece
+                    .filter(|&i| {
+                        spell::raises(c, i as u16)
+                            .map(|f| c.file.features[f].cast_life > 0)
+                            .unwrap_or(true)
+                    })
                     .map(|i| self.tile(i as u16))
                     .filter(|t| t["kind"] == *kind)
                     .map(|mut t| {
@@ -2484,7 +2490,17 @@ impl Session {
         v["overlay"] = json!(busy == Some("drawing") || busy == Some("interview") || self.layout.open);
         // the archmage's place in decimetres, for the browser check to walk by
         let dm = |v: i32| v * 10 / crate::fx::ONE;
-        v["data"] = json!({"students": p.students.len(), "spells": p.spells.len(), "known": p.known.iter().filter(|&&k| k).count(), "placed": p.placed.len(), "x": dm(p.pos.x), "z": dm(p.pos.z)});
+        // the sorting game's book and the seal's ring, for a browser check
+        // that plays them by keys
+        let (book, ring) = match &p.activity {
+            Activity::Sorting { book, .. } => (book.to_string(), String::new()),
+            Activity::Sealing { rings, at } => (
+                String::new(),
+                rings.get(*at).map(|r| r.to_string()).unwrap_or_default(),
+            ),
+            _ => (String::new(), String::new()),
+        };
+        v["data"] = json!({"students": p.students.len(), "spells": p.spells.len(), "known": p.known.iter().filter(|&&k| k).count(), "placed": p.placed.len(), "x": dm(p.pos.x), "z": dm(p.pos.z), "book": book, "ring": ring});
         v
     }
 

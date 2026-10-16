@@ -111,6 +111,7 @@ body[data-phase="battle"] #gl { cursor: grab; }
 /* the map's own panel sits left of the map, so it stays usable while the map is open (T3) */
 body[data-screen="play"] .panel-map { position: absolute; left: 12px; top: 84px; bottom: 70px; width: min(320px, 25%); overflow: auto; }
 body[data-busy="drawing"] .panel-bottom, body[data-busy="interview"] .panel-bottom { top: 12px; bottom: auto; }
+body[data-busy="sealing"] .panel-bottom, body[data-busy="sorting"] .panel-bottom { top: 44px; bottom: auto; left: auto; right: 12px; transform: none; width: 300px; font-size: 13px; padding: 8px 10px; }
 
 .label3d { position: absolute; transform: translate(-50%, -100%); font: 800 14px var(--font); white-space: nowrap; }
 .label3d.station { background: var(--paper); border: var(--line) solid var(--ink); border-radius: 12px; padding: 2px 10px; }
@@ -186,3 +187,38 @@ body[data-screen="play"] .panel-office-roster { position: absolute; left: 12px; 
 body[data-screen="play"] .panel-office-student { position: absolute; left: calc(27% + 22px); top: 84px; bottom: 70px; width: 33%; overflow: auto; }
 body[data-screen="play"] .panel-office-deploy { position: absolute; right: 12px; top: 84px; bottom: 70px; width: calc(40% - 44px); overflow: auto; }
 body[data-screen="play"][data-station="office"] .panel-jobs { display: none; }
+
+/* the spell builder (T17), after the wireframe and Galactic Survivors' rigs:
+   blue modifiers, red payloads, yellow triggers */
+body[data-screen="play"] .panel-builder { position: absolute; left: 12px; right: 12px; top: 84px; bottom: 70px; overflow: auto; }
+.lane { display: grid; gap: 10px; margin: 8px 0 10px; padding: 10px; border-radius: 14px; background: var(--row-bg); border: 2px solid rgba(43, 33, 64, 0.25); overflow-x: auto; }
+.lane-row { display: flex; align-items: center; gap: 10px; min-height: 120px; }
+.set { display: flex; align-items: center; gap: 6px; padding-right: 10px; border-right: 4px solid var(--ink); }
+.set.open { border-right: none; }
+.mods { display: grid; gap: 4px; }
+.slot { width: 104px; min-height: 52px; border: 4px solid; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font: 800 12px var(--font); padding: 4px; background: var(--paper); color: var(--ink); box-shadow: 0 3px 0 rgba(43, 33, 64, 0.3); }
+.slot.pay { min-height: 112px; border-color: #e0453a; }
+.slot.mod { border-color: #4a5fd1; }
+.slot.trig { min-height: 86px; border-color: #e8c21a; }
+.slot.empty { border-style: dashed; background: transparent; box-shadow: none; color: var(--muted); }
+.slot.spell { border-color: #e0453a; background: var(--chip-bg); min-height: 112px; }
+.slot.spell b { font-size: 14px; margin-top: 4px; }
+.slot.filled:hover { transform: translateY(-2px); }
+.slot-icon { width: 40px; height: 40px; }
+.slot-icon path, .act-icon path { fill: none; stroke: currentColor; stroke-width: 90; stroke-linecap: round; stroke-linejoin: round; }
+.slot.school-destruction, .tile.school-destruction { color: var(--destruction); }
+.slot.school-alteration, .tile.school-alteration { color: var(--alteration); }
+.slot.school-conjuration, .tile.school-conjuration { color: var(--conjuration); }
+.slot.school-illusion, .tile.school-illusion { color: var(--illusion); }
+.slot.school-restoration, .tile.school-restoration { color: var(--restoration); }
+.slot-name { color: var(--ink); }
+.branch-from { writing-mode: vertical-rl; transform: rotate(180deg); font: 800 11px var(--font); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 4px; border-left: 4px dashed #e8c21a; }
+.tray { display: grid; gap: 8px; margin-top: 10px; }
+.tray h3 { margin: 4px 0; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tile { display: inline-flex; flex-direction: column; align-items: center; width: 100px; padding: 4px; background: var(--paper); border-width: 3px; }
+.tile.pay { border-color: #e0453a; } .tile.mod { border-color: #4a5fd1; } .tile.trig { border-color: #e8c21a; } .tile.branch { border-color: var(--muted); }
+/* spells on yourself (T28): small icons by the HUD, their text on hover */
+body[data-screen="play"] .panel-self { position: absolute; left: 12px; top: 70px; display: flex; gap: 4px; padding: 0; background: transparent; border: none; box-shadow: none; }
+.panel-self .act { padding: 2px 4px; font-size: 11px; display: inline-flex; align-items: center; gap: 2px; background: var(--chip-bg); color: var(--ink); }
+.act-icon { width: 22px; height: 22px; color: var(--restoration); }

@@ -126,7 +126,9 @@ async function main() {
   el("mute").addEventListener("click", () => act("sound.mute", ""));
   el("glossary-button").addEventListener("click", () => act("glossary.toggle", ""));
 
-  const point = (name, e) => act(name, [e.offsetX, e.offsetY, ov.clientWidth, ov.clientHeight].join(","));
+  // the fifth number is the pointer's buttons: a right drag rubs out on the map (T23)
+  const point = (name, e) => act(name, [e.offsetX, e.offsetY, ov.clientWidth, ov.clientHeight, e.buttons].join(","));
+  ov.addEventListener("contextmenu", (e) => e.preventDefault());
   ov.addEventListener("pointerdown", (e) => {
     try {
       ov.setPointerCapture(e.pointerId);

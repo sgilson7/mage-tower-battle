@@ -4,47 +4,87 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`. A fresh sessi
 
 ## What this is
 
-Five sentences at most: what the tool does, for whom, and where it lives.
+Mage Tower Battle is a browser game for one to four players. Each player is an archmage rebuilding a wrecked college. They read books, join spell pieces into spells, recruit and teach students, and lay out the field; then four towers fight the day's enemies at once while rivals' invasions arrive. Score only falls, and the highest score after the last day wins. It is a Rust core compiled to WebAssembly with a WebGL page. It lives at https://sgilson7.github.io/mage-tower-battle/ (repository `sgilson7/mage-tower-battle`).
 
 ## Rules that hold it up
 
-The rules that break silently if a later change ignores them, and the test that guards each.
+| Rule | Guarded by |
+| --- | --- |
+| Every rule lives in `crates/core`: no floats, hash maps, clocks, randomness or I/O there | `crates/core/tests/boundary.rs` |
+| The shim decides nothing; the page holds no number but 0 and 1 and no `Math` | `boundary.rs` page and shim scans |
+| Shaders hold only 0 and 1; every rule value arrives as a uniform | `boundary.rs` shader scan |
+| Every string is in `data/strings.json`; glossary `Not:` words and TONE.md phrases fail | `crates/core/tests/copy.rs` |
+| Score never rises; a ward takes damage before the score | `a_ward_takes_damage_before_the_score_and_the_score_never_rises` |
+| Only `web/store.js` names browser storage | `no_storage.rs` (BUILDER-SPEC change, R3.6) |
+| Online: every browser runs all four battles from the same seed and plans. Bots aim by their own seat, invasions are sorted by sender, remote plans are checked before use | `every_browser_of_an_online_match_ends_with_the_same_scores`, `invasions_reach_a_battle_in_sender_order_whatever_order_they_arrived_in`, `a_plan_from_another_browser_is_refused_when_an_index_is_out_of_range` |
+| Only `web/online.js` imports the transport; only `web/net/config.js` names a relay, and it matches the CSP | `crates/core/tests/online_fence.rs` |
 
 ## Shape of the code
 
-Where each kind of thing lives, in a short table.
+| Where | What |
+| --- | --- |
+| `crates/core/src/arena.rs`, `body.rs`, `ragdoll.rs`, `battle.rs` | the field, the flow field, bodies, Verlet ragdolls, a battle |
+| `spell.rs`, `glyph.rs`, `rhythm.rs`, `prep.rs`, `bot.rs` | spells and mana, the drawing and the interview, the preparation, computer rivals |
+| `game.rs` | a match: days, scores, invasions, trials and medals |
+| `online.rs` | the room protocol: hello, lobby, start, invasions, plans, checksums |
+| `session.rs` | screens, the `act` door, the `ui` view model, the frame |
+| `mesh.rs`, `render.rs`, `look.rs`, `scene.rs`, `overlay.rs`, `sound.rs` | what is drawn and heard, as numbers the page uploads |
+| `crates/shim` | wasm-bindgen exports only |
+| `web/` | `app.js` (frame loop), `gl.js`, `ui.js`, `keys.js`, `sound.js`, `store.js`, `online.js`, `net/` (transport, vendored Trystero) |
+| `data/` | content, strings, palette, models, sounds, controls, display, shaders |
 
 ## Commands
 
-Build, test, check, publish, and the probes, with what each prints when it passes.
+| Command | Prints when it passes |
+| --- | --- |
+| `cargo test` | every `test result: ok` |
+| `./scripts/build.sh` | the file list and `wasm: … KB` |
+| `./scripts/check.sh` | the eight steps, the last ending in the browser check passing in Chromium, Firefox and WebKit |
+| `python3 scripts/break_tests.py` | `N of N breaks caught` |
+| `.venv/bin/python tests/browser/online.py chromium firefox webkit` | `ONLINE CHECK PASSED in …` |
+| `.venv/bin/python tests/browser/interactions.py` | a practice day played by keys |
+| `.venv/bin/python tools/shots.py OUTDIR` | screenshots of the running game |
+| `.venv/bin/python tools/probe_wasm.py` | the physics timing (MEASUREMENTS.md) |
+
+Publishing: a push to `main` on GitHub runs `.github/workflows/deploy.yml` (check, the online check, deploy to Pages, then the browser check against the live address). The local branch `public` is pushed as `main` (R3.36); local `main` holds the private history and is never pushed.
 
 ## What will bite within the hour
 
-What a new session gets wrong first.
-
-## Open for the person
-
-Every `SECOND-ORDER.md` row with status *person*, by number, with what the person has to decide or supply. `scripts/notebook_check.py` fails while one is missing.
-
-Stage 2, 16 October 2026: the plan is written and waits for the person's approval. No game code exists.
-
-- R1.12: names the agent made up for the mockups.
-- R2.2: is a match 3 days or 4? The plan uses 4.
-- R2.5: the ragdoll cap per arena (plan question 5).
-- R2.6: where the score starts (plan question 3).
-- R2.7: MVP size, the damage types, battle length, no sound (plan questions 2, 4, 6).
-- R2.8: the Practice mode (plan question 7).
-- R3.10: every name in data/content.json (pieces, enemies, features, helpers) and the type chart.
+- Push `public`, not `main`: `git push origin public:main`.
+- A test that needs a workaround is a finding; record it in SECOND-ORDER.md, do not loosen the check.
+- A new behaviour test needs a row in `tests/breaks.json`: write it with `tools/add_breaks.py` from a fragment, since `cargo fmt` rots exact lines (R3.23).
+- An online change must keep the browsers equal: anything a battle reads must come from the seed, the plans or the start message, never from the local seat.
 - R3.28: the bots' win shares miss the plan's one-in-ten target for the spellcrafter and attack mage; judge the plans by playing.
 
 ## Mistakes so far
 
-By system, from `SECOND-ORDER.md`, with the rule each one produced.
+- Checks that could not fail (R3.9, R3.22, and in this round the room-code alphabet and the invasion order, both caught by `break_tests.py` and strengthened). Rule: every behaviour test has a break row.
+- Physics order (R3.7): separate before keep-out, or walkers leave the grid. Rule: the order in `stress.rs` and `battle.rs`.
+- Breaks rotted after formatting (R3.19, R3.23). Rule: `tools/add_breaks.py`.
+- Reversions to the textbook rule: R2.1 (a tower at zero is out; the person's rule is score only falls) and R3.25 (enemies keep attacking; the plan's rule is one leak strike). Rule: glossary entries and the score test.
+- Untrusted input (R3.38): `spell::check` indexed without a bound. Rule: `online::sane_plan`.
+- A bot aimed by the local seat (R3.37). Rule: the online equality test.
+
+## Open for the person
+
+Every `SECOND-ORDER.md` row with status *person*, by number.
+
+- R1.12: names the agent made up for the mockups.
+- R3.10: every name in `data/content.json` (pieces, enemies, features, helpers) and the type chart.
+- R3.28: the bots' win shares; decide whether to tune the attack mage and spellcrafter.
+- R3.40: try a room code with a friend on another network; the machine checks cover pasted codes on one machine only.
+
+R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
 
-The last lines of `./scripts/check.sh` and `./scripts/count-tests.sh`, with the date and commit.
+16 October 2026, on the commit that added online play (its parent is a102d7e):
+
+- `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`.
+- `./scripts/count-tests.sh`: `174 passed, 0 failed, 2 ignored`.
+- `python3 scripts/break_tests.py`: `70 of 70 breaks caught` (three breaks had rotted after `cargo fmt` and were rewritten against the formatted lines, as in R3.23).
+- `tests/browser/online.py`: `ONLINE CHECK PASSED` in chromium, firefox and webkit, run by hand.
 
 ## The next action
 
-One action.
+Play a whole Versus match and an online match with a friend, then write what felt wrong as TRIAGE rows (T1, T2 …).

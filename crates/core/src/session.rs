@@ -12,6 +12,7 @@ use crate::game::{self, Match, Mode, Phase, SeatKind, Settings};
 use crate::geom::{self, v3, TPS};
 use crate::glossary;
 use crate::look::Look;
+use crate::online::{self, Event, Msg, Online, Role};
 use crate::overlay;
 use crate::prep::{self, Activity, Draw, Station};
 use crate::render::{Batch, Camera, FrameOut, StaticScene};
@@ -29,6 +30,7 @@ pub enum Screen {
     Trials,
     Achievements,
     Help,
+    Online,
     Play,
 }
 
@@ -78,6 +80,17 @@ pub struct Session {
     trial_result: Option<(u8, i32, i32, bool)>,
     earned_this_match: Vec<String>,
     results_seen: bool,
+    /// Online play (PLAN.md decision 15): the room, once hosted or joined.
+    pub online: Option<Online>,
+    online_name: String,
+    online_code: String,
+    /// The room was opened with pasted codes, so it has no room code to show.
+    pasted: bool,
+    build: String,
+    /// Messages held for a later day or phase.
+    net_queue: Vec<Event>,
+    sums: Vec<(i32, u8, u64)>,
+    desync_told: bool,
 }
 
 fn act_json(name: &str, value: &str, label: String, enabled: bool) -> Value {
@@ -100,6 +113,7 @@ impl Session {
         save_text: &str,
         seed: u64,
     ) -> Result<Session, String> {
+        let build = online::build_of(&[content_json, strings_json]);
         let s = Strings::parse(strings_json)?;
         let c = Content::parse(content_json).map_err(|e| e.message())?;
         let look = Look::parse(palette_json, models_json)?;
@@ -161,7 +175,16 @@ impl Session {
             trial_result: None,
             earned_this_match: Vec::new(),
             results_seen: false,
+            online: None,
+            online_name: String::new(),
+            online_code: String::new(),
+            pasted: false,
+            build,
+            net_queue: Vec::new(),
+            sums: Vec::new(),
+            desync_told: false,
         };
+        session.online_name = session.s.t("online.default_name");
         if broken {
             session.toast(session.s.t("save.broken"));
         }
@@ -223,6 +246,7 @@ impl Session {
                     "trials" => Screen::Trials,
                     "achievements" => Screen::Achievements,
                     "help" => Screen::Help,
+                    "online" => Screen::Online,
                     other => return Err(self.s.f("error.no_screen", &[("name", other.to_string())])),
                 };
                 if self.screen != Screen::Play {
@@ -266,7 +290,38 @@ impl Session {
                 self.m = Some(Match::trial(&self.c, k));
                 self.begin_play();
             }
+            // kept as typed (a name may end in a space while it is typed);
+            // cleaned when the room opens
+            "online.name" => self.online_name = value.chars().filter(|c| !c.is_control()).take(24).collect(),
+            "online.code" => {
+                self.online_code = value
+                    .chars()
+                    .filter(|c| c.is_ascii_alphanumeric())
+                    .map(|c| c.to_ascii_uppercase())
+                    .take(8)
+                    .collect()
+            }
+            "online.pasted" => self.pasted = true,
+            "online.ready" => {
+                let o = self.online.as_mut().ok_or_else(|| self.s.t("online.no_room"))?;
+                let r = !o.ready;
+                o.set_ready(r);
+            }
+            "online.start" => {
+                self.matches += 1;
+                let seed = self.seed ^ self.matches.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+                let bots = self.rivals.map(|r| r.key().to_string());
+                let st = self.settings.clone();
+                let o = self.online.as_mut().ok_or_else(|| self.s.t("online.no_room"))?;
+                if !o.start(seed, st, &bots) {
+                    return Err(self.s.t("online.not_everyone_ready"));
+                }
+            }
+            "online.leave" => self.leave_online(),
             "match.leave" => {
+                if self.m.as_ref().map(|m| m.mode == Mode::Online).unwrap_or(false) {
+                    self.leave_online();
+                }
                 self.m = None;
                 self.screen = Screen::Title;
                 self.layout = Layout::default();
@@ -458,6 +513,280 @@ impl Session {
         Ok(())
     }
 
+    // ---- online ----
+
+    fn leave_online(&mut self) {
+        self.online = None;
+        self.pasted = false;
+        self.net_queue.clear();
+        self.sums.clear();
+        self.screen = Screen::Title;
+        self.m = None;
+    }
+
+    /// Opens a room as host from two random words the page drew; returns
+    /// the room's name on the relays.
+    fn settle_name(&mut self) {
+        self.online_name = online::clean_name(&self.online_name);
+        if self.online_name.is_empty() {
+            self.online_name = self.s.t("online.default_name");
+        }
+    }
+
+    pub fn host(&mut self, a: u32, b: u32, app: &str) -> String {
+        self.settle_name();
+        let code = online::make_code(a, b);
+        let room = online::room_name(app, &code);
+        self.online = Some(Online::host(&self.online_name, &self.build, code));
+        self.pasted = false;
+        self.screen = Screen::Online;
+        room
+    }
+
+    /// Joins by a typed code (empty for pasted codes); returns the room's
+    /// name, or nothing when the code cannot be one.
+    pub fn join(&mut self, code: &str, app: &str) -> String {
+        let clean = online::clean_code(code);
+        if clean.is_none() && !code.is_empty() {
+            return String::new();
+        }
+        let code = clean.unwrap_or_default();
+        self.settle_name();
+        self.pasted = code.is_empty();
+        let room = online::room_name(app, &code);
+        self.online = Some(Online::join(&self.online_name, &self.build, code));
+        self.screen = Screen::Online;
+        room
+    }
+
+    pub fn net_peer(&mut self, peer: u32) {
+        if let Some(o) = self.online.as_mut() {
+            o.connected(peer);
+        }
+    }
+
+    pub fn net_left(&mut self, peer: u32) {
+        if let Some(o) = self.online.as_mut() {
+            o.left(peer);
+        }
+    }
+
+    pub fn net_message(&mut self, peer: u32, text: &str) {
+        if let Some(o) = self.online.as_mut() {
+            o.message(peer, text);
+        }
+    }
+
+    pub fn net_error(&mut self, key: &str) {
+        let key = if self.s.has(key) && key.starts_with("online.") {
+            key
+        } else {
+            "online.garbled"
+        };
+        if let Some(o) = self.online.as_mut() {
+            o.status = key.to_string();
+        }
+    }
+
+    /// What to send, as JSON `[[peer, text, false], …]` (nothing goes on the
+    /// fast channel).
+    pub fn net_outbox(&mut self) -> String {
+        let out: Vec<Value> = self
+            .online
+            .as_mut()
+            .map(|o| o.take_outbox())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(p, t)| json!([p, t, false]))
+            .collect();
+        json!(out).to_string()
+    }
+
+    pub fn build(&self) -> String {
+        self.build.clone()
+    }
+
+    pub fn net_active(&self) -> bool {
+        self.online.is_some()
+    }
+
+    pub fn net_status(&self) -> String {
+        self.online.as_ref().map(|o| o.status.clone()).unwrap_or_default()
+    }
+
+    /// Takes what the room heard, and acts on what is due: a start now, an
+    /// invasion or a plan in its own day's preparation, a checksum whenever.
+    fn pump_online(&mut self) {
+        let Some(o) = self.online.as_mut() else { return };
+        let local_is_host = o.role == Role::Host;
+        let seat = o.seat;
+        let mut queue = std::mem::take(&mut self.net_queue);
+        queue.append(&mut o.events);
+        let mut keep = Vec::new();
+        for e in queue {
+            if let Event::Start {
+                seed,
+                settings,
+                kinds,
+                names,
+            } = e
+            {
+                self.start_online(seed, settings, &kinds, &names, seat);
+                continue;
+            }
+            let c = &self.c;
+            let Some(m) = self.m.as_mut().filter(|m| m.mode == Mode::Online) else {
+                continue;
+            };
+            let open = matches!(m.phase, Phase::Prep | Phase::Waiting);
+            let due = |day: i32| {
+                if day < m.day {
+                    Some(false)
+                } else if day == m.day && open {
+                    Some(true)
+                } else {
+                    None
+                }
+            };
+            match e {
+                Event::Invade {
+                    day,
+                    from,
+                    target,
+                    chain,
+                    ..
+                } => match due(day) {
+                    Some(true) if online::sane_chain(c, &chain) => m.take_invasion(c, from, target, chain),
+                    None => keep.push(Event::Invade {
+                        day,
+                        from,
+                        seq: 0,
+                        target,
+                        chain,
+                    }),
+                    _ => {}
+                },
+                Event::Plan {
+                    day,
+                    seat: s,
+                    plan,
+                    students,
+                } => match due(day) {
+                    Some(true) if online::sane_plan(c, &plan, &students) => m.take_plan(s, plan, students),
+                    Some(true) => m.depart(s),
+                    None => keep.push(Event::Plan {
+                        day,
+                        seat: s,
+                        plan,
+                        students,
+                    }),
+                    _ => {}
+                },
+                Event::Sum { day, seat: s, hash } => self.sums.push((day, s, hash)),
+                Event::Left { seat: s } => {
+                    if s == 0 && !local_is_host {
+                        // the host carried every message: everyone remote is gone
+                        for k in 0..4 {
+                            m.depart(k);
+                        }
+                    } else {
+                        m.depart(s);
+                    }
+                }
+                Event::Start { .. } => {}
+            }
+        }
+        self.net_queue = keep;
+        self.check_sums();
+    }
+
+    fn start_online(&mut self, seed: u64, settings: Settings, kinds: &[String], names: &[String], local: u8) {
+        let you = self.online_name.clone();
+        let mut k = [SeatKind::Empty; 4];
+        let mut n: [String; 4] = Default::default();
+        for i in 0..4 {
+            let kind = kinds.get(i).map(String::as_str).unwrap_or("");
+            let style = STYLES.iter().copied().find(|s| s.key() == kind);
+            (k[i], n[i]) = match (i as u8 == local, kind, style) {
+                (true, _, _) => (SeatKind::Local, you.clone()),
+                (false, "person", _) => (SeatKind::Remote, names.get(i).cloned().unwrap_or_default()),
+                (false, _, Some(st)) => (SeatKind::Bot(st), self.s.t(st.key())),
+                _ => (SeatKind::Empty, String::new()),
+            };
+        }
+        self.sums.clear();
+        self.desync_told = false;
+        self.m = Some(Match::new(
+            &self.c,
+            seed,
+            Mode::Online,
+            settings,
+            k,
+            n,
+            local.min(3),
+        ));
+        self.begin_play();
+    }
+
+    /// The local archmage's half of the match: each invasion as it is
+    /// cast, the plan when the preparation ends, a checksum after a battle.
+    fn send_online(&mut self, cast: Vec<(u8, Vec<u16>)>, before: Phase) {
+        let Some(m) = self.m.as_ref().filter(|m| m.mode == Mode::Online) else {
+            return;
+        };
+        let Some(o) = self.online.as_mut() else { return };
+        let (day, local) = (m.day, m.local);
+        for (target, chain) in cast {
+            o.seq += 1;
+            let seq = o.seq;
+            o.say(Msg::Invade {
+                day,
+                from: local,
+                seq,
+                target,
+                chain,
+            });
+        }
+        if before == Phase::Prep && m.phase != Phase::Prep {
+            let (plan, students) = m.local_plan(&self.c);
+            o.say(Msg::Plan {
+                day,
+                seat: local,
+                plan,
+                students,
+            });
+        }
+        if before == Phase::Battle && m.phase != Phase::Battle {
+            let hash = m.checksum();
+            o.say(Msg::Sum {
+                day,
+                seat: local,
+                hash,
+            });
+            self.sums.push((day, local, hash));
+            self.check_sums();
+        }
+    }
+
+    /// Every browser ran every battle; a checksum that differs from this
+    /// browser's for the same day means the games have parted.
+    fn check_sums(&mut self) {
+        let Some(m) = self.m.as_ref() else { return };
+        let local = m.local;
+        let differs = self.sums.iter().any(|&(d, s, h)| {
+            s != local
+                && self
+                    .sums
+                    .iter()
+                    .any(|&(d2, s2, h2)| s2 == local && d2 == d && h2 != h)
+        });
+        if differs && !self.desync_told {
+            self.desync_told = true;
+            let t = self.s.t("online.desync");
+            self.toast(t);
+        }
+    }
+
     fn begin_play(&mut self) {
         self.screen = Screen::Play;
         self.view = View::All;
@@ -495,6 +824,7 @@ impl Session {
             t.1 -= 1;
         }
         self.toasts.retain(|t| t.1 > 0);
+        self.pump_online();
         let Some(m) = self.m.as_mut() else { return };
         let before = m.phase;
         let bits = if self.layout.open {
@@ -502,8 +832,10 @@ impl Session {
         } else {
             bits
         };
-        m.step(&self.c, bits);
+        let cast = m.step(&self.c, bits);
         let after = m.phase;
+        self.send_online(cast, before);
+        let Some(m) = self.m.as_mut() else { return };
         // the archmage's notes become toasts and sounds
         let mut notes = Vec::new();
         let mut lane_hits = None;
@@ -979,6 +1311,7 @@ impl Session {
             Screen::Trials => self.ui_trials(),
             Screen::Achievements => self.ui_achievements(),
             Screen::Help => self.ui_help(),
+            Screen::Online => self.ui_online(),
             Screen::Play => self.ui_play(),
         };
         out["hints"] = json!(hints);
@@ -1001,13 +1334,13 @@ impl Session {
         let actions = vec![
             act_json("screen.show", "setup", s.t("title.versus"), true),
             act_json("match.start", "practice", s.t("title.practice"), true),
+            act_json("screen.show", "online", s.t("title.online"), true),
             act_json("screen.show", "trials", s.t("title.trials"), true),
             act_json("screen.show", "achievements", s.t("title.achievements"), true),
             act_json("screen.show", "help", s.t("title.help"), true),
         ];
         let p = json!({"id": "title", "kind": "center", "heading": s.t("game.name"), "text": s.t("title.blurb"), "actions": actions});
-        let note = json!({"id": "title-note", "kind": "bottom", "text": s.t("title.online_soon")});
-        self.base("title", s.t("game.name"), vec![p, note])
+        self.base("title", s.t("game.name"), vec![p])
     }
 
     fn ui_setup(&self) -> Value {
@@ -1028,6 +1361,90 @@ impl Session {
         let p = json!({"id": "setup", "kind": "center", "heading": s.t("setup.heading"), "text": s.t("setup.text"), "rows": rows});
         let r = json!({"id": "rivals", "kind": "center", "heading": s.t("setup.rivals"), "rows": rivals, "actions": [act_json("match.start", "versus", s.t("setup.start"), true), act_json("screen.show", "title", s.t("back"), true)]});
         self.base("setup", s.t("setup.heading"), vec![p, r])
+    }
+
+    fn ui_online(&self) -> Value {
+        let s = &self.s;
+        let Some(o) = self.online.as_ref() else {
+            let inputs = vec![
+                json!({"id": "online-name", "label": s.t("online.name"), "value": self.online_name, "action": "online.name"}),
+                json!({"id": "online-code", "label": s.t("online.code"), "value": self.online_code, "action": "online.code"}),
+            ];
+            let actions = vec![
+                act_json("page.host", "", s.t("online.host"), true),
+                act_json(
+                    "page.join",
+                    &self.online_code,
+                    s.t("online.join"),
+                    online::clean_code(&self.online_code).is_some(),
+                ),
+                act_json("page.invite", "", s.t("online.invite"), true),
+                act_json("page.reply", "", s.t("online.reply"), true),
+                act_json("screen.show", "title", s.t("back"), true),
+            ];
+            let p = json!({"id": "online", "kind": "center", "heading": s.t("online.heading"), "text": s.t("online.text"), "inputs": inputs, "actions": actions});
+            return self.base("online", s.t("online.heading"), vec![p]);
+        };
+        let rows: Vec<Value> = o
+            .lobby
+            .iter()
+            .enumerate()
+            .map(|(k, seat)| {
+                // open seats take the computer rivals in order, as start() fills them
+                let bot = o.lobby[..k].iter().filter(|x| x.kind == "open").count();
+                let name = match seat.kind.as_str() {
+                    "open" => s.t(self.rivals[bot.min(2)].key()),
+                    _ => seat.name.clone(),
+                };
+                let you = if k as u8 == o.seat { s.t("online.you") } else { String::new() };
+                let chip = match seat.kind.as_str() {
+                    "person" if seat.ready => s.t("online.ready_chip"),
+                    "person" => s.t("online.not_ready_chip"),
+                    _ => String::new(),
+                };
+                json!({"label": format!("{name}{you}"), "detail": s.t(&format!("online.seat_{}", seat.kind)), "chip": chip})
+            })
+            .collect();
+        let code = if self.pasted || o.room.is_empty() {
+            s.t("online.by_paste")
+        } else {
+            s.f("online.code_is", &[("code", o.room.clone())])
+        };
+        let mut actions = Vec::new();
+        if !self.pasted && !o.room.is_empty() {
+            actions.push(act_json("page.copy", &o.room, s.t("online.copy_code"), true));
+        }
+        if self.pasted && o.role == Role::Host {
+            actions.push(act_json("page.invite", "", s.t("online.invite_more"), true));
+        }
+        match o.role {
+            Role::Host => actions.push(act_json("online.start", "", s.t("online.start"), o.can_start())),
+            Role::Joiner => actions.push(act_json(
+                "online.ready",
+                "",
+                s.t(if o.ready { "online.unready" } else { "online.ready" }),
+                o.seat < 4,
+            )),
+        }
+        actions.push(act_json("online.leave", "", s.t("online.leave"), true));
+        let st = &self.settings;
+        let text = format!(
+            "{} {}",
+            code,
+            s.f(
+                "online.settings",
+                &[
+                    ("days", st.days.to_string()),
+                    ("prep", strings::clock(st.prep_s * TPS)),
+                    ("battle", strings::clock(st.battle_s * TPS))
+                ]
+            )
+        );
+        let p = json!({"id": "lobby", "kind": "center", "heading": s.t("online.lobby"), "text": text, "rows": rows, "actions": actions});
+        let status = json!({"id": "net-status", "kind": "bottom", "text": s.t(&o.status)});
+        let mut v = self.base("online", s.t("online.lobby"), vec![p, status]);
+        v["data"] = json!({"net": o.status, "seat": o.seat.to_string()});
+        v
     }
 
     fn ui_trials(&self) -> Value {
@@ -1597,8 +2014,16 @@ impl Session {
             .filter_map(|id| self.c.file.achievements.iter().find(|a| &a.id == id))
             .map(|a| row(a.name.clone(), a.text.clone()))
             .collect();
+        let actions = if m.mode == Mode::Online {
+            vec![act_json("match.leave", "", s.t("results.title"), true)]
+        } else {
+            vec![
+                act_json("screen.show", "setup", s.t("results.again"), true),
+                act_json("match.leave", "", s.t("results.title"), true),
+            ]
+        };
         let mut panels = vec![
-            json!({"id": "results", "kind": "center", "heading": s.t(if won { "results.won" } else { "results.lost" }), "text": s.t("results.text"), "rows": rows, "actions": [act_json("screen.show", "setup", s.t("results.again"), true), act_json("match.leave", "", s.t("results.title"), true)]}),
+            json!({"id": "results", "kind": "center", "heading": s.t(if won { "results.won" } else { "results.lost" }), "text": s.t("results.text"), "rows": rows, "actions": actions}),
         ];
         if !earned.is_empty() {
             panels.push(

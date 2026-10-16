@@ -80,6 +80,17 @@ export function makeUi(panelsEl, labelsEl, toastsEl, act) {
       box.append(h);
     }
     if (p.text) box.append(make("p", "", p.text));
+    for (const f of p.inputs || []) {
+      const label = make("label", "field", f.label);
+      const input = make("input");
+      input.id = f.id;
+      input.value = f.value;
+      // each keystroke reaches the core, so nothing is left to send when a
+      // button is pressed (a redraw between press and release loses a click)
+      input.addEventListener("input", () => act(f.action, input.value));
+      label.append(input);
+      box.append(label);
+    }
     if (p.draft && p.draft.length) box.append(buttons(p.draft, "chain"));
     if (p.actions && p.actions.length) box.append(buttons(p.actions, "actions"));
     if (p.saved_actions && p.saved_actions.length) box.append(buttons(p.saved_actions, "chips"));
@@ -106,7 +117,14 @@ export function makeUi(panelsEl, labelsEl, toastsEl, act) {
         const old = drawn.get(p.id);
         if (old && old.key === key) continue;
         const node = panel(p);
+        // a redrawn text box keeps the focus and the caret it had
+        const focused = old && old.node.contains(document.activeElement) ? document.activeElement : null;
         if (old) old.node.replaceWith(node);
+        const again = focused && focused.id ? node.querySelector(`#${focused.id}`) : null;
+        if (again) {
+          again.focus();
+          again.setSelectionRange(focused.selectionStart, focused.selectionEnd);
+        }
         else panelsEl.append(node);
         drawn.set(p.id, { key, node });
       }

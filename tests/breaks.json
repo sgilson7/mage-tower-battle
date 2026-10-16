@@ -390,5 +390,103 @@
     "find": "                sum / n >= 80",
     "replace": "                sum / n >= 800",
     "test": "the_crash_course_ends_when_the_class_averages_eighty"
+  },
+  {
+    "name": "another build is welcomed",
+    "file": "crates/core/src/online.rs",
+    "find": "                if protocol != PROTOCOL || build != self.build {",
+    "replace": "                if protocol != PROTOCOL  {",
+    "test": "another_build_is_turned_away_with_a_reason"
+  },
+  {
+    "name": "a fifth seat is given",
+    "file": "crates/core/src/online.rs",
+    "find": "                    self.lobby.iter().position(|s| s.kind == \"open\")",
+    "replace": "                    self.lobby.iter().position(|s| s.kind != \"host\")",
+    "test": "three_joiners_take_seats_one_to_three_and_a_fourth_is_turned_away"
+  },
+  {
+    "name": "the host starts before everyone is ready",
+    "file": "crates/core/src/online.rs",
+    "find": "        self.role == Role::Host && !self.started && self.lobby.iter().all(|s| s.kind != \"person\" || s.ready)",
+    "replace": "        self.role == Role::Host && !self.started && self.lobby.iter().all(|s| s.kind != \"person\" || true)",
+    "test": "the_host_starts_only_when_every_person_is_ready_and_everyone_gets_the_same_start"
+  },
+  {
+    "name": "the host echoes a message to its sender",
+    "file": "crates/core/src/online.rs",
+    "find": "                self.broadcast_except(&m, peer);",
+    "replace": "                self.broadcast(&m);",
+    "test": "the_host_passes_an_invasion_on_to_every_other_joiner_in_order"
+  },
+  {
+    "name": "a joiner may speak for another seat",
+    "file": "crates/core/src/online.rs",
+    "find": "                    Msg::Plan { seat: s, .. } | Msg::Sum { seat: s, .. } => *s == seat,",
+    "replace": "                    Msg::Plan { seat: s, .. } | Msg::Sum { seat: s, .. } => true,",
+    "test": "garbage_and_a_joiner_speaking_for_another_seat_change_only_the_status"
+  },
+  {
+    "name": "a left seat stays taken in the lobby",
+    "file": "crates/core/src/online.rs",
+    "find": "                        kind: \"open\".into(),",
+    "replace": "                        kind: \"person\".into(),",
+    "test": "a_joiner_leaving_frees_its_seat_in_the_lobby_and_is_reported_in_a_match"
+  },
+  {
+    "name": "a code may hold an O",
+    "file": "crates/core/src/online.rs",
+    "find": "    const LETTERS: &[u8] = b\"ABCDEFGHJKLMNPQRSTUVWXYZ23456789\";",
+    "replace": "    const LETTERS: &[u8] = b\"ABCDEFGHJKLMNOQRSTUVWXYZ23456789\";",
+    "test": "codes_and_names_are_cleaned_and_the_room_carries_the_protocol"
+  },
+  {
+    "name": "a plan's student spell is not bounded",
+    "file": "crates/core/src/online.rs",
+    "find": "                .all(|&(k, e)| (k as usize) < n && (0..=400).contains(&e))",
+    "replace": "                .all(|&(k, e)| (k as usize) < 9999 && (0..=400).contains(&e))",
+    "test": "a_plan_from_another_browser_is_refused_when_an_index_is_out_of_range"
+  },
+  {
+    "name": "the build name ignores the text",
+    "file": "crates/core/src/online.rs",
+    "find": "            h ^= b as u64;",
+    "replace": "            h ^= 0;",
+    "test": "the_build_name_changes_with_any_text"
+  },
+  {
+    "name": "invasions keep arrival order",
+    "file": "crates/core/src/game.rs",
+    "find": "            self.seats[i].incoming.sort_by_key(|(inv, _)| inv.from);",
+    "replace": "            ",
+    "test": "invasions_reach_a_battle_in_sender_order_whatever_order_they_arrived_in"
+  },
+  {
+    "name": "a remote plan is never sent",
+    "file": "crates/core/src/session.rs",
+    "find": "        if before == Phase::Prep && m.phase != Phase::Prep {",
+    "replace": "        if before == Phase::Prep && false {",
+    "test": "every_browser_of_an_online_match_ends_with_the_same_scores"
+  },
+  {
+    "name": "a departed seat is waited for",
+    "file": "crates/core/src/game.rs",
+    "find": "                    .all(|s| s.kind != SeatKind::Remote || s.plan.is_some() || s.gone)",
+    "replace": "                    .all(|s| s.kind != SeatKind::Remote || s.plan.is_some())",
+    "test": "a_joiner_who_leaves_mid_match_does_not_stop_the_others"
+  },
+  {
+    "name": "a desync is told every time",
+    "file": "crates/core/src/session.rs",
+    "find": "        if differs && !self.desync_told {",
+    "replace": "        if differs {",
+    "test": "a_different_checksum_from_another_browser_is_told_once"
+  },
+  {
+    "name": "an open seat is not a computer rival",
+    "file": "crates/core/src/session.rs",
+    "find": "                (false, _, Some(st)) => (SeatKind::Bot(st), self.s.t(st.key())),",
+    "replace": "                (false, _, Some(st)) => (SeatKind::Empty, self.s.t(st.key())),",
+    "test": "the_lobby_shows_every_seat_and_starts_only_when_everyone_is_ready"
   }
 ]

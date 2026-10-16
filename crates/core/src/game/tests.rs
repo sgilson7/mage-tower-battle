@@ -173,3 +173,42 @@ fn the_crash_course_ends_when_the_class_averages_eighty() {
     assert_eq!(m.phase, Phase::Results);
     assert_eq!(m.trial_done, Some(33));
 }
+
+#[test]
+fn invasions_reach_a_battle_in_sender_order_whatever_order_they_arrived_in() {
+    let c = shipped();
+    // an invasion chain a bot would cast
+    let mut p = Prep::new(&c, 1, 5, 5);
+    p.start_day(&c, 600 * TPS);
+    let mut rng = Rng::new(3);
+    bot::day(&c, &mut p, Style::AttackMage, 90, 0, true, &mut rng);
+    let chain = p
+        .spells
+        .iter()
+        .find(|s| spell::is_invasion(&c, s))
+        .cloned()
+        .expect("an invasion");
+    let kinds = [
+        SeatKind::Local,
+        SeatKind::Remote,
+        SeatKind::Remote,
+        SeatKind::Empty,
+    ];
+    let names = ["You", "A", "B", ""].map(String::from);
+    let froms = |order: [u8; 2]| {
+        let mut m = Match::new(&c, 9, Mode::Online, quick(&c), kinds, names.clone(), 0);
+        for from in order {
+            m.take_invasion(&c, from, 0, chain.clone());
+        }
+        m.take_plan(1, Plan::default(), vec![]);
+        m.take_plan(2, Plan::default(), vec![]);
+        m.begin_battle(&c);
+        m.seats[0]
+            .incoming
+            .iter()
+            .map(|(i, _)| i.from)
+            .collect::<Vec<u8>>()
+    };
+    assert_eq!(froms([2, 1]), vec![1, 2]);
+    assert_eq!(froms([1, 2]), vec![1, 2]);
+}

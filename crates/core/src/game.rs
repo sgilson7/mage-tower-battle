@@ -74,6 +74,9 @@ pub struct Seat {
     pub student_invasions: Vec<(Vec<u16>, i32)>,
     pub taken: Vec<i32>,
     pub recruited_any: bool,
+    /// A remote player who left: their tower stands with whatever plan
+    /// arrived, or none (SECOND-ORDER R3.37).
+    pub gone: bool,
 }
 
 impl Seat {
@@ -161,6 +164,7 @@ impl Match {
                     student_invasions: Vec::new(),
                     taken: Vec::new(),
                     recruited_any: false,
+                    gone: false,
                 }
             })
             .collect();
@@ -234,7 +238,6 @@ impl Match {
         self.wild = self.draw_wild(c);
         self.battles = vec![None, None, None, None];
         let ticks = self.prep_ticks();
-        let leader = self.leader(self.local);
         let day = self.day;
         for i in 0..self.seats.len() {
             self.seats[i].incoming.clear();
@@ -248,11 +251,10 @@ impl Match {
         // in a target's book partway through the preparation
         for i in 0..self.seats.len() {
             if let SeatKind::Bot(style) = self.seats[i].kind {
-                let target = if style == Style::AttackMage {
-                    leader.max(0) as u8
-                } else {
-                    self.leader(i as u8) as u8
-                };
+                // every style aims at the rival leading on score; the bot's
+                // own seat never decides it, so every browser of an online
+                // match picks the same target (SECOND-ORDER R3.37)
+                let target = self.leader(i as u8).max(0) as u8;
                 let mut rng = Rng::new(self.seed ^ (self.day as u64 * 977) ^ i as u64);
                 let skill = self.settings.skill;
                 if let Some(p) = self.seats[i].prep.as_mut() {
@@ -389,7 +391,7 @@ impl Match {
                 if self
                     .seats
                     .iter()
-                    .all(|s| s.kind != SeatKind::Remote || s.plan.is_some())
+                    .all(|s| s.kind != SeatKind::Remote || s.plan.is_some() || s.gone)
                 {
                     self.begin_battle(c);
                 }
@@ -460,6 +462,10 @@ impl Match {
             if !self.seats[i].active() {
                 continue;
             }
+            // by sender, keeping each sender's own order: every browser of an
+            // online match heard each sender in that sender's order, but not
+            // the senders in the same order as each other
+            self.seats[i].incoming.sort_by_key(|(inv, _)| inv.from);
             let plan = self.plan_of(i);
             let incoming: Vec<Incoming> = self.seats[i]
                 .incoming
@@ -569,6 +575,70 @@ impl Match {
             .filter(|(_, at)| *at <= self.prep_tick || self.phase != Phase::Prep)
             .map(|(i, _)| i)
             .collect()
+    }
+
+    // ---- online ----
+
+    /// A remote archmage's invasion, cast during today's preparation.
+    pub fn take_invasion(&mut self, c: &Content, from: u8, target: u8, chain: Vec<u16>) {
+        let at = self.prep_tick;
+        self.deliver(
+            target,
+            Incoming {
+                from,
+                chain,
+                strength: 100,
+                count_pct: c.balance().archmage_count_pct,
+            },
+            at,
+        );
+    }
+
+    /// A remote seat's plan for today's battle, and its students' invasions.
+    pub fn take_plan(&mut self, seat: u8, plan: Plan, students: Vec<(Vec<u16>, i32)>) {
+        if let Some(s) = self.seats.get_mut(seat as usize) {
+            if s.kind == SeatKind::Remote && s.plan.is_none() {
+                s.plan = Some(plan);
+                s.student_invasions = students;
+            }
+        }
+    }
+
+    /// A remote seat left: from now on it brings no plan it has not sent.
+    pub fn depart(&mut self, seat: u8) {
+        if let Some(s) = self.seats.get_mut(seat as usize) {
+            if s.kind == SeatKind::Remote {
+                s.gone = true;
+            }
+        }
+    }
+
+    /// The local seat's plan and its students' invasions, to send.
+    pub fn local_plan(&self, c: &Content) -> (Plan, Vec<(Vec<u16>, i32)>) {
+        match self.local_prep() {
+            Some(p) => (p.plan(), p.student_invasions(c)),
+            None => (Plan::default(), Vec::new()),
+        }
+    }
+
+    /// A checksum of every score and every day's damage, compared between
+    /// browsers after each battle (FNV-1a over the numbers).
+    pub fn checksum(&self) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut mix = |v: i32| {
+            for b in v.to_le_bytes() {
+                h ^= b as u64;
+                h = h.wrapping_mul(0x0100_0000_01b3);
+            }
+        };
+        mix(self.day);
+        for s in &self.seats {
+            mix(s.score);
+            for &t in &s.taken {
+                mix(t);
+            }
+        }
+        h
     }
 
     // ---- trials ----

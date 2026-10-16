@@ -23,13 +23,13 @@ One row per assumption, surprise or open item. **Kind** is *divergence* (what wa
 | R1.13 | finding | The mockups needed 3D pictures before any game exists. | They are drawn with three.js r160 in ../journal/mockups, outside this project, vendored with a checksum. The game will not use three.js: its page draws from the core's numbers (D3). | Nothing in this project changed. |  | done |
 | R1.14 | divergence | Students cast invasion spells "at the beginning of the battle" (14:08). | Read as: each student who knows an invasion spell adds its enemies, scaled by that student's effectiveness, to the rival's battle when it starts, and casts nothing during it. | Journal question 8 asks the person to confirm the scaling. Answered yes. |  | done |
 | R2.1 | divergence | Proposed in entry 1: a tower at zero health is out; the healthiest tower after the last day wins. | The person's rule: "the more damage you take, the lower your score goes … you cannot gain score, so it serves as essentially an infinite health pool". Towers never fall, and every player plays every day. | Score replaces tower health in the glossary, the brief and the plan. Score has no floor: it may go below zero. | GLOSSARY.md, Score and Tower | done |
-| R2.2 | worklist | The match length. | The same answer says both "at the end of 3 days" and "at the end of 4 days", and answer 5 accepted 4 days. | The plan uses 4 days, as one value in data, and asks the person to confirm. |  | person |
+| R2.2 | worklist | The match length. | The same answer says both "at the end of 3 days" and "at the end of 4 days", and answer 5 accepted 4 days. | The plan uses 4 days, as one value in data, and asks the person to confirm. | Answered: "lets try 4 days 4 minutes first", adjustable in Setup. | done |
 | R2.3 | finding | How the game is deployed. | The person asked for "github pages as the deployment ci". The template publishes with scripts/publish.sh to a gh-pages branch; the person's choice is a GitHub Actions workflow that runs ./scripts/check.sh and deploys dist/ to Pages, followed by the browser check against the live address. Long Time Comin' and Raiders of the Lost Mart already deploy this way (`deploy.yml`: Chromium-only check.sh, upload-pages-artifact, deploy-pages), so the workflow is copied from theirs. | Recorded as a change to the template's deploy route in BUILDER-SPEC.md (R8 and R9 still hold: the same check.sh gates it, and the grant is in BRIEF.md). | BUILDER-SPEC.md change table | done |
 | R2.4 | finding | "Ragdoll physics like vagrancy and the arc from raiders of the lost mart" (21:05) named two physics systems to copy. | Raiders has no ragdoll and no code called Arc: "the arc" is Arc Raiders, the game Raiders' brief names, and its drones are rigid bodies with spring-driven lean and spin. Vagrancy has the ragdoll: a Rust Verlet solver, 15 points and 8 passes, about 20 µs a fighter a tick. | PLAN.md decision 2: living enemies are sphere bodies with lean and spin after the drones; dead or heavily hit enemies become Verlet ragdolls after Vagrancy, capped per arena. | PLAN.md decision 2 | done |
-| R2.5 | worklist | How many full ragdolls an arena can hold. | Not measured yet. The plan starts at 24 and lets the oldest settle and fade past it. | Plan question 5; the probe sets the final cap. |  | person |
-| R2.6 | worklist | Where the score starts. | The person's rule fixes only that score falls by damage and never rises. | Plan question 3 proposes 10,000, with no floor. |  | person |
-| R2.7 | worklist | The MVP's size, its 7 damage types and its battle length. | The agent chose the counts, the type names (Fire, Frost, Acid, Leaf, Earth, Bone, Spirit) and 90-second battles, and left sound out. | Plan questions 2, 4 and 6. The type names are a generated list a reader will see. |  | person |
-| R2.8 | worklist | How the browser check reaches a battle inside its time. | A 4-minute preparation is too long for CI on a software renderer. A Practice mode (one day, one-minute preparation) is a real option any reader can pick, so the check takes no path a reader cannot. | Plan decision 17; plan question 7. |  | person |
+| R2.5 | worklist | How many full ragdolls an arena can hold. | Not measured yet. The plan starts at 24 and lets the oldest settle and fade past it. | Plan question 5; the probe sets the final cap. | Answered: start at 24 and push it; the probe measured 96 within the frame budget (MEASUREMENTS.md). | done |
+| R2.6 | worklist | Where the score starts. | The person's rule fixes only that score falls by damage and never rises. | Plan question 3 proposes 10,000, with no floor. | Answered: 10,000, "rather difficult if not borderline impossible" to reach 0. | done |
+| R2.7 | worklist | The MVP's size, its 7 damage types and its battle length. | The agent chose the counts, the type names (Fire, Frost, Acid, Leaf, Earth, Bone, Spirit) and 90-second battles, and left sound out. | Plan questions 2, 4 and 6. The type names are a generated list a reader will see. | Answered: yes to the size and types, battles at most 90 s, NES chip sounds for everything. | done |
+| R2.8 | worklist | How the browser check reaches a battle inside its time. | A 4-minute preparation is too long for CI on a software renderer. A Practice mode (one day, one-minute preparation) is a real option any reader can pick, so the check takes no path a reader cannot. | Plan decision 17; plan question 7. | Answered: yes, with a versus mode and trials besides. | done |
 | R3.1 | finding | Match settings. | The person asked that days, preparation length and battle length be settings in the game, with a simulation speed for the battle. | Setup carries days, preparation, battle length and battle speed, each with the plan's values as defaults. |  | open |
 | R3.2 | finding | The score's starting value. | 10,000, and the person wants reaching 0 to be close to impossible. | A balance probe reports the most damage any tower took in 200 bot matches; the start must stay well above it. |  | open |
 | R3.3 | finding | "Use all the optimizations long time coming uses to get like a ton of orbs". | LTC's methods: one instanced draw per mesh and pass, 16 floats an instance, a static buffer for the scene uploaded once, a dynamic buffer re-sent each frame, a glow pass with additive blending and no depth writes, near-eye orbs drawn as glow only, and caps on live orbs. LTC never measured its orb load. | All of these are taken; a draw-cost test caps instances per scene and the probe measures frames with the battle at its caps. |  | open |
@@ -63,14 +63,282 @@ One row per assumption, surprise or open item. **Kind** is *divergence* (what wa
 | R3.31 | finding | The realtime kit's web/input.js. | It reads keys only while pointer lock (or its fallback) is engaged; this game never locks the mouse. | web/keys.js does the kit's job without the lock: keys to action bits, taps between frames kept, typing in a text box ignored. input.js is not copied. | web/keys.js | done |
 | R3.32 | finding | The browser check expected a book to teach exactly one piece. | Each browser draws its own seed; WebKit's first book was a tome, which teaches a whole spell's pieces at once. | The check asks for at least one more piece. | tests/browser/interactions.py | done |
 | R3.33 | finding | Kits taken: realtime (fx.rs, rng.rs, ticks.rs) and canvas (draw.rs, render2d.js). | Neither changes a default. draw.rs gained the overlay's colour roles and shapes (one per school) and a 1280 × 720 canvas; render2d.js lets the stylesheet size the canvas. | Recorded here; the spec table lists the defaults that did change (deploy route, D17, sound bytes). | BUILDER-SPEC.md | done |
-| R3.34 | worklist | PLAN.md decision 15: online play for four. | Not built in this pass; solo, versus, practice and trials come first so the deploy has a whole game. The title says online play is planned. | Build it with kits/online before the final handoff, or carry it to the next round with the person's agreement. | | open |
+| R3.34 | worklist | PLAN.md decision 15: online play for four. | Not built in this pass; solo, versus, practice and trials come first so the deploy has a whole game. The title says online play is planned. | Built with kits/online: a host and up to three joiners by room code or pasted codes; plans and invasions cross the wire and every browser runs all four battles. | `crates/core/src/online.rs`; `session/tests.rs` online tests; `tests/browser/online.py` | done |
 | R3.35 | finding | The description names three people (8:43, 9:05) in its examples of a battle. | The repository is public, and Builder's procedure leaves people's names out of a public repository. | BRIEF.md quotes those cues with [a friend] in place of each name and says so; everything else stays word for word. | BRIEF.md | done |
 | R3.36 | finding | Publishing the history. | Early commits' BRIEF.md held the three names R3.35 removed; rewriting the history was refused by the session's safety check, so the published branch starts from one commit of the redacted tree. | `public` is the published branch (pushed as main); the full history stays on the author's machine on `main`. Every later change is a commit on `public`. | | done |
+| R3.37 | divergence | Online play keeps every browser's match the same. | The Attack Mage bot aimed at the rival leading *the local seat's* view (`leader(local)`), so two browsers gave the same bot different targets; and a player who left mid-match would have stalled everyone waiting for a plan. | Every bot aims at `leader(own seat)`; invasions are ordered by sender before a battle; a departed seat is marked gone and brings only what it had sent. | `every_browser_of_an_online_match_ends_with_the_same_scores`; `a_joiner_who_leaves_mid_match_does_not_stop_the_others` | done |
+| R3.38 | finding | A plan from another browser is untrusted input. | `spell::check` indexed pieces without a bound, so a chain with an unknown piece id panicked (the new test found it). | `online::sane_chain` and `sane_plan` check every index before a remote plan or invasion is used; a bad plan counts as the seat leaving. | `a_plan_from_another_browser_is_refused_when_an_index_is_out_of_range` | done |
+| R3.39 | finding | Messages for a later day. | A player who reaches the next day's preparation first sends invasions while another is still reading the summary; applied at once, `start_day` would have cleared them. | Online events wait in a queue until their own day's preparation. | `pump_online` in `session.rs` | done |
+| R3.40 | worklist | The room-code path over public relays, STUN and two real networks are not tested by a machine. | `tests/browser/online.py` covers pasted codes on one machine only. | Try a room code with a friend on another network before relying on it, and write what happened in TRIAGE.md. | | person |
 
 ## Strings written by the agent
 
 Each reader-visible string the agent wrote, with its key, for the person to read.
 
+Every string in `data/strings.json` (263). The names in `data/content.json` are row R3.10's.
+
 | Key | String |
 | --- | --- |
-| (none yet) | No reader-visible string is in data/ yet. Strings in the mockups are the agent's and are listed in rows R1.11 and R1.12. |
+| `game.name` | Mage Tower Battle |
+| `title.blurb` | The last archmage was fired and wrecked the library on his way out. Read what he left on the floor, make spells, recruit students and teach them, then watch your tower hold against everything the day sends. |
+| `title.versus` | Versus the computer |
+| `title.practice` | Practice: one short day |
+| `title.trials` | Trials |
+| `title.achievements` | Achievements |
+| `title.help` | How to play |
+| `title.online` | Online, up to four |
+| `back` | Back |
+| `leave` | Leave the match |
+| `setup.heading` | A match against three rivals |
+| `setup.text` | Each day is a preparation and then a battle at every tower at once. Damage to your tower lowers your score; the highest score after the last day wins. |
+| `setup.days` | Days |
+| `setup.prep` | Preparation |
+| `setup.battle` | Battle, at most |
+| `setup.speed` | Battle speed |
+| `setup.cap` | Ragdolls per field |
+| `setup.skill` | Rivals' skill |
+| `setup.less` | Less |
+| `setup.more` | More |
+| `setup.rivals` | Rivals |
+| `setup.rival` | Rival {n} |
+| `setup.change` | Change |
+| `setup.start` | Start the match |
+| `bot.spellcrafter` | The Spellcrafter |
+| `bot.mass_teacher` | The Mass Teacher |
+| `bot.attack_mage` | The Attack Mage |
+| `bot.balanced` | The Balanced Archmage |
+| `seat.you` | You |
+| `hud.day` | Day {day} of {days} |
+| `hud.battle` | Day {day} battle |
+| `hud.score` | Score |
+| `hud.students` | Students |
+| `hud.pages` | Pieces known |
+| `hud.mana` | Your mana |
+| `station.library` | Library |
+| `station.lab` | Spell laboratory |
+| `station.book` | Invasion book |
+| `station.map` | Map table |
+| `station.podium` | Podium |
+| `station.recruit` | Recruitment table |
+| `prep.walk_hint` | Walk with WASD or the arrow keys. Stand at a station to use it. E does a station's main thing; Esc cancels. |
+| `prep.ready` | Start the battle now |
+| `prep.over` | The preparation is over. |
+| `prep.not_here` | Walk to that station first. |
+| `prep.busy` | Finish or cancel what you are doing first. |
+| `prep.no_mana` | Not enough mana yet. It comes back over the day. |
+| `prep.unknown` | That cannot be done here. |
+| `prep.cancelled` | Cancelled. |
+| `busy.reading` | Reading. |
+| `busy.interview` | Interview: press J, K or L as each note reaches the line, and Space for the closing spell. |
+| `busy.drawing` | Draw the glyphs in one stroke with the mouse: press, trace the line, let go. |
+| `busy.cancel` | Cancel |
+| `library.read` | Read a book |
+| `library.left` | {n} books still teach something new. |
+| `library.none_yet` | Pick up a book to learn what is in it. |
+| `library.last` | Last read: {name}. {text} |
+| `library.last_tome` | Last read: {name}, a whole spell. |
+| `library.learned` | Learned {value}. |
+| `library.tome` | Learned a whole spell: {value}. |
+| `library.empty` | Every book here is read. |
+| `lab.add` | Add |
+| `lab.save` | Save the spell |
+| `lab.clear` | Clear |
+| `lab.choose` | Choose |
+| `lab.chosen` | chosen |
+| `lab.draft_empty` | Add pieces in order: a payload first, modifiers before what they change, a trigger before what it starts. |
+| `lab.stats` | Power {power}, cooldown {cooldown} s, mana {mana}. |
+| `lab.spell_mana` | {mana} mana |
+| `lab.saved` | Saved {value}. |
+| `lab.empty` | Add at least one piece. |
+| `lab.too_long` | A spell holds six pieces at most. |
+| `lab.no_payload_first` | Start with a payload: a trigger needs something to start from. |
+| `lab.trigger_at_end` | A trigger needs a payload after it. |
+| `lab.modifier_at_end` | A modifier needs a payload after it. |
+| `lab.invade_without_summon` | Invade needs a summon after it. |
+| `lab.too_deep` | Three triggers is the most a spell can hold. |
+| `lab.helper` | A helper is summoned on its own, at the podium or the recruitment table. |
+| `lab.place_only` | Raise Sub-tower is placed from the map table. |
+| `lab.unknown` | You have not learned that piece yet. |
+| `lab.bad` | That piece is not in the spell. |
+| `lab.already` | You already have that spell. |
+| `lab.full` | Your spellbook is full. |
+| `kind.payload` | payload |
+| `kind.modifier` | modifier |
+| `kind.trigger` | trigger |
+| `kind.helper` | helper |
+| `recruit.text` | {n} applicants today. |
+| `recruit.leans` | Good at {good}, poor at {bad}. |
+| `recruit.interview` | Interview |
+| `recruit.group` | Interview everyone at once |
+| `recruit.summon` | Summon a recruitment elemental |
+| `recruit.group_heading` | everyone waiting |
+| `recruit.interviewing` | Interviewing {who} |
+| `recruit.joined` | {value} joined the college. |
+| `recruit.none` | Nobody is waiting today. |
+| `podium.text` | Chosen spell: {spell}. Choose another below. |
+| `podium.teach_all` | Teach the class ({n}) |
+| `podium.teach_one` | Teach alone |
+| `podium.not_taught` | not taught |
+| `podium.summon` | Summon {name} |
+| `podium.drawing` | Teach {spell} to {who} |
+| `podium.to_class` | the class of {n} |
+| `podium.summoning` | Summon {name} |
+| `podium.taught` | Taught {value} students. |
+| `podium.no_students` | There are no students to teach. |
+| `podium.no_spell` | Save a spell at the laboratory first. |
+| `helper.summoned` | Summoned at {value}%. |
+| `helper.trained` | {value} has more mana now. |
+| `helper.built` | The golem finished its work. |
+| `helper.unknown` | You have not learned that helper. |
+| `jobs.heading` | Helpers at work |
+| `draw.bad` | That drawing could not be read. |
+| `draw.none` | Nothing is being drawn. |
+| `draw.score` | Drawn at {value}%. |
+| `book.text` | What the next battle brings to your tower, and invasions you can send. |
+| `book.wild` | Wild |
+| `book.group` | {n} {name} ({type}) |
+| `book.invasion` | {spell}, cast by their archmage |
+| `book.students_heading` | Students' invasions |
+| `book.students_hidden` | show here when the battle starts |
+| `book.cast` | Send {spell} at {who} |
+| `book.bad` | Choose a rival and an invasion. |
+| `book.not_invasion` | Only a spell that starts with Invade can be sent. |
+| `map.text` | {n} things placed. Open the map to change the layout. |
+| `map.open` | Open the map |
+| `map.how` | Pick something, then click a cell. R or Turn changes its direction. A wall may bend the route but never close it. |
+| `map.none_known` | You have not learned anything you can place. |
+| `map.pick` | Pick |
+| `map.selected` | picked |
+| `map.mana_cost` | {mana} mana, at once |
+| `map.golem_cost` | no mana, {s} s for a golem |
+| `map.turn` | Turn |
+| `map.use_golem` | Use a golem instead |
+| `map.use_mana` | Use mana instead |
+| `map.close` | Close the map |
+| `map.remove` | Remove a {name} |
+| `layout.off_grid` | That runs off the field. |
+| `layout.entry` | Keep the entry clear. |
+| `layout.taken` | Something is already there. |
+| `layout.closes_path` | That would close the route to your tower. |
+| `layout.bad` | That cannot be placed. |
+| `layout.unknown` | You have not learned how to raise that. |
+| `layout.no_golem` | A golem cannot build that. |
+| `layout.golem_busy` | Your golem is still building. |
+| `view.all` | All towers |
+| `view.near` | Closer |
+| `view.far` | Further |
+| `summary.heading` | Day {day}: how every tower held |
+| `summary.text` | Damage taken comes off each score. |
+| `summary.row` | took {taken}, killed {kills}, froze {frozen}, charmed {charmed}, ward took {warded}, sent {dealt} |
+| `summary.next` | Next day |
+| `summary.results` | See the results |
+| `results.won` | Your tower stands highest. |
+| `results.lost` | Another tower stands higher. |
+| `results.text` | Final scores, highest first. |
+| `results.place` | {n}. {name} |
+| `results.taken` | took {taken} in all |
+| `results.again` | Another match |
+| `results.title` | Back to the title |
+| `results.earned` | Earned this match |
+| `waiting.heading` | Waiting for the other towers |
+| `waiting.text` | The battle starts when every plan has arrived. |
+| `trial.start` | Start |
+| `trial.again` | Try again |
+| `trial.best` | Your best: {value}. |
+| `trial.no_best` | Not tried yet. |
+| `trial.hidden` | ??? |
+| `trial.got` | earned |
+| `trial.seconds` | {n} s |
+| `trial.result` | {value}: {medal}. |
+| `trial.new_best` | A new personal best. |
+| `trial.no_recruiting` | No recruiting in this trial. |
+| `medal.bronze` | Bronze |
+| `medal.silver` | Silver |
+| `medal.gold` | Gold |
+| `medal.archmage` | Archmage |
+| `medal.none` | no medal |
+| `achievement.earned` | Achievement: {name} |
+| `achievement.got` | earned |
+| `achievement.not_yet` | not yet |
+| `achievement.count` | {n} of {of} earned. |
+| `sound.mute` | Sound off |
+| `sound.unmute` | Sound on |
+| `save.broken` | Your saved progress could not be read, so it starts again. |
+| `key.note0` | J |
+| `key.note1` | K |
+| `key.note2` | L |
+| `key.note3` | ✦ |
+| `error.bad` | That cannot be done. |
+| `error.no_mode` | There is no mode "{name}". |
+| `error.no_screen` | There is no screen "{name}". |
+| `error.unknown` | That cannot be done ({key}). |
+| `help.1.head` | The day |
+| `help.1.text` | Each day you have a few minutes to prepare, then every tower is attacked at once and you watch. Time is what you spend: walking, reading, interviewing and teaching all take it. |
+| `help.2.head` | Library |
+| `help.2.text` | Read the books on the floor. Each teaches a spell piece, or a whole spell. |
+| `help.3.head` | Spell laboratory |
+| `help.3.text` | Join pieces into a spell, left to right: modifiers change the next payload, a trigger starts the rest when the payload hits, dies or ends. Strong spells with short cooldowns cost much more mana. |
+| `help.4.head` | Recruitment table |
+| `help.4.text` | Interview applicants with a short rhythm game. A better interview brings a better student. |
+| `help.5.head` | Podium |
+| `help.5.text` | Teach a spell by drawing its glyphs in one stroke. Teaching one student forgives a shaky line; a whole class needs a careful one. How well you draw is how well they learn. |
+| `help.6.head` | Map table |
+| `help.6.text` | Place walls, lava, bait and sub-towers from spells you know, with mana at once or a slow golem for free. A wall may bend the route but never close it. |
+| `help.7.head` | Invasion book |
+| `help.7.text` | See what the next battle brings. Spells that start with Invade send summons at a rival: yours show in their book at once, your students' only when the battle starts. |
+| `help.8.head` | The battle |
+| `help.8.text` | Students cast from the tower and sub-towers. Some types hurt others double or half; none is immune. An enemy that reaches your tower strikes it once and is gone. |
+| `help.9.head` | Winning |
+| `help.9.text` | Your score starts at {score} and only falls. The highest score after the last day wins. |
+| `page.no_webgl` | This game needs WebGL 2, which this browser does not offer. |
+| `online.heading` | Online play |
+| `online.text` | Up to four archmages, each in their own browser. One hosts and shares a room code; the others type it in and join. Empty seats go to computer rivals. If a room code will not connect, try pasted codes: the host sends an invitation by any message app, and the joiner sends a reply back. |
+| `online.name` | Your name |
+| `online.code` | Room code |
+| `online.default_name` | Archmage |
+| `online.host` | Host a room |
+| `online.join` | Join by room code |
+| `online.invite` | Host by pasted codes |
+| `online.reply` | Join by pasted codes |
+| `online.lobby` | The room |
+| `online.code_is` | Room code: {code}. Send it to the people you are playing with. |
+| `online.by_paste` | Connected by pasted codes. |
+| `online.copy_code` | Copy the room code |
+| `online.settings` | The match: {days} days, {prep} of preparation and {battle} of battle each day, from the host's Versus settings. |
+| `online.start` | Start the match |
+| `online.ready` | Ready |
+| `online.unready` | Not ready yet |
+| `online.leave` | Leave the room |
+| `online.you` |  (you) |
+| `online.seat_host` | Host |
+| `online.seat_person` | Player |
+| `online.seat_open` | Computer rival |
+| `online.ready_chip` | Ready |
+| `online.not_ready_chip` | Not ready |
+| `online.no_room` | There is no room open. |
+| `online.not_everyone_ready` | Everyone in the room has to be ready first. |
+| `online.waiting` | Waiting for players to join. |
+| `online.joining` | Looking for the room. |
+| `online.in_lobby` | In the room. Press Ready when you are. |
+| `online.playing` | The match is on. |
+| `online.garbled` | A message from another browser made no sense and was ignored. |
+| `online.reload` | The host is running a different version. Reload the page, and ask them to reload too. |
+| `online.full` | That room is full, or its match has started. |
+| `online.left` | A player left. Their tower stands with what they had sent. |
+| `online.host_left` | The host left. The match goes on here without the other players. |
+| `online.desync` | This browser's scores no longer match another player's. The match goes on, but the results may differ between you. |
+| `online.no_relay` | No relay answered. Check the connection, or try pasted codes. |
+| `online.no_path` | The two browsers could not reach each other. Try another network, or pasted codes. |
+| `page.invite_prompt` | Send this invitation to the player joining, then paste their reply below it and press Connect. |
+| `page.reply_prompt` | Paste the host's invitation here. |
+| `page.reply_ready` | Send this reply back to the host. |
+| `page.copy` | Copy |
+| `page.connect` | Connect |
+| `page.make_reply` | Make a reply |
+| `page.close` | Close |
+| `page.copied` | Copied. |
+| `page.copy_failed` | This browser would not copy. Select the text and copy it by hand. |
+| `page.signal_failed` | That code did not work. Check it was pasted whole. |
+| `page.bad_code` | A room code is four to eight letters and digits. |
+| `page.loading` | Getting the connection ready. |
+| `online.invite_more` | Invite another player |

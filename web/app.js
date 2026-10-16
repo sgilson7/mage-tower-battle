@@ -29,16 +29,95 @@ async function main() {
   const over = createRenderer(ov, JSON.parse(draw_assets()));
   const keys = makeKeys(C.bits, N.actions);
   const sound = makeSound(game, D.volume);
+  const S = JSON.parse(strings);
+  const message = (t) => (el("message").textContent = t);
+
+  // online play: the transport loads only when a player hosts or joins
+  let online = null;
+  async function transport() {
+    if (!online) {
+      const { makeOnline } = await import("./online.js");
+      online = makeOnline(game);
+    }
+    return online;
+  }
+
+  // a small box over the screen: a prompt, a text box, and buttons
+  function ask(key, value, buttons) {
+    const box = el("ask");
+    const p = document.createElement("p");
+    p.textContent = S[key];
+    const area = document.createElement("textarea");
+    area.id = "ask-text";
+    area.value = value || "";
+    const row = document.createElement("div");
+    row.className = "actions";
+    for (const [label, fn] of [...buttons, [S["page.close"], closeAsk]]) {
+      const b = document.createElement("button");
+      b.className = "act";
+      b.textContent = label;
+      b.addEventListener("click", () => fn(area.value, area));
+      row.append(b);
+    }
+    box.replaceChildren(p, area, row);
+    box.hidden = false;
+    area.focus();
+  }
+  function closeAsk() {
+    el("ask").hidden = true;
+  }
+  function copy(t) {
+    const failed = () => message(S["page.copy_failed"]);
+    if (!navigator.clipboard) return failed();
+    navigator.clipboard.writeText(t).then(() => message(S["page.copied"]), failed);
+  }
+
+  // the page's own actions: the ones that need the transport or the clipboard
+  async function page(name, value) {
+    if (name === "page.copy") return copy(value);
+    const net = await transport();
+    if (name === "page.host") net.host();
+    if (name === "page.join" && !net.join(value)) message(S["page.bad_code"]);
+    if (name === "page.invite") {
+      message(S["page.loading"]);
+      const invitation = await net.invite();
+      message("");
+      ask("page.invite_prompt", invitation, [
+        [S["page.copy"], () => copy(invitation)],
+        [S["page.connect"], async (t) => {
+          try {
+            await net.accept(t.replace(invitation, "").trim());
+            closeAsk();
+          } catch (e) {
+            message(S["page.signal_failed"]);
+          }
+        }],
+      ]);
+    }
+    if (name === "page.reply") {
+      ask("page.reply_prompt", "", [
+        [S["page.make_reply"], async (t) => {
+          try {
+            const reply = await net.reply(t.trim());
+            ask("page.reply_ready", reply, [[S["page.copy"], () => copy(reply)]]);
+          } catch (e) {
+            message(S["page.signal_failed"]);
+          }
+        }],
+      ]);
+    }
+  }
 
   function act(name, value) {
+    if (name.startsWith("page.")) return page(name, value);
     const r = JSON.parse(game.act(name, value));
-    el("message").textContent = r.error || "";
+    message(r.error || "");
   }
   const ui = makeUi(el("panels"), el("labels"), el("toasts"), act);
 
   window.addEventListener("keydown", (e) => {
     const a = C.acts[e.code];
-    if (a && !(e.target && e.target.tagName === "INPUT")) act(a[0], a[1]);
+    if (a && !(e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA"))) act(a[0], a[1]);
   });
   el("mute").addEventListener("click", () => act("sound.mute", ""));
 
@@ -85,6 +164,10 @@ async function main() {
       const view = JSON.parse(u);
       ui.draw(view);
       el("mute").textContent = view.mute_label;
+    }
+    if (online) {
+      online.pump();
+      document.body.dataset.net = game.net_status();
     }
     const save = game.take_save();
     if (save) writeSave(save);

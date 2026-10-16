@@ -53,6 +53,10 @@ jobs:
       - name: ./scripts/check.sh (Chromium)
         run: BUILDER_ENGINES=chromium ./scripts/check.sh
 
+      # two browsers meet by pasted codes and play a day; no relay is contacted
+      - name: Online check (Chromium)
+        run: .venv/bin/python tests/browser/online.py chromium
+
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

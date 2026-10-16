@@ -51,7 +51,7 @@ fn run(s: &mut Session, ticks: i32) {
 #[test]
 fn every_screen_draws_with_its_strings() {
     let mut s = session();
-    for screen in ["title", "setup", "trials", "achievements", "help"] {
+    for screen in ["title", "setup", "trials", "achievements", "help", "online"] {
         s.act("screen.show", screen).unwrap();
         no_missing(&s.ui());
     }
@@ -163,4 +163,195 @@ fn every_sound_renders_and_a_muted_game_plays_none() {
     s.act("match.start", "practice").unwrap();
     run(&mut s, 2);
     assert!(s.sounds().is_empty());
+}
+
+// ---- online play ----
+
+/// A wire between a host session and joiner sessions (peer k+1 at the host,
+/// peer 100 at each joiner): delivers every outbox, in order.
+fn wire(host: &mut Session, joiners: &mut [Session]) {
+    for _ in 0..4 {
+        let out: Vec<(u32, String, bool)> = serde_json::from_str(&host.net_outbox()).unwrap();
+        for (peer, text, _) in out {
+            joiners[(peer - 1) as usize].net_message(100, &text);
+        }
+        for (k, j) in joiners.iter_mut().enumerate() {
+            let out: Vec<(u32, String, bool)> = serde_json::from_str(&j.net_outbox()).unwrap();
+            for (_, text, _) in out {
+                host.net_message(k as u32 + 1, &text);
+            }
+        }
+    }
+}
+
+fn online_room(n: usize) -> (Session, Vec<Session>) {
+    let mut host = session();
+    host.settings.days = 2;
+    host.settings.prep_s = 60;
+    host.settings.battle_s = 30;
+    let room = host.host(7, 9, "app");
+    let code = room.rsplit('-').next().unwrap().to_string();
+    let mut js: Vec<Session> = (0..n).map(|_| session()).collect();
+    for (k, j) in js.iter_mut().enumerate() {
+        j.act("online.name", &format!("Wren {k}")).unwrap();
+        assert_eq!(j.join(&code, "app"), room, "the same room on the relays");
+        host.net_peer(k as u32 + 1);
+        j.net_peer(100);
+    }
+    wire(&mut host, &mut js);
+    (host, js)
+}
+
+/// Runs every session a tick at a time, wired, with the joiners' archmages
+/// played by the Attack Mage bot so invasions cross the wire.
+fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) {
+    for _ in 0..ticks {
+        for j in js.iter_mut() {
+            let c = j.c.clone();
+            if let Some(m) = j.m.as_mut() {
+                let (seat, day, phase) = (m.local, m.day, m.phase);
+                let target = m.leader(seat).max(0) as u8;
+                if phase == Phase::Prep {
+                    if let Some(p) = m.local_prep_mut() {
+                        if !p.ready {
+                            let mut rng = crate::rng::Rng::new(day as u64 * 31 + seat as u64);
+                            crate::bot::day(&c, p, Style::AttackMage, 80, target, true, &mut rng);
+                            p.ready = true;
+                        }
+                    }
+                }
+            }
+        }
+        host.act("day.ready", "").ok();
+        run(host, 1);
+        for j in js.iter_mut() {
+            run(j, 1);
+        }
+        wire(host, js);
+        let summary = |s: &Session| s.m.as_ref().map(|m| m.phase == Phase::Summary).unwrap_or(false);
+        if summary(host) && js.iter().all(summary) {
+            host.act("day.next", "").unwrap();
+            for j in js.iter_mut() {
+                j.act("day.next", "").unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn the_lobby_shows_every_seat_and_starts_only_when_everyone_is_ready() {
+    let (mut host, mut js) = online_room(2);
+    let ui = host.ui();
+    no_missing(&ui);
+    assert_eq!(ui["screen"], "online");
+    let rows = ui["panels"][0]["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 4);
+    assert!(rows[1]["label"].as_str().unwrap().starts_with("Wren 0"));
+    assert!(host.act("online.start", "").is_err(), "the joiners are not ready");
+    for j in js.iter_mut() {
+        no_missing(&j.ui());
+        j.act("online.ready", "").unwrap();
+    }
+    wire(&mut host, &mut js);
+    host.act("online.start", "").unwrap();
+    wire(&mut host, &mut js);
+    run(&mut host, 1);
+    for j in js.iter_mut() {
+        run(j, 1);
+        let m = j.m.as_ref().expect("the start reached the joiner");
+        assert_eq!(m.mode, Mode::Online);
+        assert_eq!(m.seats[0].kind, SeatKind::Remote);
+        assert_eq!(m.settings.days, 2, "the host's settings");
+    }
+    let m = host.m.as_ref().unwrap();
+    assert_eq!(m.seats[1].kind, SeatKind::Remote);
+    assert_eq!(m.seats[2].kind, SeatKind::Remote);
+    assert!(
+        matches!(m.seats[3].kind, SeatKind::Bot(_)),
+        "the open seat is a computer rival"
+    );
+    assert_eq!(m.seats[1].name, "Wren 0");
+}
+
+#[test]
+fn every_browser_of_an_online_match_ends_with_the_same_scores() {
+    let (mut host, mut js) = online_room(2);
+    for j in js.iter_mut() {
+        j.act("online.ready", "").unwrap();
+    }
+    wire(&mut host, &mut js);
+    host.act("online.start", "").unwrap();
+    wire(&mut host, &mut js);
+    play_online(&mut host, &mut js, TPS * 200);
+    let scores = |s: &Session| -> Vec<i32> { s.m.as_ref().unwrap().seats.iter().map(|x| x.score).collect() };
+    let hm = host.m.as_ref().unwrap();
+    assert_eq!(hm.phase, Phase::Results, "two days ran to the results");
+    let from_joiners: i32 = hm
+        .results
+        .iter()
+        .filter(|r| r.seat != 1 && r.seat != 2)
+        .map(|r| r.from_invasions)
+        .sum();
+    assert!(
+        from_joiners > 0,
+        "the joiners' invasions crossed the wire and did damage"
+    );
+    for j in &js {
+        assert_eq!(scores(j), scores(&host), "the same scores in every browser");
+        assert_eq!(j.m.as_ref().unwrap().checksum(), hm.checksum());
+        assert!(!j.desync_told);
+    }
+    assert!(!host.desync_told);
+    assert!(
+        hm.seats.iter().all(|s| s.score < 10_000),
+        "every tower took damage"
+    );
+}
+
+#[test]
+fn a_joiner_who_leaves_mid_match_does_not_stop_the_others() {
+    let (mut host, mut js) = online_room(2);
+    for j in js.iter_mut() {
+        j.act("online.ready", "").unwrap();
+    }
+    wire(&mut host, &mut js);
+    host.act("online.start", "").unwrap();
+    wire(&mut host, &mut js);
+    run(&mut host, 2);
+    // seat 2 closes the page before sending a plan
+    js.pop();
+    host.net_left(2);
+    let mut rest = js;
+    play_online(&mut host, &mut rest, TPS * 200);
+    let hm = host.m.as_ref().unwrap();
+    assert_eq!(hm.phase, Phase::Results);
+    assert!(hm.seats[2].gone);
+    assert_eq!(
+        hm.seats.iter().map(|s| s.score).collect::<Vec<_>>(),
+        rest[0]
+            .m
+            .as_ref()
+            .unwrap()
+            .seats
+            .iter()
+            .map(|s| s.score)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_different_checksum_from_another_browser_is_told_once() {
+    let (mut host, mut js) = online_room(1);
+    js[0].act("online.ready", "").unwrap();
+    wire(&mut host, &mut js);
+    host.act("online.start", "").unwrap();
+    wire(&mut host, &mut js);
+    run(&mut host, 1);
+    host.sums.push((0, 0, 1));
+    host.sums.push((0, 1, 2));
+    host.check_sums();
+    assert!(host.desync_told);
+    let n = host.toasts.len();
+    host.check_sums();
+    assert_eq!(host.toasts.len(), n, "told once");
 }

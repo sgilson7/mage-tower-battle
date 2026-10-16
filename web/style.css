@@ -104,3 +104,10 @@ body[data-busy="drawing"] .panel-bottom, body[data-busy="interview"] .panel-bott
 .label3d.dmg.weak { color: #c9d6e3; font-size: 15px; }
 #toasts { display: grid; justify-content: center; align-content: start; gap: 6px; padding-top: 80px; }
 .toast { background: var(--paper); border: var(--line) solid var(--ink); border-radius: 999px; padding: 4px 14px; font-weight: 700; box-shadow: 0 3px 0 rgba(43, 33, 64, 0.35); }
+
+/* online: text boxes in a panel, and the pasted-code box */
+.field { display: block; margin: 0 0 10px; font-weight: bold; }
+.field input { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px 8px; font: inherit; border: var(--line) solid var(--ink); border-radius: var(--radius); background: var(--paper, #fff); color: var(--ink); }
+#ask { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(640px, 92%); z-index: 5; }
+#ask textarea { display: block; width: 100%; box-sizing: border-box; min-height: 64px; font: 12px ui-monospace, monospace; margin: 0 0 10px; }
+#ask .actions { display: flex; flex-wrap: wrap; gap: 8px; }

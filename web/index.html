@@ -7,7 +7,7 @@
        'wasm-unsafe-eval' lets the page compile its own WebAssembly module;
        form-action 'none' blocks form posts. A meta policy cannot stop data
        leaving by navigation, so the browser check still watches requests. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://nos.lol wss://nostr.mom wss://relay.damus.io wss://relay.primal.net wss://nostr-01.yakihonne.com wss://nostr.sathoarder.com wss://relay.mostro.network; style-src 'self'; img-src 'self' data:; media-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Mage Tower Battle</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -19,6 +19,7 @@
     <div id="panels"></div>
     <div id="toasts" role="status"></div>
     <p id="message" role="alert"></p>
+    <section id="ask" class="panel" hidden></section>
     <button id="mute" class="act"></button>
   </main>
   <noscript><p>This game needs JavaScript, WebAssembly and WebGL 2.</p></noscript>

@@ -713,8 +713,14 @@ fn page_keeps_no_rule_and_names_no_other_origin() {
     let mut js_files = 0;
     for path in web_files() {
         let text = fs::read_to_string(&path).expect("read page file");
+        // Online kit: online_fence.rs owns the relay addresses. config.js
+        // holds them with the transport's timings, each page's CSP line
+        // lists them, and the fence matches the two exactly.
+        let online_config = path.ends_with("web/net/config.js");
+        let transport = path.ends_with("web/net/rtc.js");
         for (n, line) in text.lines().enumerate() {
-            if without_allowed_urls(line).contains("://") {
+            let csp_line = line.contains("http-equiv=\"Content-Security-Policy\"");
+            if !online_config && !csp_line && without_allowed_urls(line).contains("://") {
                 problems.push(format!(
                     "{}:{}: absolute URL (another origin?)",
                     path.display(),
@@ -724,7 +730,14 @@ fn page_keeps_no_rule_and_names_no_other_origin() {
         }
         if path.extension().map(|x| x == "js").unwrap_or(false) {
             js_files += 1;
-            problems.extend(report(&path, &scan_page_js(&text)));
+            let mut found = scan_page_js(&text);
+            if online_config {
+                found.retain(|v| v.why != "number in the page");
+            }
+            if transport {
+                found.retain(|v| v.why != "no network requests beyond the page's own files");
+            }
+            problems.extend(report(&path, &found));
             problems.extend(report(&path, &scan_page_navigation(&text)));
         }
     }

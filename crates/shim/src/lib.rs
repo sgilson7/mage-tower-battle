@@ -87,6 +87,36 @@ impl Game {
     pub fn take_save(&mut self) -> String {
         self.inner.take_save()
     }
+    pub fn build(&self) -> String {
+        self.inner.build()
+    }
+    pub fn host(&mut self, a: u32, b: u32, app_id: &str) -> String {
+        self.inner.host(a, b, app_id)
+    }
+    pub fn join(&mut self, code: &str, app_id: &str) -> String {
+        self.inner.join(code, app_id)
+    }
+    pub fn net_peer(&mut self, peer: u32) {
+        self.inner.net_peer(peer)
+    }
+    pub fn net_left(&mut self, peer: u32) {
+        self.inner.net_left(peer)
+    }
+    pub fn net_message(&mut self, peer: u32, text: &str) {
+        self.inner.net_message(peer, text)
+    }
+    pub fn net_error(&mut self, key: &str) {
+        self.inner.net_error(key)
+    }
+    pub fn net_outbox(&mut self) -> String {
+        self.inner.net_outbox()
+    }
+    pub fn net_active(&self) -> bool {
+        self.inner.net_active()
+    }
+    pub fn net_status(&self) -> String {
+        self.inner.net_status()
+    }
 }
 
 #[wasm_bindgen]

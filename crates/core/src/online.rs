@@ -815,6 +815,9 @@ mod tests {
         assert!(sane_plan(&c, &good, &[]));
         let mut bad = good.clone();
         bad.students.push(crate::battle::StudentPlan {
+            seat: crate::battle::AUTO_SEAT,
+            mode: 0,
+            rotation: Vec::new(),
             mana_max: 10,
             regen: 1,
             spells: vec![(9, 50)],

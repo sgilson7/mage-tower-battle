@@ -5,7 +5,7 @@
 
 use serde_json::{json, Value};
 
-use crate::battle::Battle;
+use crate::battle::{self, Battle};
 use crate::bot::{Style, STYLES};
 use crate::content::{Content, PieceKind};
 use crate::game::{self, Match, Mode, Phase, SeatKind, Settings};
@@ -101,6 +101,8 @@ pub struct Session {
     /// What's new (T12): each update's notes, newest first.
     news: News,
     all_news: bool,
+    /// The student office hours has open (T15).
+    office_pick: Option<u16>,
     /// The difficulty chosen for each trial (T30).
     trial_diff: Vec<i32>,
     /// The card for the book just read, and the ticks it stays (T10).
@@ -260,6 +262,7 @@ impl Session {
             demos: 0,
             card: None,
             trial_diff: Vec::new(),
+            office_pick: None,
             cams: [scene::Orbit::start(false); 4],
             drag: None,
             build,
@@ -413,6 +416,7 @@ impl Session {
             }
             "online.pasted" => self.pasted = true,
             "news.minor" => self.all_news = !self.all_news,
+            "office.pick" => self.office_pick = value.parse().ok(),
             "glossary.toggle" => {
                 self.glossary = match self.glossary {
                     Some(_) => None,
@@ -421,7 +425,7 @@ impl Session {
             }
             "glossary.close" => self.glossary = None,
             "glossary.tab" => {
-                if !["pieces", "spells", "terms", "how"].contains(&value) {
+                if !["pieces", "spells", "students", "terms", "how"].contains(&value) {
                     return Err(self.err("error.bad"));
                 }
                 self.glossary = Some(value.to_string());
@@ -1906,7 +1910,7 @@ impl Session {
         let s = &self.s;
         let c = &self.c;
         let prep = self.m.as_ref().and_then(|m| m.local_prep());
-        let tabs: Vec<Value> = ["pieces", "spells", "terms", "how"]
+        let tabs: Vec<Value> = ["pieces", "spells", "students", "terms", "how"]
             .iter()
             .map(|t| act_json("glossary.tab", t, s.t(&format!("gloss.tab.{t}")), *t != tab))
             .collect();
@@ -1945,6 +1949,41 @@ impl Session {
                     (None, _) => s.t("gloss.no_match"),
                     (Some(_), true) => s.t("gloss.no_spells"),
                     _ => s.t("gloss.spells_text"),
+                };
+                (text, rows, Vec::new())
+            }
+            "students" => {
+                // every student's numbers, readable at any time (T16)
+                let rows: Vec<Value> = prep
+                    .map(|p| {
+                        p.students
+                            .iter()
+                            .map(|st| {
+                                let taught: Vec<String> = st
+                                    .known
+                                    .iter()
+                                    .filter_map(|&(k, e)| p.spells.get(k as usize).map(|ch| s.f("gloss.taught", &[("spell", spell::name(c, ch)), ("n", e.to_string())])))
+                                    .collect();
+                                let leans: Vec<String> = c
+                                    .file
+                                    .schools
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(k, _)| st.mods.get(*k).copied().unwrap_or(0) != 0)
+                                    .map(|(k, sc)| {
+                                        let m = st.mods[k];
+                                        format!("{} {}{m}%", sc.name, if m > 0 { "+" } else { "" })
+                                    })
+                                    .collect();
+                                json!({"label": st.name, "detail": s.f("gloss.student", &[("mana", st.mana_max.to_string()), ("regen", st.regen.to_string()), ("seat", self.seat_name(st.seat)), ("leans", leans.join(", ")), ("taught", if taught.is_empty() { s.t("gloss.untaught") } else { taught.join(", ") })]), "school": c.file.schools[st.school as usize].id})
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let text = match (prep, rows.is_empty()) {
+                    (None, _) => s.t("gloss.no_match"),
+                    (Some(_), true) => s.t("office.no_students"),
+                    _ => s.t("gloss.students_text"),
                 };
                 (text, rows, Vec::new())
             }
@@ -2211,6 +2250,9 @@ impl Session {
             }
         } else if let Some(st) = station {
             panels.push(self.ui_station(m, p, st));
+            if st == Station::Office {
+                panels.extend(self.ui_office(p));
+            }
         } else {
             panels.push(json!({"id": "walk", "kind": "bottom", "text": s.t("prep.walk_hint")}));
         }
@@ -2481,10 +2523,148 @@ impl Session {
                 }
                 json!({"id": "station", "kind": "side", "heading": s.t("station.book"), "text": s.t("book.text"), "rows": rows, "actions": actions})
             }
+            Station::Office => {
+                // the class list (T15); the student and where they stand are
+                // the next two panels
+                let pick = self.office_student(p);
+                let rows: Vec<Value> = p
+                    .students
+                    .iter()
+                    .map(|st| {
+                        let mut r = json!({"label": st.name, "chip": self.seat_name(st.seat), "school": c.file.schools[st.school as usize].id, "actions": [act_json("office.pick", &st.id.to_string(), s.t("office.open"), pick.map(|x| x.id) != Some(st.id))]});
+                        if pick.map(|x| x.id) == Some(st.id) {
+                            r["chip"] = json!(s.t("office.open_now"));
+                        }
+                        r
+                    })
+                    .collect();
+                let text = if rows.is_empty() {
+                    s.t("office.no_students")
+                } else {
+                    s.f("office.text", &[("n", rows.len().to_string())])
+                };
+                json!({"id": "station", "kind": "office-roster", "heading": s.t("station.office"), "text": text, "rows": rows})
+            }
             Station::Map => {
                 json!({"id": "station", "kind": "side", "heading": s.t("station.map"), "text": s.f("map.text", &[("n", p.placed.len().to_string())]), "actions": [act_json("layout.open", "", s.t("map.open"), true)]})
             }
         }
+    }
+
+    /// The student office hours shows: the one picked, else the first.
+    fn office_student<'a>(&self, p: &'a prep::Prep) -> Option<&'a prep::Student> {
+        p.students
+            .iter()
+            .find(|s| Some(s.id) == self.office_pick)
+            .or_else(|| p.students.first())
+    }
+
+    /// A seat's name for a reader (T15).
+    fn seat_name(&self, seat: i32) -> String {
+        let s = &self.s;
+        match seat {
+            battle::AUTO_SEAT => s.t("office.seat_auto"),
+            battle::GROUND_SEAT => s.t("office.seat_ground"),
+            k if k >= battle::SUB_SEAT => s.f(
+                "office.seat_sub",
+                &[("n", (k - battle::SUB_SEAT + 1).to_string())],
+            ),
+            k => s.f("office.seat_tower", &[("n", (k + 1).to_string())]),
+        }
+    }
+
+    /// Office hours' student and deployment panels (T15, T16).
+    fn ui_office(&self, p: &prep::Prep) -> Vec<Value> {
+        let s = &self.s;
+        let c = &self.c;
+        let Some(st) = self.office_student(p) else {
+            return Vec::new();
+        };
+        let id = st.id.to_string();
+        let b = c.balance();
+        let bar = |v: i32, hi: i32| strings::css_pct(v * 1000 / hi.max(1));
+        let mut stats = vec![
+            json!({"label": s.t("office.mana"), "detail": st.mana_max.to_string(), "bar": bar(st.mana_max, b.student_mana[1])}),
+            json!({"label": s.t("office.regen"), "detail": s.f("office.per_s", &[("n", st.regen.to_string())]), "bar": bar(st.regen, b.student_regen[1])}),
+        ];
+        for (k, school) in c.file.schools.iter().enumerate() {
+            let m = st.mods.get(k).copied().unwrap_or(0);
+            stats.push(json!({"label": school.name, "detail": s.f("office.lean", &[("n", format!("{}{m}", if m > 0 { "+" } else { "" }))]), "school": school.id}));
+        }
+        let spells: Vec<Value> = st
+            .known
+            .iter()
+            .filter_map(|&(k, eff)| {
+                let ch = p.spells.get(k as usize)?;
+                Some(json!({"label": spell::name(c, ch), "detail": s.f("office.eff", &[("n", eff.to_string())]), "mana": mana(s, spell::stats(c, ch).mana), "bar": strings::css_pct(eff * 10)}))
+            })
+            .collect();
+        let who = json!({"id": "office-student", "kind": "office-student", "heading": st.name, "text": s.f("office.about", &[("good", c.file.schools[st.school as usize].name.clone()), ("bad", c.file.schools[st.weak as usize].name.clone()), ("q", st.quality.to_string())]), "rows": stats, "saved": spells});
+        // seats: auto, the tower's four, each sub-tower raised, the ground
+        let subs = p
+            .placed
+            .iter()
+            .filter(|q| c.file.features[q.feature as usize].seats > 0)
+            .count() as i32;
+        let mut seats = vec![battle::AUTO_SEAT];
+        seats.extend(0..b.tower_seats);
+        seats.extend((0..subs).map(|k| battle::SUB_SEAT + k));
+        seats.push(battle::GROUND_SEAT);
+        let seat_actions: Vec<Value> = seats
+            .iter()
+            .map(|&v| {
+                act_json(
+                    "office.seat",
+                    &format!("{id},{v}"),
+                    self.seat_name(v),
+                    st.seat != v,
+                )
+            })
+            .collect();
+        let modes: Vec<Value> = [
+            ("office.mode_best", battle::CAST_BEST),
+            ("office.mode_rotation", battle::CAST_ROTATION),
+            ("office.mode_one", battle::CAST_ONE),
+        ]
+        .iter()
+        .map(|(k, v)| act_json("office.mode", &format!("{id},{v}"), s.t(k), st.mode != *v))
+        .collect();
+        let mode_row = json!({"label": match st.mode {
+            battle::CAST_ROTATION => s.t("office.mode_rotation_text"),
+            battle::CAST_ONE => s.t("office.mode_one_text"),
+            _ => s.t("office.mode_best_text"),
+        }});
+        let steps: Vec<Value> = std::iter::once(mode_row).chain(st
+            .rotation
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &k)| p.spells.get(k as usize).map(|ch| json!({"label": s.f("office.step", &[("n", (i + 1).to_string()), ("spell", spell::name(c, ch))]), "mana": mana(s, spell::stats(c, ch).mana)}))))
+            .collect();
+        let adds: Vec<Value> = st
+            .known
+            .iter()
+            .filter_map(|&(k, _)| {
+                p.spells
+                    .get(k as usize)
+                    .filter(|ch| !spell::is_invasion(c, ch))
+                    .map(|ch| {
+                        act_json(
+                            "office.rot_add",
+                            &format!("{id},{k}"),
+                            s.f("office.add", &[("spell", spell::name(c, ch))]),
+                            st.rotation.len() < 8,
+                        )
+                    })
+            })
+            .chain(std::iter::once(act_json(
+                "office.rot_clear",
+                &id,
+                s.t("office.clear"),
+                !st.rotation.is_empty(),
+            )))
+            .collect();
+        let deploy = json!({"id": "office-deploy", "kind": "office-deploy", "heading": s.f("office.where", &[("name", st.name.clone())]), "text": s.t("office.seats_text"), "actions": seat_actions, "draft": modes, "rows": steps, "saved_actions": adds});
+        vec![who, deploy]
     }
 
     fn ui_layout(&self, p: &prep::Prep) -> Value {

@@ -45,15 +45,17 @@ pub enum Station {
     Map,
     Podium,
     Recruit,
+    Office,
 }
 
-pub const STATIONS: [(Station, i32, i32); 6] = [
+pub const STATIONS: [(Station, i32, i32); 7] = [
     (Station::Library, -850, -550),
     (Station::Lab, 850, -550),
     (Station::Book, 0, -950),
     (Station::Map, 0, -150),
     (Station::Podium, 800, 500),
     (Station::Recruit, -800, 500),
+    (Station::Office, 0, 1000),
 ];
 
 pub fn station_pos(s: Station) -> V3 {
@@ -70,6 +72,7 @@ impl Station {
             Station::Map => "map",
             Station::Podium => "podium",
             Station::Recruit => "recruit",
+            Station::Office => "office",
         }
     }
 }
@@ -88,6 +91,10 @@ pub struct Student {
     pub variance: i32,
     /// (spell index, effectiveness)
     pub known: Vec<(u16, i32)>,
+    /// Office hours (T15): where they stand and how they choose a spell.
+    pub seat: i32,
+    pub mode: u8,
+    pub rotation: Vec<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -346,6 +353,9 @@ impl Prep {
             mods,
             variance: b.variance,
             known: Vec::new(),
+            seat: crate::battle::AUTO_SEAT,
+            mode: 0,
+            rotation: Vec::new(),
         });
         self.record.recruited += 1;
     }
@@ -1004,6 +1014,44 @@ impl Prep {
                 }
                 self.erase(c, (n[0], n[1]));
             }
+            // office hours (T15): value "student id,choice"
+            "office.seat" | "office.mode" | "office.rot_add" | "office.rot_clear" => {
+                self.at(Station::Office)?;
+                let n = crate::strings::ints(value);
+                let id = *n.first().ok_or("office.bad")? as u16;
+                let spells = self.spells.len() as i32;
+                let s = self
+                    .students
+                    .iter_mut()
+                    .find(|s| s.id == id)
+                    .ok_or("office.bad")?;
+                let v = n.get(1).copied().unwrap_or(0);
+                match name {
+                    "office.seat" => {
+                        let ok = v == crate::battle::AUTO_SEAT
+                            || (0..c.balance().tower_seats).contains(&v)
+                            || (crate::battle::SUB_SEAT..crate::battle::SUB_SEAT + 64).contains(&v)
+                            || v == crate::battle::GROUND_SEAT;
+                        if !ok {
+                            return Err("office.bad");
+                        }
+                        s.seat = v;
+                    }
+                    "office.mode" => {
+                        if !(0..3).contains(&v) {
+                            return Err("office.bad");
+                        }
+                        s.mode = v as u8;
+                    }
+                    "office.rot_add" => {
+                        if !(0..spells).contains(&v) || s.rotation.len() >= 8 {
+                            return Err("office.bad");
+                        }
+                        s.rotation.push(v as u16);
+                    }
+                    _ => s.rotation.clear(),
+                }
+            }
             "layout.clear" => {
                 self.at(Station::Map)?;
                 for cell in std::mem::take(&mut self.laid) {
@@ -1077,6 +1125,9 @@ impl Prep {
                 .students
                 .iter()
                 .map(|s| StudentPlan {
+                    seat: s.seat,
+                    mode: s.mode,
+                    rotation: s.rotation.clone(),
                     mana_max: s.mana_max,
                     regen: s.regen,
                     spells: s.known.clone(),

@@ -45,6 +45,28 @@ pub struct StudentPlan {
     /// The school the student leans to, for the colour of their robe.
     #[serde(default)]
     pub school: u8,
+    /// Where office hours put them (T15): a tower seat 0–3, a sub-tower
+    /// `SUB_SEAT + k`, `GROUND_SEAT`, or `AUTO_SEAT` for the first free one.
+    #[serde(default = "auto_seat")]
+    pub seat: i32,
+    /// How they choose a spell: `CAST_BEST` (the first ready), `CAST_ROTATION`
+    /// (the spells in `rotation`, in order, repeated) or `CAST_ONE`
+    /// (only `rotation[0]`).
+    #[serde(default)]
+    pub mode: u8,
+    #[serde(default)]
+    pub rotation: Vec<u16>,
+}
+
+pub const AUTO_SEAT: i32 = -1;
+pub const SUB_SEAT: i32 = 10;
+pub const GROUND_SEAT: i32 = 99;
+pub const CAST_BEST: u8 = 0;
+pub const CAST_ROTATION: u8 = 1;
+pub const CAST_ONE: u8 = 2;
+
+fn auto_seat() -> i32 {
+    AUTO_SEAT
 }
 
 /// A thing the archmage placed before the battle.
@@ -242,6 +264,8 @@ pub struct Caster {
     pub cd: Vec<i32>,
     pub aim: V3,
     pub casting: u8,
+    /// The next step of a rotation (T15).
+    pub rot: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -400,17 +424,42 @@ impl Battle {
         }
         let tower = tower_centre(&b.arena);
         let bal = c.balance();
+        // seats: office hours' choices first (T15), then everyone else in
+        // hiring order into the first free tower seat, then a sub-tower's,
+        // then the ground
+        let mut tower_taken = vec![false; seats];
+        let mut sub_taken = vec![false; sub_seats.len()];
+        let mut chosen: Vec<Option<(V3, i32)>> = vec![None; plan.students.len()];
+        let mut ground = 0;
         for (i, s) in plan.students.iter().enumerate() {
-            let (pos, range_pct) = if i < seats {
-                (seat_pos(tower, i), bal.seat_range_pct)
-            } else if i - seats < sub_seats.len() {
-                (sub_seats[i - seats], bal.seat_range_pct)
+            let t = s.seat;
+            if (0..seats as i32).contains(&t) && !tower_taken[t as usize] {
+                tower_taken[t as usize] = true;
+                chosen[i] = Some((seat_pos(tower, t as usize), bal.seat_range_pct));
+            } else if (SUB_SEAT..SUB_SEAT + sub_seats.len() as i32).contains(&t)
+                && !sub_taken[(t - SUB_SEAT) as usize]
+            {
+                sub_taken[(t - SUB_SEAT) as usize] = true;
+                chosen[i] = Some((sub_seats[(t - SUB_SEAT) as usize], bal.seat_range_pct));
+            } else if t == GROUND_SEAT {
+                chosen[i] = Some((ground_pos(tower, ground), bal.ground_range_pct));
+                ground += 1;
+            }
+        }
+        for slot in chosen.iter_mut().filter(|c| c.is_none()) {
+            *slot = Some(if let Some(k) = tower_taken.iter().position(|t| !t) {
+                tower_taken[k] = true;
+                (seat_pos(tower, k), bal.seat_range_pct)
+            } else if let Some(k) = sub_taken.iter().position(|t| !t) {
+                sub_taken[k] = true;
+                (sub_seats[k], bal.seat_range_pct)
             } else {
-                (
-                    ground_pos(tower, i - seats - sub_seats.len()),
-                    bal.ground_range_pct,
-                )
-            };
+                ground += 1;
+                (ground_pos(tower, ground - 1), bal.ground_range_pct)
+            });
+        }
+        for (i, s) in plan.students.iter().enumerate() {
+            let (pos, range_pct) = chosen[i].unwrap_or((tower, bal.ground_range_pct));
             b.casters.push(Caster {
                 plan: s.clone(),
                 pos,
@@ -424,6 +473,7 @@ impl Battle {
                     .collect(),
                 aim: pos,
                 casting: 0,
+                rot: 0,
             });
         }
         // the day's wild enemies, a unit every 12 ticks within a group
@@ -1083,12 +1133,41 @@ impl Battle {
             if self.casters[ci].casting > 0 {
                 self.casters[ci].casting -= 1;
             }
+            // a rotation skips steps this student cannot cast here: a spell
+            // they were never taught, or an invasion
+            if self.casters[ci].plan.mode == CAST_ROTATION {
+                let n = self.casters[ci].plan.rotation.len();
+                for _ in 0..n {
+                    let pl = &self.casters[ci].plan;
+                    let step = pl.rotation[self.casters[ci].rot % n];
+                    let castable = pl.spells.iter().any(|(si, _)| *si == step)
+                        && self
+                            .spells
+                            .get(step as usize)
+                            .map(|ch| !crate::spell::is_invasion(c, ch))
+                            .unwrap_or(false);
+                    if castable {
+                        break;
+                    }
+                    self.casters[ci].rot += 1;
+                }
+            }
             for k in 0..self.casters[ci].plan.spells.len() {
                 if self.casters[ci].cd[k] > 0 {
                     self.casters[ci].cd[k] -= 1;
                     continue;
                 }
                 let (si, eff) = self.casters[ci].plan.spells[k];
+                // a rotation casts only its next step; one spell, only it (T15)
+                let pl = &self.casters[ci].plan;
+                let wanted = match (pl.mode, pl.rotation.is_empty()) {
+                    (CAST_ROTATION, false) => Some(pl.rotation[self.casters[ci].rot % pl.rotation.len()]),
+                    (CAST_ONE, false) => Some(pl.rotation[0]),
+                    _ => None,
+                };
+                if wanted.map(|w| w != si).unwrap_or(false) {
+                    continue;
+                }
                 let Some(chain) = self.spells.get(si as usize).cloned() else {
                     continue;
                 };
@@ -1118,6 +1197,7 @@ impl Battle {
                 self.casters[ci].cd[k] = pct(self.spell_cd[si as usize], 100).max(6);
                 self.casters[ci].aim = target;
                 self.casters[ci].casting = 10;
+                self.casters[ci].rot += 1;
                 let school = c.piece_school[chain[0] as usize] as u8;
                 self.events.push((Ev::Cast(school), pos));
                 let cast = self.new_budget(c, ci as u8);

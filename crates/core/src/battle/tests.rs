@@ -272,6 +272,9 @@ fn students_beyond_the_seats_stand_on_the_ground_with_less_range() {
     let c = shipped();
     let fire = ids(&c, &["fire_bolt"]);
     let student = StudentPlan {
+        seat: crate::battle::AUTO_SEAT,
+        mode: 0,
+        rotation: Vec::new(),
         mana_max: 100,
         regen: 10,
         spells: vec![(0, 100)],
@@ -297,6 +300,9 @@ fn a_placed_wall_bends_the_route_and_a_sub_tower_adds_a_seat() {
     let sub = c.feature("sub_tower").unwrap() as u16;
     let fire = ids(&c, &["fire_bolt"]);
     let student = StudentPlan {
+        seat: crate::battle::AUTO_SEAT,
+        mode: 0,
+        rotation: Vec::new(),
         mana_max: 100,
         regen: 10,
         spells: vec![(0, 100)],
@@ -330,6 +336,9 @@ fn a_battle_replays_to_the_same_hash_and_a_different_seed_differs() {
     let fire = ids(&c, &["fire_bolt"]);
     let halo = ids(&c, &["ring", "acid_glob", "on_hit", "oil_spill"]);
     let student = StudentPlan {
+        seat: crate::battle::AUTO_SEAT,
+        mode: 0,
+        rotation: Vec::new(),
         mana_max: 150,
         regen: 12,
         spells: vec![(0, 90), (1, 70)],
@@ -409,4 +418,89 @@ fn an_invasion_keeps_its_numbers() {
     // skeleton count 3, no limit for what a rival sends
     assert_eq!(b.units.iter().filter(|u| u.team == Team::Foe).count(), 3);
     assert!(b.units.iter().all(|u| u.life == 0));
+}
+
+#[test]
+fn office_hours_seats_students_where_they_were_put_and_others_fill_in() {
+    let c = shipped();
+    let fire = ids(&c, &["fire_bolt"]);
+    let mut a = StudentPlan {
+        seat: AUTO_SEAT,
+        mode: 0,
+        rotation: Vec::new(),
+        mana_max: 100,
+        regen: 10,
+        spells: vec![(0, 100)],
+        school: 0,
+    };
+    let tower = |b: &Battle| b.tower();
+    let mut on_ground = a.clone();
+    on_ground.seat = GROUND_SEAT;
+    a.seat = 5;
+    let auto = StudentPlan {
+        seat: AUTO_SEAT,
+        ..a.clone()
+    };
+    let plan = Plan {
+        spells: vec![fire],
+        students: vec![auto.clone(), on_ground, a, auto],
+        placed: vec![],
+    };
+    let b = Battle::new(&c, 0, &plan, &[], &[], 1, 1, TPS * 90, 24);
+    let t = tower(&b);
+    // the first auto student takes seat 0, the chosen one seat 5, the next auto seat 1
+    assert_eq!(b.casters[0].pos, seat_pos(t, 0));
+    assert_eq!(b.casters[2].pos, seat_pos(t, 5));
+    assert_eq!(b.casters[3].pos, seat_pos(t, 1));
+    assert_eq!(b.casters[1].pos, ground_pos(t, 0));
+    assert_eq!(
+        b.casters[1].range_pct,
+        c.balance().ground_range_pct,
+        "the ground has less range"
+    );
+}
+
+#[test]
+fn a_rotation_casts_its_spells_in_order() {
+    let c = shipped();
+    let fire = ids(&c, &["fire_bolt"]);
+    let ice = ids(&c, &["ice_shard"]);
+    let student = StudentPlan {
+        seat: AUTO_SEAT,
+        mode: CAST_ROTATION,
+        rotation: vec![1, 0],
+        mana_max: 100_000,
+        regen: 0,
+        spells: vec![(0, 100), (1, 100)],
+        school: 0,
+    };
+    let plan = Plan {
+        spells: vec![fire.clone(), ice.clone()],
+        students: vec![student],
+        placed: vec![],
+    };
+    let mut b = Battle::new(&c, 0, &plan, &[], &[], 1, 1, TPS * 90, 24);
+    let near = b.tower().add(v3(4 * ONE, 0, 0));
+    let foe = put(&mut b, &c, "hill_giant", near, Team::Foe);
+    b.units[foe].hp = 1_000_000;
+    b.units[foe].freeze = 1_000_000;
+    let costs = [
+        crate::spell::stats(&c, &fire).mana,
+        crate::spell::stats(&c, &ice).mana,
+    ];
+    let mut spent = Vec::new();
+    let mut last = b.casters[0].mana;
+    for _ in 0..TPS * 10 {
+        b.step(&c);
+        let now = b.casters[0].mana;
+        if now < last {
+            spent.push((last - now) / 100);
+        }
+        last = now;
+        if spent.len() == 3 {
+            break;
+        }
+    }
+    // ice (index 1) first, then fire, then ice again
+    assert_eq!(spent, vec![costs[1], costs[0], costs[1]]);
 }

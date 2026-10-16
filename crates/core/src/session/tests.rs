@@ -811,3 +811,56 @@ fn each_trial_has_its_own_difficulty_and_keeps_a_best_at_each() {
     assert_eq!(s.settings.difficulty, 2);
     no_missing(&s.ui());
 }
+
+#[test]
+fn office_hours_shows_a_student_and_sets_their_seat_and_rotation() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Office);
+    run(&mut s, 1);
+    let c = s.c.clone();
+    let ids: Vec<u16> =
+        s.m.as_ref()
+            .unwrap()
+            .local_prep()
+            .unwrap()
+            .students
+            .iter()
+            .map(|x| x.id)
+            .collect();
+    assert!(!ids.is_empty(), "a new archmage has students");
+    let ui = s.ui();
+    no_missing(&ui);
+    let ps = ui["panels"].as_array().unwrap();
+    assert!(
+        ps.iter().any(|p| p["id"] == "office-student"),
+        "the student's numbers"
+    );
+    let deploy = ps.iter().find(|p| p["id"] == "office-deploy").unwrap();
+    let seat_buttons = deploy["actions"].as_array().unwrap().len() as i32;
+    // first free, the tower's seats, no sub-tower yet, the ground
+    assert_eq!(seat_buttons, 1 + c.balance().tower_seats + 1);
+    let id = ids[0];
+    s.act("office.pick", &id.to_string()).unwrap();
+    s.act("office.seat", &format!("{id},{}", battle::GROUND_SEAT))
+        .unwrap();
+    s.act("office.mode", &format!("{id},{}", battle::CAST_ROTATION))
+        .unwrap();
+    s.act("office.rot_add", &format!("{id},0")).unwrap();
+    assert!(s.act("office.seat", &format!("{id},500")).is_err());
+    let plan = s.m.as_ref().unwrap().local_prep().unwrap().plan();
+    let st = &plan.students[0];
+    assert_eq!(
+        (st.seat, st.mode, st.rotation.clone()),
+        (battle::GROUND_SEAT, battle::CAST_ROTATION, vec![0])
+    );
+    no_missing(&s.ui());
+    s.act("glossary.toggle", "").unwrap();
+    s.act("glossary.tab", "students").unwrap();
+    let ui = s.ui();
+    no_missing(&ui);
+    assert!(
+        ui.to_string().contains("Stands: Ground"),
+        "the students tab shows where they stand"
+    );
+}

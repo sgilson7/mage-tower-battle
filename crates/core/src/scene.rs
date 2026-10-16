@@ -255,6 +255,9 @@ pub fn room_static(look: &Look) -> Batch {
             look.colour("wood_light"),
         );
     }
+    // office hours: a desk at the south wall (T15)
+    let office = prep::station_pos(Station::Office);
+    table(&mut b, look, office, 0, cm(260), cm(130), "wood");
     // the recruitment table
     let rec = prep::station_pos(Station::Recruit);
     table(
@@ -938,6 +941,9 @@ mod tests {
         let look = crate::look::shipped();
         let fire = vec![c.piece("fire_bolt").unwrap() as u16];
         let student = StudentPlan {
+            seat: crate::battle::AUTO_SEAT,
+            mode: 0,
+            rotation: Vec::new(),
             mana_max: 200,
             regen: 20,
             spells: vec![(0, 100)],

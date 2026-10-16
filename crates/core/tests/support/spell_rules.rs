@@ -130,6 +130,9 @@ fn battle(c: &Content, chain: &[u16]) -> Battle {
     let plan = Plan {
         spells: vec![chain.to_vec()],
         students: vec![StudentPlan {
+            seat: tool_core::battle::AUTO_SEAT,
+            mode: 0,
+            rotation: Vec::new(),
             mana_max: 100_000,
             regen: 100_000,
             spells: vec![(0, 100)],

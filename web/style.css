@@ -180,3 +180,9 @@ body[data-screen="title"] .panel-version .act { font-size: 12px; padding: 2px 8p
 .panel-mana .mana { font-size: 22px; }
 .panel-mana .mana::before { width: 18px; height: 18px; }
 #card .mana { font-size: 18px; }
+
+/* office hours (T15): the class, the student, where they stand */
+body[data-screen="play"] .panel-office-roster { position: absolute; left: 12px; top: 84px; bottom: 70px; width: 27%; overflow: auto; }
+body[data-screen="play"] .panel-office-student { position: absolute; left: calc(27% + 22px); top: 84px; bottom: 70px; width: 33%; overflow: auto; }
+body[data-screen="play"] .panel-office-deploy { position: absolute; right: 12px; top: 84px; bottom: 70px; width: calc(40% - 44px); overflow: auto; }
+body[data-screen="play"][data-station="office"] .panel-jobs { display: none; }

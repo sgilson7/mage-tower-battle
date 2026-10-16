@@ -120,6 +120,7 @@ async function main() {
     if (a && !(e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA"))) act(a[0], a[1]);
   });
   el("mute").addEventListener("click", () => act("sound.mute", ""));
+  el("glossary-button").addEventListener("click", () => act("glossary.toggle", ""));
 
   const point = (name, e) => act(name, [e.offsetX, e.offsetY, ov.clientWidth, ov.clientHeight].join(","));
   ov.addEventListener("pointerdown", (e) => {
@@ -133,6 +134,28 @@ async function main() {
   ov.addEventListener("pointermove", (e) => point("pointer.move", e));
   ov.addEventListener("pointerup", (e) => point("pointer.up", e));
   ov.addEventListener("pointercancel", (e) => point("pointer.up", e));
+
+  // the battle views' mouse (T5): the core finds the view under the
+  // pointer and moves its camera; a camera act never shows a message
+  const glc = el("gl");
+  const look = (name, e, last) => game.act(name, [e.offsetX, e.offsetY, glc.clientWidth, glc.clientHeight, last].join(","));
+  const drag = (name, e) => look(name, e, [e.buttons, e.shiftKey ? 1 : 0].join(","));
+  glc.addEventListener("pointerdown", (e) => {
+    try {
+      glc.setPointerCapture(e.pointerId);
+    } catch (err) {
+      // without capture the drag ends when the pointer leaves the canvas
+    }
+    drag("cam.down", e);
+  });
+  glc.addEventListener("pointermove", (e) => drag("cam.move", e));
+  glc.addEventListener("pointerup", (e) => drag("cam.up", e));
+  glc.addEventListener("pointercancel", (e) => drag("cam.up", e));
+  glc.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    look("cam.wheel", e, e.deltaY);
+  }, { passive: false });
+  glc.addEventListener("contextmenu", (e) => e.preventDefault());
 
   function resize() {
     const stage = el("stage");
@@ -164,6 +187,7 @@ async function main() {
       const view = JSON.parse(u);
       ui.draw(view);
       el("mute").textContent = view.mute_label;
+      el("glossary-button").textContent = view.glossary_label;
     }
     if (online) {
       online.pump();

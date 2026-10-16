@@ -355,3 +355,204 @@ fn a_different_checksum_from_another_browser_is_told_once() {
     host.check_sums();
     assert_eq!(host.toasts.len(), n, "told once");
 }
+
+#[test]
+fn e_opens_the_map_at_the_map_table_and_esc_closes_it() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Map);
+    let tick = |s: &mut Session, bits: u32| {
+        let now = s.tick as i64 * 16_667 + 16_667;
+        s.frame(now, bits);
+    };
+    tick(&mut s, prep::USE);
+    assert!(s.layout.open, "E at the map table opens the map");
+    let ui = s.ui();
+    let panel = ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "layout")
+        .cloned()
+        .unwrap();
+    assert_eq!(
+        panel["kind"], "map",
+        "the map's panel is not a side panel the overlay hides"
+    );
+    assert!(panel["actions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|a| a["name"] == "layout.close"));
+    tick(&mut s, prep::BACK | prep::USE);
+    assert!(!s.layout.open, "Esc closes it, even with E held");
+    tick(&mut s, prep::USE);
+    assert!(!s.layout.open, "an E held through the Esc does not open it again");
+    tick(&mut s, 0);
+    tick(&mut s, prep::USE);
+    assert!(s.layout.open, "a fresh E opens it again");
+    s.act("layout.close", "").unwrap();
+    assert!(!s.layout.open, "the button closes it");
+    // walking off closes it too
+    s.act("layout.open", "").unwrap();
+    s.teleport(Station::Library);
+    tick(&mut s, 0);
+    assert!(!s.layout.open, "leaving the map table closes the map");
+}
+
+#[test]
+fn the_glossary_opens_over_any_screen_lists_every_piece_and_pauses_a_solo_day() {
+    let mut s = session();
+    s.act("glossary.toggle", "").unwrap();
+    let ui = s.ui();
+    no_missing(&ui);
+    let g = ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "glossary")
+        .cloned()
+        .expect("over the title");
+    let rows = g["rows"].as_array().unwrap();
+    assert_eq!(
+        rows.len(),
+        s.c.file.pieces.len(),
+        "one entry for every spell piece"
+    );
+    assert!(rows[0]["label"].as_str().unwrap().starts_with("No. 1 · "));
+    for tab in ["spells", "terms", "how"] {
+        s.act("glossary.tab", tab).unwrap();
+        no_missing(&s.ui());
+    }
+    assert!(s.act("glossary.tab", "nowhere").is_err());
+    s.act("glossary.tab", "how").unwrap();
+    let how = s.ui()["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "glossary")
+        .cloned()
+        .unwrap();
+    let text = how.to_string();
+    assert!(
+        text.contains("Invade") && text.contains("Summon"),
+        "how to send an invasion and summon a helper"
+    );
+    s.act("glossary.close", "").unwrap();
+    s.act("match.start", "practice").unwrap();
+    run(&mut s, 2);
+    let clock = s.m.as_ref().unwrap().local_prep().unwrap().clock;
+    s.act("glossary.toggle", "").unwrap();
+    run(&mut s, 60);
+    assert_eq!(
+        s.m.as_ref().unwrap().local_prep().unwrap().clock,
+        clock,
+        "the day waits"
+    );
+    let ui = s.ui();
+    no_missing(&ui);
+    let g = ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "glossary")
+        .cloned()
+        .unwrap();
+    assert!(
+        g["rows"].as_array().unwrap().iter().any(|r| r["chip"] == "known"),
+        "known pieces are marked"
+    );
+    s.act("glossary.toggle", "").unwrap();
+    run(&mut s, 60);
+    assert!(
+        s.m.as_ref().unwrap().local_prep().unwrap().clock < clock,
+        "and goes on once it closes"
+    );
+}
+
+#[test]
+fn an_online_day_does_not_wait_for_the_glossary() {
+    let (mut host, mut js) = online_room(1);
+    js[0].act("online.ready", "").unwrap();
+    wire(&mut host, &mut js);
+    host.act("online.start", "").unwrap();
+    run(&mut host, 2);
+    let clock = host.m.as_ref().unwrap().local_prep().unwrap().clock;
+    host.act("glossary.toggle", "").unwrap();
+    run(&mut host, 30);
+    assert!(host.m.as_ref().unwrap().local_prep().unwrap().clock < clock);
+}
+
+#[test]
+fn each_battle_view_turns_moves_and_zooms_on_its_own() {
+    let mut s = session();
+    s.resize(1280, 720, 100);
+    s.settings.prep_s = 60;
+    s.settings.battle_s = 30;
+    s.act("match.start", "versus").unwrap();
+    s.act("day.ready", "").unwrap();
+    run(&mut s, 3);
+    let start = s.cams;
+    // the top-left view is seat 0, the bottom-right seat 3 (CSS y runs down)
+    s.act("cam.down", "100,100,1280,720,1,0").unwrap();
+    s.act("cam.move", "200,140,1280,720,1,0").unwrap();
+    s.act("cam.up", "200,140,1280,720,0,0").unwrap();
+    assert_ne!(s.cams[0].yaw, start[0].yaw, "a drag turns the view");
+    assert_ne!(s.cams[0].pitch, start[0].pitch);
+    assert_eq!(s.cams[0].at, start[0].at, "a plain drag does not move it");
+    assert_eq!(&s.cams[1..], &start[1..], "the other views stay as they were");
+    s.act("cam.down", "1000,600,1280,720,2,0").unwrap();
+    s.act("cam.move", "1050,600,1280,720,2,0").unwrap();
+    s.act("cam.up", "1050,600,1280,720,0,0").unwrap();
+    assert_ne!(s.cams[3].at, start[3].at, "a right drag moves the view");
+    assert_eq!(s.cams[3].yaw, start[3].yaw);
+    s.act("cam.wheel", "1000,100,1280,720,-100").unwrap();
+    assert!(s.cams[1].dist < start[1].dist, "the wheel up zooms in");
+    s.act("cam.move", "0,0,1280,720,0,0").unwrap();
+    assert_ne!(s.cams[0], start[0], "a move with no drag changes nothing");
+    let ui = s.ui();
+    no_missing(&ui);
+    assert!(ui.to_string().contains("cam.reset"));
+    s.act("cam.reset", "").unwrap();
+    assert_eq!(s.cams, start);
+}
+
+#[test]
+fn the_starting_orbits_are_the_old_fixed_cameras() {
+    for close in [false, true] {
+        let a = scene::arena_camera(close);
+        let b = scene::Orbit::start(close).camera();
+        let near = |p: i32, q: i32| (p - q).abs() < crate::fx::ONE / 2;
+        assert!(
+            near(a.eye.x, b.eye.x) && near(a.eye.y, b.eye.y) && near(a.eye.z, b.eye.z),
+            "{close}: {:?} vs {:?}",
+            a.eye,
+            b.eye
+        );
+        assert_eq!(a.at, b.at);
+    }
+}
+
+#[test]
+fn a_view_stays_above_the_field_and_within_its_limits() {
+    let mut o = scene::Orbit::start(false);
+    o.orbit(0, -100_000, 500);
+    assert_eq!(o.pitch, scene::PITCH_MIN);
+    o.orbit(0, 100_000, 500);
+    assert_eq!(o.pitch, scene::PITCH_MAX);
+    for _ in 0..200 {
+        o.zoom(-400);
+    }
+    assert_eq!(o.dist, scene::DIST_MIN);
+    for _ in 0..200 {
+        o.zoom(400);
+    }
+    assert_eq!(o.dist, scene::DIST_MAX);
+    o.pan(-1_000_000, 1_000_000, 100);
+    assert!(o.at.x.abs() <= scene::PAN_MAX && o.at.z.abs() <= scene::PAN_MAX && o.at.y == 0);
+    // dragging right moves the point the view circles left, so the ground follows the pointer
+    let mut o = scene::Orbit::start(false);
+    let x0 = o.at.x;
+    o.pan(50, 0, 500);
+    assert!(o.at.x < x0);
+}

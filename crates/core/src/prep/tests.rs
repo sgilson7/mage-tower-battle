@@ -248,14 +248,23 @@ fn a_wall_needs_its_spell_and_mana_and_may_not_close_the_route() {
     let mut p = prep(&c);
     go(&mut p, Station::Map);
     assert_eq!(
-        p.act(&c, "layout.place", "glass_wall,10,20,0"),
-        Err("layout.unknown")
+        p.act(&c, "layout.place", "ivory_wall,10,20,0"),
+        Err("layout.unknown"),
+        "ivory walls come from a book"
     );
-    learn(&mut p, &c, &["glass_wall", "ivory_wall"]);
+    learn(&mut p, &c, &["ivory_wall"]);
     let before = p.mana;
+    // a new archmage already knows glass walls (T1)
     p.act(&c, "layout.place", "glass_wall,10,20,0").unwrap();
-    // glass wall: 20 mana, 3 cells along x
+    // glass wall: 20 mana at once, 3 cells along x
     assert_eq!(before - p.mana, 2000);
+    assert!(p.placed.is_empty(), "it has not risen yet");
+    assert_eq!(
+        p.act(&c, "layout.place", "glass_wall,11,20,0"),
+        Err("layout.taken"),
+        "a rising wall holds its cells"
+    );
+    p.finish_raises(&c);
     assert_eq!(p.placed[0].cells, vec![(10, 20), (11, 20), (12, 20)]);
     assert_eq!(
         p.act(&c, "layout.place", "glass_wall,11,20,0"),
@@ -277,7 +286,39 @@ fn a_wall_needs_its_spell_and_mana_and_may_not_close_the_route() {
         ),
         "{err:?}"
     );
-    assert!(p.field(&c).reachable());
+    p.finish_raises(&c);
+    assert!(
+        p.field(&c).reachable(),
+        "rising walls cannot close the route between them"
+    );
+}
+
+#[test]
+fn a_wall_placed_with_mana_rises_after_its_delay_and_not_before() {
+    let c = shipped();
+    let mut p = prep(&c);
+    go(&mut p, Station::Map);
+    p.act(&c, "layout.place", "sub_tower,10,20,0").unwrap();
+    // sub_tower raise_s 60: 3600 ticks, and the archmage may walk away
+    go(&mut p, Station::Library);
+    for _ in 0..3599 {
+        p.step(&c, 0);
+    }
+    assert!(p.placed.is_empty());
+    p.step(&c, 0);
+    assert_eq!(p.placed.len(), 1);
+    assert_eq!(p.placed[0].cells, vec![(10, 20)]);
+}
+
+#[test]
+fn a_new_archmage_knows_the_starting_pieces_in_the_data() {
+    let c = shipped();
+    let p = prep(&c);
+    let known: Vec<&str> = (0..c.file.pieces.len())
+        .filter(|&i| p.known[i])
+        .map(|i| c.file.pieces[i].id.as_str())
+        .collect();
+    assert_eq!(known, vec!["fire_bolt", "ice_shard", "glass_wall", "sub_tower"]);
 }
 
 #[test]
@@ -335,4 +376,23 @@ fn students_who_know_an_invasion_send_it_at_their_effectiveness() {
     assert_eq!(p.student_invasions(&c), vec![(parade, 73)]);
     // and the battle plan does not cast it: the battle skips invasion chains
     assert!(p.plan().students[0].spells.contains(&(1, 73)));
+}
+
+#[test]
+fn a_rising_pool_holds_its_cells() {
+    // lava does not block the route, so only the rising list keeps a
+    // second thing off its cells
+    let c = shipped();
+    let mut p = prep(&c);
+    learn(&mut p, &c, &["lava_pool"]);
+    go(&mut p, Station::Map);
+    p.act(&c, "layout.place", "lava_pool,10,20,0").unwrap();
+    assert_eq!(
+        p.act(&c, "layout.place", "lava_pool,11,20,0"),
+        Err("layout.taken")
+    );
+    assert_eq!(
+        p.act(&c, "layout.place", "glass_wall,9,20,0"),
+        Err("layout.taken")
+    );
 }

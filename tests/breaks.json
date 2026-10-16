@@ -310,8 +310,8 @@
   {
     "name": "placing is free",
     "file": "crates/core/src/prep.rs",
-    "find": "                self.spend(c.file.features[p.feature as usize].mana)?;",
-    "replace": "                self.spend(c.file.features[p.feature as usize].mana * 0)?;",
+    "find": "                self.spend(f.mana)?;",
+    "replace": "                self.spend(f.mana * 0)?;",
     "test": "a_wall_needs_its_spell_and_mana_and_may_not_close_the_route"
   },
   {
@@ -488,5 +488,96 @@
     "find": "                (false, _, Some(st)) => (SeatKind::Bot(st), self.s.t(st.key())),",
     "replace": "                (false, _, Some(st)) => (SeatKind::Empty, self.s.t(st.key())),",
     "test": "the_lobby_shows_every_seat_and_starts_only_when_everyone_is_ready"
+  },
+  {
+    "name": "a wall rises at once",
+    "file": "crates/core/src/prep.rs",
+    "find": "                let total = content::ticks(f.raise_s.max(0) * 1000).max(1);",
+    "replace": "                let total = content::ticks(0 * 1000).max(1);",
+    "test": "a_wall_placed_with_mana_rises_after_its_delay_and_not_before"
+  },
+  {
+    "name": "a rising wall does not hold its cells",
+    "file": "crates/core/src/prep.rs",
+    "find": "                .chain(self.rising())",
+    "replace": "                ",
+    "test": "a_rising_pool_holds_its_cells"
+  },
+  {
+    "name": "the starting pieces are cut short",
+    "file": "crates/core/src/prep.rs",
+    "find": "        for s in &c.balance().start_pieces {",
+    "replace": "        for s in c.balance().start_pieces.iter().take(2) {",
+    "test": "a_new_archmage_knows_the_starting_pieces_in_the_data"
+  },
+  {
+    "name": "Esc does not close the map",
+    "file": "crates/core/src/session.rs",
+    "find": "        if self.layout.open && (bits & prep::BACK != 0 || !at_map) {",
+    "replace": "        if self.layout.open && (false || !at_map) {",
+    "test": "e_opens_the_map_at_the_map_table_and_esc_closes_it"
+  },
+  {
+    "name": "the map's panel is a side panel",
+    "file": "crates/core/src/session.rs",
+    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved\": rising, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "replace": "        json!({\"id\": \"layout\", \"kind\": \"side\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved\": rising, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "test": "e_opens_the_map_at_the_map_table_and_esc_closes_it"
+  },
+  {
+    "name": "a held E reopens the map",
+    "file": "crates/core/src/session.rs",
+    "find": "        } else if !self.layout.open && at_map && bits & prep::USE != 0 && !self.layout.just_closed {",
+    "replace": "        } else if !self.layout.open && at_map && bits & prep::USE != 0 {",
+    "test": "e_opens_the_map_at_the_map_table_and_esc_closes_it"
+  },
+  {
+    "name": "the glossary never pauses",
+    "file": "crates/core/src/session.rs",
+    "find": "        if self.glossary_pauses() {",
+    "replace": "        if false {",
+    "test": "the_glossary_opens_over_any_screen_lists_every_piece_and_pauses_a_solo_day"
+  },
+  {
+    "name": "the glossary pauses an online day",
+    "file": "crates/core/src/session.rs",
+    "find": "        self.glossary.is_some() && self.m.as_ref().map(|m| m.mode != Mode::Online).unwrap_or(false)",
+    "replace": "        self.glossary.is_some() && self.m.as_ref().map(|m| m.mode == m.mode).unwrap_or(false)",
+    "test": "an_online_day_does_not_wait_for_the_glossary"
+  },
+  {
+    "name": "every drag moves the first view",
+    "file": "crates/core/src/session.rs",
+    "find": "                let o = &mut self.cams[d.seat.min(3)];",
+    "replace": "                let o = &mut self.cams[0];",
+    "test": "each_battle_view_turns_moves_and_zooms_on_its_own"
+  },
+  {
+    "name": "a right drag turns instead of moving",
+    "file": "crates/core/src/session.rs",
+    "find": "                    pan: n[4] & 2 != 0 || n[4] & 4 != 0 || n.get(5) == Some(&1),",
+    "replace": "                    pan: n[4] & 4 != 0 || n.get(5) == Some(&1),",
+    "test": "each_battle_view_turns_moves_and_zooms_on_its_own"
+  },
+  {
+    "name": "the close orbit is not the old camera",
+    "file": "crates/core/src/scene.rs",
+    "find": "                yaw: -(fx::TURN * 358 / 3600),",
+    "replace": "                yaw: -(fx::TURN * 337 / 3600),",
+    "test": "the_starting_orbits_are_the_old_fixed_cameras"
+  },
+  {
+    "name": "a view tilts under the field",
+    "file": "crates/core/src/scene.rs",
+    "find": "        self.pitch = (self.pitch + dy * (fx::TURN / 4) / h).clamp(PITCH_MIN, PITCH_MAX);",
+    "replace": "        self.pitch = (self.pitch + dy * (fx::TURN / 4) / h);",
+    "test": "a_view_stays_above_the_field_and_within_its_limits"
+  },
+  {
+    "name": "panning runs the wrong way",
+    "file": "crates/core/src/scene.rs",
+    "find": "        let right = -dx * per_px;",
+    "replace": "        let right = dx * per_px;",
+    "test": "a_view_stays_above_the_field_and_within_its_limits"
   }
 ]

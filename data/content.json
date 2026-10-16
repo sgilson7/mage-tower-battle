@@ -1020,7 +1020,8 @@
    "health": 400,
    "mana": 20,
    "golem_s": 25,
-   "cast_life": 6000
+   "cast_life": 6000,
+   "raise_s": 15
   },
   {
    "id": "ivory_wall",
@@ -1030,7 +1031,8 @@
    "health": 0,
    "mana": 40,
    "golem_s": 45,
-   "cast_life": 6000
+   "cast_life": 6000,
+   "raise_s": 30
   },
   {
    "id": "lava_pool",
@@ -1042,7 +1044,8 @@
    "golem_s": 0,
    "cast_life": 6000,
    "dps": 30,
-   "damage_type": "fire"
+   "damage_type": "fire",
+   "raise_s": 20
   },
   {
    "id": "bait",
@@ -1053,7 +1056,8 @@
    "mana": 20,
    "golem_s": 30,
    "cast_life": 6000,
-   "lure": 600
+   "lure": 600,
+   "raise_s": 15
   },
   {
    "id": "sub_tower",
@@ -1064,7 +1068,8 @@
    "mana": 60,
    "golem_s": 40,
    "cast_life": 0,
-   "seats": 1
+   "seats": 1,
+   "raise_s": 60
   }
  ],
  "helpers": [
@@ -1099,6 +1104,12 @@
  ],
  "balance": {
   "score_start": 10000,
+  "start_pieces": [
+   "fire_bolt",
+   "ice_shard",
+   "glass_wall",
+   "sub_tower"
+  ],
   "days": 4,
   "prep_s": 240,
   "battle_s": 90,

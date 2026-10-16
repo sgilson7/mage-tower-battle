@@ -112,7 +112,13 @@ pub fn interview(lane: &Lane, heading: &str, keys: &[String; 4], last: &str) -> 
 }
 
 /// The layout editor's map of the field, and a preview of the piece being placed.
-pub fn layout(c: &Content, a: &Arena, placed: &[Placed], ghost: Option<(&Placed, bool)>) -> Vec<i32> {
+pub fn layout(
+    c: &Content,
+    a: &Arena,
+    placed: &[Placed],
+    rising: &[Placed],
+    ghost: Option<(&Placed, bool)>,
+) -> Vec<i32> {
     let mut d = DrawList::new();
     d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
     d.rect(
@@ -142,7 +148,9 @@ pub fn layout(c: &Content, a: &Arena, placed: &[Placed], ghost: Option<(&Placed,
             );
         }
     }
-    for p in placed {
+    // what is still rising shows as a smaller square of its colour
+    let all = placed.iter().map(|p| (p, 2)).chain(rising.iter().map(|p| (p, 5)));
+    for (p, inset) in all {
         let colour = match c.file.features[p.feature as usize].id.as_str() {
             "glass_wall" => Color::Glass,
             "ivory_wall" => Color::Ivory,
@@ -152,10 +160,10 @@ pub fn layout(c: &Content, a: &Arena, placed: &[Placed], ghost: Option<(&Placed,
         };
         for &(x, z) in &p.cells {
             d.rect(
-                MAP_X + x * MAP_CELL + 2,
-                MAP_Y + z * MAP_CELL + 2,
-                MAP_CELL - 5,
-                MAP_CELL - 5,
+                MAP_X + x * MAP_CELL + inset,
+                MAP_Y + z * MAP_CELL + inset,
+                MAP_CELL - 1 - inset * 2,
+                MAP_CELL - 1 - inset * 2,
                 colour,
             );
         }
@@ -199,7 +207,7 @@ mod tests {
     fn each_overlay_is_a_complete_draw_list() {
         let c = crate::content::shipped();
         let a = crate::battle::field(3);
-        assert!(walk(&layout(&c, &a, &[], None)).unwrap() > arena::SIZE as usize * arena::SIZE as usize);
+        assert!(walk(&layout(&c, &a, &[], &[], None)).unwrap() > arena::SIZE as usize * arena::SIZE as usize);
         let lane = Lane::new(&mut crate::rng::Rng::new(1), false, 4, 9);
         let keys = ["J".to_string(), "K".to_string(), "L".to_string(), "✦".to_string()];
         assert!(walk(&interview(&lane, "Interview", &keys, "")).is_some());

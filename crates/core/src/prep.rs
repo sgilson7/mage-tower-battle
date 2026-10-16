@@ -103,6 +103,8 @@ pub enum Work {
     Recruit,
     Train,
     Build(Placed),
+    /// A wall or tower the archmage placed with mana, rising (T1).
+    Raise(Placed),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -239,8 +241,7 @@ impl Prep {
     pub fn new(c: &Content, seat: u8, seed: u64, field_seed: u64) -> Prep {
         let mut rng = Rng::new(seed ^ ((seat as u64 + 1) * 0x9e37_79b9));
         let mut known = vec![false; c.file.pieces.len()];
-        let starter = ["fire_bolt", "ice_shard"];
-        for s in starter {
+        for s in &c.balance().start_pieces {
             if let Some(i) = c.piece(s) {
                 known[i] = true;
             }
@@ -577,6 +578,16 @@ impl Prep {
                         self.note("helper.trained", name);
                     }
                 }
+                Work::Raise(p) => {
+                    if self.can_place(c, &p).is_ok() {
+                        let name = c.file.features[p.feature as usize].name.clone();
+                        self.placed.push(p);
+                        self.record.placed += 1;
+                        self.note("layout.raised", name);
+                    } else {
+                        self.note("layout.closes_path", "");
+                    }
+                }
                 Work::Build(p) => {
                     if self.can_place(c, &p).is_ok() {
                         self.placed.push(p);
@@ -589,6 +600,25 @@ impl Prep {
                 }
             }
         }
+    }
+
+    /// Walls and towers placed with mana that have not risen yet.
+    pub fn rising(&self) -> impl Iterator<Item = &Placed> {
+        self.jobs.iter().filter_map(|j| match &j.work {
+            Work::Raise(p) | Work::Build(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    /// Finishes every rising wall at once: a computer rival plans its whole
+    /// day in one call, so its walls rise within the day it budgeted.
+    pub fn finish_raises(&mut self, c: &Content) {
+        for j in self.jobs.iter_mut() {
+            if matches!(j.work, Work::Raise(_) | Work::Build(_)) {
+                j.left = 1;
+            }
+        }
+        self.work_jobs(c);
     }
 
     /// The field with everything placed so far.
@@ -604,12 +634,24 @@ impl Prep {
 
     fn can_place(&self, c: &Content, p: &Placed) -> Result<(), &'static str> {
         let f = &c.file.features[p.feature as usize];
+        // what is still rising counts as standing, so a row of rising walls
+        // cannot close the route between them
         let mut a = self.field(c);
+        for (k, q) in self.rising().enumerate() {
+            if c.file.features[q.feature as usize].blocks {
+                let _ = a.block(&q.cells, 500 + k as u16);
+            }
+        }
         for &(x, z) in &p.cells {
             if !arena::inside(x, z) {
                 return Err("layout.off_grid");
             }
-            if self.placed.iter().any(|q| q.cells.contains(&(x, z))) {
+            if self
+                .placed
+                .iter()
+                .chain(self.rising())
+                .any(|q| q.cells.contains(&(x, z)))
+            {
                 return Err("layout.taken");
             }
         }
@@ -867,12 +909,22 @@ impl Prep {
                 self.note("draw.score", score.to_string());
             }
             "layout.place" => {
+                // costs its mana now and rises raise_s later, while the
+                // archmage does other things (T1)
                 self.at(Station::Map)?;
                 let p = self.placement(c, value)?;
                 self.can_place(c, &p)?;
-                self.spend(c.file.features[p.feature as usize].mana)?;
-                self.placed.push(p);
-                self.record.placed += 1;
+                let f = &c.file.features[p.feature as usize];
+                self.spend(f.mana)?;
+                let total = content::ticks(f.raise_s.max(0) * 1000).max(1);
+                let golem = c.helper("builder_golem").unwrap_or(0) as u16;
+                self.jobs.push(Job {
+                    helper: golem,
+                    score: 100,
+                    left: total,
+                    total,
+                    work: Work::Raise(p),
+                });
             }
             "layout.golem" => {
                 self.at(Station::Map)?;

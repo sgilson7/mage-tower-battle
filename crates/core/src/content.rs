@@ -195,6 +195,8 @@ pub struct Feature {
     pub mana: i32,
     /// Seconds a builder golem takes instead, or 0 if golems cannot build it.
     pub golem_s: i32,
+    /// Seconds it takes to rise once the archmage places it with mana (T1).
+    pub raise_s: i32,
     /// How long it stands when a student casts it in a battle, ms; 0 if
     /// only the archmage can place it.
     pub cast_life: i32,
@@ -227,6 +229,8 @@ pub struct Helper {
 #[serde(deny_unknown_fields)]
 pub struct Balance {
     pub score_start: i32,
+    /// The pieces a new archmage knows before reading a book (T1).
+    pub start_pieces: Vec<String>,
     pub days: i32,
     pub prep_s: i32,
     pub battle_s: i32,

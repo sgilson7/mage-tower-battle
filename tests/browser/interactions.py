@@ -41,7 +41,8 @@ def run(page, check, engine):
     check(STRINGS["game.name"] in page.inner_text("#panels"), "the title screen names the game")
     page.click("button[data-action='match.start'][data-value='practice']")
     page.wait_for_selector("body[data-phase='prep']", state="attached", timeout=LONG)
-    check(attr(page, "known") == "2", "a new archmage knows the two starting pieces")
+    first = len(CONTENT["balance"]["start_pieces"])
+    check(attr(page, "known") == str(first), f"a new archmage knows the {first} starting pieces in content.json")
 
     # walk to the library: left, then up
     hold_until(page, "KeyA", lambda: int(attr(page, "x") or 0) <= -60)
@@ -51,7 +52,7 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-busy='reading']", state="attached", timeout=LONG)
     page.wait_for_selector("body[data-busy='']", state="attached", timeout=LONG)
     # one piece, or a whole spell's pieces when the book was a tome
-    check(int(attr(page, "known")) >= 3, "reading a book taught at least one more piece")
+    check(int(attr(page, "known")) >= first + 1, "reading a book taught at least one more piece")
 
     # the laboratory: two Fire Bolts make a spell
     hold_until(page, "KeyD", lambda: attr(page, "station") == "lab")

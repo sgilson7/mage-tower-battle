@@ -57,6 +57,10 @@ jobs:
       - name: Online check (Chromium)
         run: .venv/bin/python tests/browser/online.py chromium
 
+      # text stands out in the light and the dark colour scheme (T6)
+      - name: Contrast check (Chromium)
+        run: .venv/bin/python tests/browser/contrast.py chromium
+
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

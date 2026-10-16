@@ -408,6 +408,7 @@ pub fn room_dynamic(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32
             ),
             Work::Recruit => ("wisp_helper", rec.add(v3(cm(90), 0, cm(-100))), 0),
             Work::Train => ("trainer", pod.add(v3(cm(-300), 0, cm(100))), fx::TURN / 4),
+            Work::Raise(_) => continue,
             Work::Build(_) => {
                 let a = (tick * 120) % fx::TURN;
                 (
@@ -820,6 +821,92 @@ pub fn arena_dynamic(b: &mut Batch, look: &Look, c: &Content, bt: &Battle, far: 
             look.colour("ward"),
             ONE / 5,
         );
+    }
+}
+
+/// A battle view's own camera (T5): it circles a point on the field.
+/// `yaw` and `pitch` are fx angles (`fx::TURN` a full turn), `dist` and
+/// `at` are Q16 metres.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Orbit {
+    pub yaw: i32,
+    pub pitch: i32,
+    pub dist: Fx,
+    pub at: V3,
+}
+
+/// How low and how high a view may tilt, and how near and far it may go.
+pub const PITCH_MIN: i32 = fx::TURN * 10 / 360;
+pub const PITCH_MAX: i32 = fx::TURN * 85 / 360;
+pub const DIST_MIN: Fx = 8 * ONE;
+pub const DIST_MAX: Fx = 120 * ONE;
+/// How far from the field's middle the point a view circles may move.
+pub const PAN_MAX: Fx = 30 * ONE;
+
+impl Orbit {
+    /// The two fixed views the game had before (`arena_camera`), as orbits:
+    /// eye (-4, 46, 44) round (1, 0, 1) is 63.2 m away, 46.7° up, turned
+    /// 6.6° left; eye (-20, 26, 26) round (-2, 0, 1) is 40.3 m, 40.2° up,
+    /// turned 35.8° left.
+    pub fn start(close: bool) -> Orbit {
+        if close {
+            Orbit {
+                yaw: -(fx::TURN * 358 / 3600),
+                pitch: fx::TURN * 402 / 3600,
+                dist: ONE * 403 / 10,
+                at: v3(-2 * ONE, 0, ONE),
+            }
+        } else {
+            Orbit {
+                yaw: -(fx::TURN * 66 / 3600),
+                pitch: fx::TURN * 467 / 3600,
+                dist: ONE * 632 / 10,
+                at: v3(ONE, 0, ONE),
+            }
+        }
+    }
+
+    pub fn camera(&self) -> Camera {
+        let flat = fx::mul(fx::cos(self.pitch), self.dist);
+        let eye = self.at.add(v3(
+            fx::mul(fx::sin(self.yaw), flat),
+            fx::mul(fx::sin(self.pitch), self.dist),
+            fx::mul(fx::cos(self.yaw), flat),
+        ));
+        Camera {
+            eye,
+            at: self.at,
+            focal: ONE * 24 / 10,
+        }
+    }
+
+    /// Turns and tilts by a drag of (dx, dy) pixels in a view `h` pixels
+    /// tall: the view's height is half a turn across, a quarter turn up.
+    pub fn orbit(&mut self, dx: i32, dy: i32, h: i32) {
+        let h = h.max(1);
+        self.yaw -= dx * (fx::TURN / 2) / h;
+        self.pitch = (self.pitch + dy * (fx::TURN / 4) / h).clamp(PITCH_MIN, PITCH_MAX);
+    }
+
+    /// Slides the point it circles by a drag of (dx, dy) pixels, so the
+    /// ground under the pointer follows it roughly.
+    pub fn pan(&mut self, dx: i32, dy: i32, h: i32) {
+        let per_px = self.dist / h.max(1);
+        let (dx, dy) = (dx.clamp(-4000, 4000), dy.clamp(-4000, 4000));
+        let (s, c) = (fx::sin(self.yaw), fx::cos(self.yaw));
+        // right along the screen is (cos, 0, -sin); up the screen is away, (-sin, 0, -cos)
+        let right = -dx * per_px;
+        let away = dy * per_px;
+        let x = self.at.x + fx::mul(c, right) - fx::mul(s, away);
+        let z = self.at.z - fx::mul(s, right) - fx::mul(c, away);
+        self.at = v3(x.clamp(-PAN_MAX, PAN_MAX), 0, z.clamp(-PAN_MAX, PAN_MAX));
+    }
+
+    /// Nearer for a wheel turned up (negative), further for down; one
+    /// notch (100) is about a sixth.
+    pub fn zoom(&mut self, delta: i32) {
+        let d = delta.clamp(-400, 400);
+        self.dist = (self.dist + fx::mul(self.dist, d * ONE / 600)).clamp(DIST_MIN, DIST_MAX);
     }
 }
 

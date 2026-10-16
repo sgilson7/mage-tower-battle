@@ -197,6 +197,7 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
             let _ = p.act(c, "layout.place", &format!("{w},{x},{z},{d}"));
         }
     }
+    p.finish_raises(c);
     // teaching: every spell to everyone, best first, while time lasts
     put(p, Station::Podium);
     let order: Vec<usize> = (0..p.spells.len()).rev().collect();

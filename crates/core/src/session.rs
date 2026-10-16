@@ -47,6 +47,7 @@ pub struct Layout {
     pub along_z: bool,
     pub hover: Option<(i32, i32)>,
     pub golem: bool,
+    just_closed: bool,
 }
 
 pub struct Session {
@@ -86,11 +87,28 @@ pub struct Session {
     online_code: String,
     /// The room was opened with pasted codes, so it has no room code to show.
     pasted: bool,
+    /// The glossary's open tab, while it is open (T8).
+    pub glossary: Option<String>,
+    /// Each battle view's own camera (T5), and the drag moving one.
+    pub cams: [scene::Orbit; 4],
+    drag: Option<Drag>,
     build: String,
     /// Messages held for a later day or phase.
     net_queue: Vec<Event>,
     sums: Vec<(i32, u8, u64)>,
     desync_told: bool,
+}
+
+/// A drag in a battle view: which seat's camera, where the pointer was, and
+/// whether it moves the view rather than turning it.
+#[derive(Debug, Clone, Copy)]
+struct Drag {
+    seat: usize,
+    x: i32,
+    y: i32,
+    /// The view's height in CSS pixels.
+    h: i32,
+    pan: bool,
 }
 
 fn act_json(name: &str, value: &str, label: String, enabled: bool) -> Value {
@@ -179,6 +197,9 @@ impl Session {
             online_name: String::new(),
             online_code: String::new(),
             pasted: false,
+            glossary: None,
+            cams: [scene::Orbit::start(false); 4],
+            drag: None,
             build,
             net_queue: Vec::new(),
             sums: Vec::new(),
@@ -302,6 +323,19 @@ impl Session {
                     .collect()
             }
             "online.pasted" => self.pasted = true,
+            "glossary.toggle" => {
+                self.glossary = match self.glossary {
+                    Some(_) => None,
+                    None => Some("pieces".into()),
+                }
+            }
+            "glossary.close" => self.glossary = None,
+            "glossary.tab" => {
+                if !["pieces", "spells", "terms", "how"].contains(&value) {
+                    return Err(self.err("error.bad"));
+                }
+                self.glossary = Some(value.to_string());
+            }
             "online.ready" => {
                 let o = self.online.as_mut().ok_or_else(|| self.s.t("online.no_room"))?;
                 let r = !o.ready;
@@ -341,7 +375,12 @@ impl Session {
                     v => View::Seat(v.parse().map_err(|_| self.err("error.bad"))?),
                 };
             }
-            "view.close" => self.close = !self.close,
+            "view.close" => {
+                self.close = !self.close;
+                self.cams = [scene::Orbit::start(self.close); 4];
+            }
+            "cam.reset" => self.cams = [scene::Orbit::start(self.close); 4],
+            "cam.down" | "cam.move" | "cam.up" | "cam.wheel" => self.cam(name, value)?,
             "battle.speed" => {
                 let v: i32 = value.parse().map_err(|_| self.err("error.bad"))?;
                 self.settings.speed = v.clamp(1, 4);
@@ -389,6 +428,63 @@ impl Session {
                 p.act(c, name, value).map_err(|k| self.err(k))?;
                 if name == "library.read" || name == "draw.end" {
                     self.layout.open = false;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The seat whose battle view holds a pointer at CSS (x, y) on a
+    /// canvas of CSS size (w, h), and that view's height in canvas pixels.
+    fn view_at(&self, x: i32, y: i32, w: i32, h: i32) -> Option<(usize, i32)> {
+        let m = self
+            .m
+            .as_ref()
+            .filter(|m| m.battles.iter().any(|b| b.is_some()))?;
+        let (cw, ch) = self.canvas;
+        let (px, py) = (x * cw / w.max(1), ch - y * ch / h.max(1));
+        let shown = self.shown(m);
+        self.viewports(shown.len())
+            .into_iter()
+            .zip(shown)
+            .find(|(v, _)| px >= v.0 && px < v.0 + v.2 && py >= v.1 && py < v.1 + v.3)
+            .map(|(v, seat)| (seat, v.3 * h.max(1) / ch.max(1)))
+    }
+
+    /// The battle views' mouse (T5): drag turns a view, a right drag or a
+    /// Shift drag moves it, the wheel zooms. Each view keeps its own camera.
+    /// value: "x,y,w,h,buttons,shift" in CSS pixels; for the wheel,
+    /// "x,y,w,h,delta".
+    fn cam(&mut self, name: &str, value: &str) -> Result<(), String> {
+        let n = strings::ints(value);
+        if n.len() < 5 {
+            return Err(self.err("error.bad"));
+        }
+        let (x, y, w, h) = (n[0], n[1], n[2], n[3]);
+        match name {
+            "cam.down" => {
+                self.drag = self.view_at(x, y, w, h).map(|(seat, vh)| Drag {
+                    seat,
+                    x,
+                    y,
+                    h: vh,
+                    pan: n[4] & 2 != 0 || n[4] & 4 != 0 || n.get(5) == Some(&1),
+                });
+            }
+            "cam.move" => {
+                let Some(d) = self.drag else { return Ok(()) };
+                let o = &mut self.cams[d.seat.min(3)];
+                if d.pan {
+                    o.pan(x - d.x, y - d.y, d.h);
+                } else {
+                    o.orbit(x - d.x, y - d.y, d.h);
+                }
+                self.drag = Some(Drag { x, y, ..d });
+            }
+            "cam.up" => self.drag = None,
+            _ => {
+                if let Some((seat, _)) = self.view_at(x, y, w, h) {
+                    self.cams[seat.min(3)].zoom(n[4]);
                 }
             }
         }
@@ -789,6 +885,8 @@ impl Session {
 
     fn begin_play(&mut self) {
         self.screen = Screen::Play;
+        self.cams = [scene::Orbit::start(self.close); 4];
+        self.drag = None;
         self.view = View::All;
         self.layout = Layout::default();
         self.trial_result = None;
@@ -825,6 +923,24 @@ impl Session {
         }
         self.toasts.retain(|t| t.1 > 0);
         self.pump_online();
+        if self.glossary_pauses() {
+            return;
+        }
+        // the map table: E opens the map, Esc closes it (T3)
+        let at_map = self
+            .m
+            .as_ref()
+            .filter(|m| m.phase == Phase::Prep)
+            .and_then(|m| m.local_prep())
+            .map(|p| p.station() == Some(Station::Map) && !p.busy())
+            .unwrap_or(false);
+        if self.layout.open && (bits & prep::BACK != 0 || !at_map) {
+            self.layout.open = false;
+        } else if !self.layout.open && at_map && bits & prep::USE != 0 && !self.layout.just_closed {
+            let _ = self.act_inner("layout.open", "");
+        }
+        // a held E does not open the map again the tick after Esc closes it
+        self.layout.just_closed = bits & prep::USE != 0 && !self.layout.open;
         let Some(m) = self.m.as_mut() else { return };
         let before = m.phase;
         let bits = if self.layout.open {
@@ -1165,8 +1281,8 @@ impl Session {
                 }
                 let shown = self.shown(m);
                 let far = shown.len() > 1;
-                let cam = scene::arena_camera(self.close && !far);
                 for (vp, &seat) in self.viewports(shown.len()).into_iter().zip(shown.iter()) {
+                    let cam = self.cams[seat.min(3)].camera();
                     f.viewport(vp.0, vp.1, vp.2, vp.3, &cam, self.look.colour("sky_field"));
                     if let Some(Some(bt)) = m.battles.get(seat) {
                         if let Some(part) = self.statics.parts.get(seat) {
@@ -1290,7 +1406,14 @@ impl Session {
                     }
                     _ => None,
                 };
-                overlay::layout(&self.c, &a, &p.placed, ghost.as_ref().map(|(g, ok)| (g, *ok)))
+                let rising: Vec<crate::battle::Placed> = p.rising().cloned().collect();
+                overlay::layout(
+                    &self.c,
+                    &a,
+                    &p.placed,
+                    &rising,
+                    ghost.as_ref().map(|(g, ok)| (g, *ok)),
+                )
             }
             _ => Vec::new(),
         }
@@ -1314,6 +1437,14 @@ impl Session {
             Screen::Online => self.ui_online(),
             Screen::Play => self.ui_play(),
         };
+        if let Some(tab) = &self.glossary {
+            let g = self.ui_glossary(tab);
+            if let Some(panels) = out["panels"].as_array_mut() {
+                panels.push(g);
+            }
+            out["glossary"] = json!(true);
+        }
+        out["glossary_label"] = json!(self.s.t("gloss.button"));
         out["hints"] = json!(hints);
         out["toasts"] = json!(toasts);
         out["muted"] = json!(self.save.muted);
@@ -1498,17 +1629,172 @@ impl Session {
         self.base("achievements", s.t("title.achievements"), vec![p])
     }
 
-    fn ui_help(&self) -> Value {
+    /// The how-to topics, in order, with their numbers filled in.
+    fn help_rows(&self) -> Vec<Value> {
         let s = &self.s;
-        let score = strings::number(self.c.balance().score_start);
-        let rows: Vec<Value> = (1..=9)
+        let b = self.c.balance();
+        let fill = [
+            ("score", strings::number(b.score_start)),
+            ("pct", b.invasion_mana_pct.to_string()),
+            (
+                "raise_max",
+                self.c
+                    .file
+                    .features
+                    .iter()
+                    .map(|f| f.raise_s)
+                    .max()
+                    .unwrap_or(0)
+                    .to_string(),
+            ),
+        ];
+        (1..)
+            .take_while(|k| s.has(&format!("help.{k}.head")))
             .map(|k| {
                 row(
                     s.t(&format!("help.{k}.head")),
-                    s.f(&format!("help.{k}.text"), &[("score", score.clone())]),
+                    s.f(&format!("help.{k}.text"), &fill),
                 )
             })
+            .collect()
+    }
+
+    /// The glossary (T8): every spell piece by number, the saved spells,
+    /// every glossary word and the how-to topics, over any screen.
+    fn ui_glossary(&self, tab: &str) -> Value {
+        let s = &self.s;
+        let c = &self.c;
+        let prep = self.m.as_ref().and_then(|m| m.local_prep());
+        let tabs: Vec<Value> = ["pieces", "spells", "terms", "how"]
+            .iter()
+            .map(|t| act_json("glossary.tab", t, s.t(&format!("gloss.tab.{t}")), *t != tab))
             .collect();
+        let secs = |ms: i32| format!("{}.{}", ms / 1000, ms % 1000 / 100);
+        let (text, rows): (String, Vec<Value>) = match tab {
+            "spells" => {
+                let rows: Vec<Value> = prep
+                    .map(|p| {
+                        p.spells
+                            .iter()
+                            .map(|ch| {
+                                let st = spell::stats(c, ch);
+                                let pieces: Vec<String> = ch
+                                    .iter()
+                                    .map(|&k| c.file.pieces[k as usize].name.clone())
+                                    .collect();
+                                row(
+                                    spell::name(c, ch),
+                                    s.f(
+                                        "gloss.spell_detail",
+                                        &[
+                                            ("pieces", pieces.join(" → ")),
+                                            ("power", st.power.to_string()),
+                                            ("cooldown", secs(st.cooldown_ms)),
+                                            ("mana", st.mana.to_string()),
+                                        ],
+                                    ),
+                                )
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let text = match (prep, rows.is_empty()) {
+                    (None, _) => s.t("gloss.no_match"),
+                    (Some(_), true) => s.t("gloss.no_spells"),
+                    _ => s.t("gloss.spells_text"),
+                };
+                (text, rows)
+            }
+            "terms" => (
+                s.t("gloss.terms_text"),
+                self.hints
+                    .iter()
+                    .map(|(t, d)| row(t.clone(), d.clone()))
+                    .collect(),
+            ),
+            "how" => (s.t("gloss.how_text"), self.help_rows()),
+            _ => {
+                let rows = c
+                    .file
+                    .pieces
+                    .iter()
+                    .enumerate()
+                    .map(|(i, piece)| {
+                        let kind = match piece.kind {
+                            PieceKind::Payload { .. } => "kind.payload",
+                            PieceKind::Modifier { .. } => "kind.modifier",
+                            PieceKind::Formation { .. } => "kind.formation",
+                            PieceKind::Invade => "kind.invade",
+                            PieceKind::Trigger { .. } => "kind.trigger",
+                            PieceKind::Helper { .. } => "kind.helper",
+                        };
+                        let school = &c.file.schools[c.piece_school[i]];
+                        let mut lines = vec![s.f("gloss.kind_line", &[("school", school.name.clone()), ("kind", s.t(kind))]), piece.text.clone()];
+                        match &piece.kind {
+                            PieceKind::Payload { .. } => match spell::raises(c, i as u16) {
+                                Some(f) => {
+                                    let f = &c.file.features[f];
+                                    lines.push(s.f("gloss.raises", &[("mana", f.mana.to_string()), ("s", f.raise_s.to_string())]));
+                                }
+                                None => {
+                                    let st = spell::stats(c, &[i as u16]);
+                                    lines.push(s.f("gloss.payload", &[("power", st.power.to_string()), ("cooldown", secs(st.cooldown_ms)), ("mana", st.mana.to_string())]));
+                                }
+                            },
+                            PieceKind::Modifier { mods, .. } => {
+                                let list: Vec<String> = [
+                                    ("gloss.mod.damage", mods.damage_pct),
+                                    ("gloss.mod.area", mods.area_pct),
+                                    ("gloss.mod.speed", mods.speed_pct),
+                                    ("gloss.mod.cooldown", mods.cooldown_pct),
+                                    ("gloss.mod.pierce", mods.pierce),
+                                ]
+                                .iter()
+                                .filter(|(_, v)| *v != 0)
+                                .map(|(k, v)| s.f(k, &[("v", if *v > 0 && *k != "gloss.mod.pierce" { format!("+{v}") } else { v.to_string() })]))
+                                .collect();
+                                lines.push(s.f("gloss.mods", &[("list", list.join(", "))]));
+                            }
+                            PieceKind::Formation { copies, share_pct, .. } => {
+                                lines.push(s.f("gloss.formation", &[("copies", copies.to_string()), ("share", share_pct.to_string())]));
+                            }
+                            PieceKind::Helper { helper } => {
+                                if let Some(h) = c.helper(helper) {
+                                    let h = &c.file.helpers[h];
+                                    lines.push(s.f("gloss.helper", &[("mana", h.mana.to_string()), ("s", h.job_s.to_string())]));
+                                }
+                            }
+                            PieceKind::Invade | PieceKind::Trigger { .. } => {}
+                        }
+                        let chip = match prep {
+                            Some(p) if p.known[i] => s.t("gloss.known"),
+                            Some(_) => s.t("gloss.unknown"),
+                            None => String::new(),
+                        };
+                        json!({"label": s.f("gloss.entry", &[("n", (i + 1).to_string()), ("name", piece.name.clone())]), "detail": lines.join(" "), "chip": chip, "school": school.id})
+                    })
+                    .collect();
+                (s.t("gloss.pieces_text"), rows)
+            }
+        };
+        let paused = self.glossary_pauses();
+        let text = if paused {
+            format!("{text} {}", s.t("gloss.paused"))
+        } else {
+            text
+        };
+        json!({"id": "glossary", "kind": "glossary", "heading": s.t("gloss.heading"), "text": text, "saved_actions": tabs, "rows": rows, "actions": [act_json("glossary.close", "", s.t("gloss.close"), true)]})
+    }
+
+    /// A game against the computer waits while the glossary is open; an
+    /// online one cannot, since the other players' days go on.
+    fn glossary_pauses(&self) -> bool {
+        self.glossary.is_some() && self.m.as_ref().map(|m| m.mode != Mode::Online).unwrap_or(false)
+    }
+
+    fn ui_help(&self) -> Value {
+        let s = &self.s;
+        let rows = self.help_rows();
         let p = json!({"id": "help", "kind": "center", "heading": s.t("title.help"), "rows": rows, "actions": [act_json("screen.show", "title", s.t("back"), true)]});
         self.base("help", s.t("title.help"), vec![p])
     }
@@ -1583,9 +1869,17 @@ impl Session {
             let rows: Vec<Value> = p
                 .jobs
                 .iter()
-                .map(|j| json!({"label": self.c.file.helpers[j.helper as usize].name, "detail": strings::clock(j.left), "bar": strings::css_pct(1000 - j.left * 1000 / j.total.max(1))}))
+                .map(|j| {
+                    // a wall placed with mana rises by itself, with no helper (T1)
+                    let label = match &j.work {
+                        prep::Work::Raise(pl) => s.f("map.rising_short", &[("name", self.c.file.features[pl.feature as usize].name.clone())]),
+                        _ => self.c.file.helpers[j.helper as usize].name.clone(),
+                    };
+                    json!({"label": label, "detail": strings::clock(j.left), "bar": strings::css_pct(1000 - j.left * 1000 / j.total.max(1))})
+                })
                 .collect();
-            panels.push(json!({"id": "jobs", "kind": "side", "heading": s.t("jobs.heading"), "rows": rows}));
+            // beside the station's panel, not on top of it
+            panels.push(json!({"id": "jobs", "kind": "jobs", "heading": s.t("jobs.heading"), "rows": rows}));
         }
         panels.push(json!({"id": "ready", "kind": "corner", "actions": [act_json("day.ready", "", s.t("prep.ready"), true), act_json("match.leave", "", s.t("leave"), true)]}));
         let labels: Vec<Value> = if busy.is_none() && !self.layout.open {
@@ -1837,7 +2131,7 @@ impl Session {
             .into_iter()
             .map(|f| {
                 let ft = &self.c.file.features[f];
-                let detail = if self.layout.golem { s.f("map.golem_cost", &[("s", ft.golem_s.to_string())]) } else { s.f("map.mana_cost", &[("mana", ft.mana.to_string())]) };
+                let detail = if self.layout.golem { s.f("map.golem_cost", &[("s", ft.golem_s.to_string())]) } else { s.f("map.mana_cost", &[("mana", ft.mana.to_string()), ("s", ft.raise_s.to_string())]) };
                 json!({"label": ft.name, "detail": detail, "chip": if self.layout.feature == Some(f) { s.t("map.selected") } else { String::new() }, "actions": [act_json("layout.feature", &ft.id, s.t("map.pick"), true)]})
             })
             .collect();
@@ -1862,7 +2156,15 @@ impl Session {
                 )
             })
             .collect();
-        json!({"id": "layout", "kind": "side", "heading": s.t("station.map"), "text": text, "rows": rows, "saved_actions": placed, "actions": [act_json("layout.turn", "", s.t("map.turn"), true), act_json("layout.mode", if self.layout.golem { "mana" } else { "golem" }, s.t(if self.layout.golem { "map.use_mana" } else { "map.use_golem" }), true), act_json("layout.close", "", s.t("map.close"), true)]})
+        let rising: Vec<Value> = p
+            .jobs
+            .iter()
+            .filter_map(|j| match &j.work {
+                prep::Work::Raise(pl) | prep::Work::Build(pl) => Some(json!({"label": s.f("map.rising", &[("name", self.c.file.features[pl.feature as usize].name.clone()), ("s", ((j.left + TPS - 1) / TPS).to_string())]), "bar": strings::css_pct((j.total - j.left) * 1000 / j.total.max(1))})),
+                _ => None,
+            })
+            .collect();
+        json!({"id": "layout", "kind": "map", "heading": s.t("station.map"), "text": text, "rows": rows, "saved": rising, "saved_actions": placed, "actions": [act_json("layout.turn", "", s.t("map.turn"), true), act_json("layout.mode", if self.layout.golem { "mana" } else { "golem" }, s.t(if self.layout.golem { "map.use_mana" } else { "map.use_golem" }), true), act_json("layout.close", "", s.t("map.close"), true)]})
     }
 
     fn ui_battle(&self, m: &Match) -> Value {
@@ -1886,7 +2188,7 @@ impl Session {
             let bottom = top + vp.3 * 1000 / h - 70;
             labels.push(json!({"text": format!("{} · {}", m.seats[seat].name, strings::number(score)), "left": strings::css_pct(left + 10), "top": strings::css_pct(bottom), "kind": "seat"}));
             // damage numbers over the battle in view
-            let cam = scene::arena_camera(self.close && shown.len() == 1);
+            let cam = self.cams[seat.min(3)].camera();
             let aspect = (vp.2.max(1) as i64 * crate::fx::ONE as i64 / vp.3.max(1) as i64) as i32;
             let mtx = cam.matrix(aspect);
             for pop in b
@@ -1929,7 +2231,13 @@ impl Session {
             "view.close",
             "",
             s.t(if self.close { "view.far" } else { "view.near" }),
-            shown.len() == 1,
+            true,
+        ));
+        actions.push(act_json(
+            "cam.reset",
+            "",
+            s.t("view.reset"),
+            self.cams.iter().any(|o| *o != scene::Orbit::start(self.close)),
         ));
         for sp in [1, 2, 4] {
             actions.push(act_json(
@@ -1940,6 +2248,7 @@ impl Session {
             ));
         }
         panels.push(json!({"id": "watch", "kind": "corner", "actions": actions}));
+        panels.push(json!({"id": "view-hint", "kind": "hint", "text": s.t("view.hint")}));
         let _ = local;
         let mut v = self.base("play", s.t("game.name"), panels);
         v["phase"] = json!("battle");
@@ -2046,7 +2355,11 @@ impl Session {
 
     /// The camera a single viewport would use, for tests and probes.
     pub fn camera(&self) -> Camera {
-        scene::arena_camera(self.close)
+        let seat = match self.view {
+            View::Seat(k) => k as usize,
+            View::All => self.m.as_ref().map(|m| m.local as usize).unwrap_or(0),
+        };
+        self.cams[seat.min(3)].camera()
     }
 
     /// Moves the local archmage straight to a station: a probe and test aid,

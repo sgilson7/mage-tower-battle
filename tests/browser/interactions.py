@@ -88,8 +88,11 @@ def run(page, check, engine):
         page.click("button[data-action='lab.add'][data-value='fire_bolt']")
         # polled from here: WebKit runs no page function under the page's CSP
         hold_until(page, None, lambda: page.locator("#station .chain .act").count() == n, limit_s=LONG / 1000)
+    # one more spell than before: a book of a whole spell may already have
+    # saved one (SECOND-ORDER R4.11)
+    before = int(attr(page, "spells") or 0)
     page.click("button[data-action='lab.save']")
-    page.wait_for_selector("body[data-spells='2']", state="attached", timeout=LONG)
+    page.wait_for_selector(f"body[data-spells='{before + 1}']", state="attached", timeout=LONG)
     check(page.is_visible("#station"), "the laboratory's panel is visible")
 
     # the podium: teach the class by drawing a stroke across the board

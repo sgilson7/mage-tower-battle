@@ -155,8 +155,12 @@ fn every_chain_of_one_and_two_pieces_keeps_every_rule() {
         tally.most_units,
         tally.notes
     );
-    assert_eq!(t.len(), 33, "the pieces a spell may hold (MEASUREMENTS.md)");
-    assert_eq!(all.len(), 33 + 33 * 33);
+    assert_eq!(
+        t.len(),
+        34,
+        "the pieces a spell may hold, Branch among them (MEASUREMENTS.md)"
+    );
+    assert_eq!(all.len(), 34 + 34 * 34);
     assert!(tally.played > 100, "most short rows are spells: {}", tally.played);
     assert!(
         tally.failures.is_empty(),

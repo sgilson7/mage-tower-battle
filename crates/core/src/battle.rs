@@ -115,6 +115,9 @@ fn full() -> i32 {
 pub struct Carry {
     pub on: On,
     pub rest: Vec<u16>,
+    /// A branch's second row, started by the same trigger (T17).
+    #[serde(default)]
+    pub also: Vec<u16>,
     pub depth: u8,
     pub eff: i32,
     pub team: Team,
@@ -614,7 +617,8 @@ impl Battle {
                     share_pct,
                 } => form = Some((*arrange, *copies, *share_pct)),
                 PieceKind::Invade | PieceKind::Helper { .. } => {}
-                PieceKind::Trigger { .. } => return,
+                // a branch row is started by its trigger, never read through
+                PieceKind::Trigger { .. } | PieceKind::Branch => return,
                 PieceKind::Payload { effect, .. } => {
                     let (arr, copies, share) = form.unwrap_or((Arrange::Twin, 1, 100));
                     let left = self.budgets.get(cast as usize).copied().unwrap_or(0);
@@ -624,14 +628,26 @@ impl Battle {
                     }
                     self.budgets[cast as usize] -= n;
                     let carry = match chain.get(k + 1).map(|&p| &c.file.pieces[p as usize].kind) {
-                        Some(PieceKind::Trigger { on }) if (depth as i32) < bal.max_depth => Some(Carry {
-                            on: *on,
-                            rest: chain[k + 2..].to_vec(),
-                            depth: depth + 1,
-                            eff,
-                            team,
-                            cast,
-                        }),
+                        Some(PieceKind::Trigger { on }) if (depth as i32) < bal.max_depth => {
+                            // a branch splits what the trigger starts into two rows (T17)
+                            let tail = &chain[k + 2..];
+                            let split = tail
+                                .iter()
+                                .position(|&p| matches!(c.file.pieces[p as usize].kind, PieceKind::Branch));
+                            let (rest, also) = match split {
+                                Some(i) => (tail[..i].to_vec(), tail[i + 1..].to_vec()),
+                                None => (tail.to_vec(), Vec::new()),
+                            };
+                            Some(Carry {
+                                on: *on,
+                                rest,
+                                also,
+                                depth: depth + 1,
+                                eff,
+                                team,
+                                cast,
+                            })
+                        }
                         _ => None,
                     };
                     let area_eff = bal.area_floor_pct + pct(100 - bal.area_floor_pct, eff);
@@ -1048,6 +1064,11 @@ impl Battle {
         self.run(
             c, &k.rest, 0, origin, target, k.eff, k.team, k.depth, k.cast, from,
         );
+        if !k.also.is_empty() {
+            self.run(
+                c, &k.also, 0, origin, target, k.eff, k.team, k.depth, k.cast, from,
+            );
+        }
     }
 
     /// The nearest unit opposing `team` within `range` of a point.

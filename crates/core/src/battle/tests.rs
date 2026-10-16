@@ -504,3 +504,22 @@ fn a_rotation_casts_its_spells_in_order() {
     // ice (index 1) first, then fire, then ice again
     assert_eq!(spent, vec![costs[1], costs[0], costs[1]]);
 }
+
+#[test]
+fn a_branch_starts_both_rows_when_its_trigger_fires() {
+    let c = shipped();
+    let mut b = empty(&c);
+    let at = arena::centre(16, 16);
+    let foe = put(&mut b, &c, "hill_giant", at, Team::Foe);
+    b.units[foe].hp = 1_000_000;
+    let one = ids(&c, &["fireball", "on_hit", "fire_bolt"]);
+    let two = ids(&c, &["fireball", "on_hit", "fire_bolt", "branch", "ice_shard"]);
+    let cast = b.new_budget(&c, 0);
+    b.run(&c, &one, 0, at, at, 100, Team::Ally, 0, cast, 255);
+    let after_one = b.shots.len();
+    let cast = b.new_budget(&c, 0);
+    b.run(&c, &two, 0, at, at, 100, Team::Ally, 0, cast, 255);
+    // the burst hits at once; one row fires one bolt, two rows fire two
+    assert_eq!(after_one, 1);
+    assert_eq!(b.shots.len() - after_one, 2);
+}

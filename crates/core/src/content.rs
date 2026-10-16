@@ -144,6 +144,9 @@ pub enum PieceKind {
     Helper {
         helper: String,
     },
+    /// A trigger's second row (T17): the sets after it start when the same
+    /// trigger fires, beside the first row's.
+    Branch,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -2040,6 +2040,7 @@ impl Session {
             PieceKind::Invade => "kind.invade",
             PieceKind::Trigger { .. } => "kind.trigger",
             PieceKind::Helper { .. } => "kind.helper",
+            PieceKind::Branch => "kind.branch",
         };
         let school = &c.file.schools[c.piece_school[i]];
         let mut lines: Vec<String> = Vec::new();
@@ -2107,7 +2108,7 @@ impl Session {
                     ));
                 }
             }
-            PieceKind::Invade | PieceKind::Trigger { .. } => {}
+            PieceKind::Invade | PieceKind::Trigger { .. } | PieceKind::Branch => {}
         }
         let (d, view) = icon(std::slice::from_ref(&piece.glyph));
         // what it costs: a payload's mana on its own, a placement's or a helper's
@@ -2351,6 +2352,7 @@ impl Session {
                         }
                         PieceKind::Trigger { .. } => "kind.trigger",
                         PieceKind::Helper { .. } => "kind.helper",
+                        PieceKind::Branch => "kind.branch",
                     };
                     // a payload's own mana; a modifier's depends on the spell it is in
                     let cost = matches!(piece.kind, PieceKind::Payload { .. })

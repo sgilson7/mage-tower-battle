@@ -835,6 +835,16 @@
    ],
    "kind": "helper",
    "helper": "mana_trainer"
+  },
+  {
+   "id": "branch",
+   "name": "Branch",
+   "school": "alteration",
+   "text": "A trigger's second row: the sets after it start when the same trigger fires, beside the first row's.",
+   "glyph": [
+    "vee"
+   ],
+   "kind": "branch"
   }
  ],
  "enemies": [
@@ -1108,7 +1118,8 @@
    "fire_bolt",
    "ice_shard",
    "glass_wall",
-   "sub_tower"
+   "sub_tower",
+   "branch"
   ],
   "ally_summon_pct": 67,
   "summons_per_student": 4,
@@ -1127,7 +1138,7 @@
   "cast_budget": 32,
   "max_shots": 1500,
   "max_effects": 400,
-  "max_chain": 6,
+  "max_chain": 8,
   "max_depth": 3,
   "effect_min_pct": 5,
   "effect_max_pct": 100,

@@ -379,5 +379,8 @@
  "gloss.students_text": "Each student's numbers. Office hours, the desk in the tower room, is where you change where they stand and what they cast.",
  "gloss.student": "Mana {mana}, {regen} a second. Stands: {seat}. Leans: {leans}. Taught: {taught}.",
  "gloss.taught": "{spell} {n}%",
- "gloss.untaught": "nothing yet"
+ "gloss.untaught": "nothing yet",
+ "lab.branch_first": "A branch needs a trigger before it.",
+ "lab.branch_twice": "A spell has one branch at most.",
+ "kind.branch": "branch"
 }

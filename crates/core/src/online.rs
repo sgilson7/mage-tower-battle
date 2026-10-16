@@ -207,6 +207,8 @@ pub fn sane_plan(c: &Content, plan: &Plan, students: &[(Vec<u16>, i32)]) -> bool
             s.spells
                 .iter()
                 .all(|&(k, e)| (k as usize) < n && (0..=400).contains(&e))
+                && s.rotation.len() <= 8
+                && s.rotation.iter().all(|&k| (k as usize) < n)
                 && (0..=1_000_000).contains(&s.mana_max)
                 && (0..=1_000_000).contains(&s.regen)
         })

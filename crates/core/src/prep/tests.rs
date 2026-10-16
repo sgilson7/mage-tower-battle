@@ -322,7 +322,10 @@ fn a_new_archmage_knows_the_starting_pieces_in_the_data() {
         .filter(|&i| p.known[i])
         .map(|i| c.file.pieces[i].id.as_str())
         .collect();
-    assert_eq!(known, vec!["fire_bolt", "ice_shard", "glass_wall", "sub_tower"]);
+    assert_eq!(
+        known,
+        vec!["fire_bolt", "ice_shard", "glass_wall", "sub_tower", "branch"]
+    );
 }
 
 #[test]

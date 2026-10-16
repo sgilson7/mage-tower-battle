@@ -239,6 +239,15 @@ fn an_archmage_s_invasion_reaches_every_rival() {
         m.seats[0].incoming.iter().all(|(i, _)| i.from != 0),
         "not yourself"
     );
+    // each rival gets invasion_spread_pct 35 of archmage_count_pct 150: 52
+    let got = m.seats[1]
+        .incoming
+        .iter()
+        .find(|(i, _)| i.from == 0)
+        .unwrap()
+        .0
+        .count_pct;
+    assert_eq!(got, 150 * 35 / 100);
 }
 
 #[test]
@@ -256,7 +265,7 @@ fn a_harder_difficulty_brings_more_and_tougher_wild_enemies() {
         easy.0 < normal.0 && normal.0 < brutal.0,
         "{easy:?} {normal:?} {brutal:?}"
     );
-    // health_pct from content.json: easy 85, normal 110, brutal 160
-    assert_eq!((easy.1, normal.1, brutal.1), (85, 110, 160));
+    // health_pct from content.json: easy 85, normal 105, brutal 150
+    assert_eq!((easy.1, normal.1, brutal.1), (85, 105, 150));
     assert_eq!(Settings::from_content(&c).difficulty, 1, "normal by default");
 }

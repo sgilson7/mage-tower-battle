@@ -311,6 +311,9 @@ pub struct Balance {
     pub invasion_leak_mult: i32,
     /// Percent of a spell's mana an archmage pays to cast it as an invasion from the book.
     pub invasion_mana_pct: i32,
+    /// Percent of an invasion's numbers each rival gets, now that it goes to
+    /// them all (T29).
+    pub invasion_spread_pct: i32,
     /// Percent of summon numbers in an invasion the archmage casts.
     pub archmage_count_pct: i32,
     /// Percent of the wild enemies' base numbers.

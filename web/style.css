@@ -206,11 +206,13 @@ body[data-screen="play"] .panel-builder { position: absolute; left: 12px; right:
 .slot.filled:hover { transform: translateY(-2px); }
 .slot-icon { width: 40px; height: 40px; }
 .slot-icon path, .act-icon path { fill: none; stroke: currentColor; stroke-width: 90; stroke-linecap: round; stroke-linejoin: round; }
-.slot.school-destruction, .tile.school-destruction { color: var(--destruction); }
-.slot.school-alteration, .tile.school-alteration { color: var(--alteration); }
-.slot.school-conjuration, .tile.school-conjuration { color: var(--conjuration); }
-.slot.school-illusion, .tile.school-illusion { color: var(--illusion); }
-.slot.school-restoration, .tile.school-restoration { color: var(--restoration); }
+/* the icon takes the school's colour; the text stays ink, so it reads */
+.slot.filled, .tile { color: var(--ink); }
+.school-destruction .slot-icon { color: var(--destruction); }
+.school-alteration .slot-icon { color: var(--alteration); }
+.school-conjuration .slot-icon { color: var(--conjuration); }
+.school-illusion .slot-icon { color: var(--illusion); }
+.school-restoration .slot-icon { color: var(--restoration); }
 .slot-name { color: var(--ink); }
 .branch-from { writing-mode: vertical-rl; transform: rotate(180deg); font: 800 11px var(--font); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 4px; border-left: 4px dashed #e8c21a; }
 .tray { display: grid; gap: 8px; margin-top: 10px; }

@@ -111,7 +111,17 @@ fn a_book_is_found_by_shelving_ten_and_a_miss_makes_the_next_fall_faster() {
         panic!("still sorting")
     };
     assert_eq!(fall, 68);
-    // sort_books 10 shelved finds the next book on the pile
+    // sort_books 10 shelved finds the next book on the pile: nine is not enough
+    for _ in 0..9 {
+        let Activity::Sorting { book, .. } = p.activity.clone() else {
+            panic!("still sorting")
+        };
+        p.act(&c, "sort.shelf", &book.to_string()).unwrap();
+    }
+    assert!(
+        matches!(p.activity, Activity::Sorting { shelved: 9, .. }),
+        "nine shelved, still sorting"
+    );
     sort(&mut p, &c);
     assert!(!p.busy());
     assert_eq!(

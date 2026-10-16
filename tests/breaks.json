@@ -91,13 +91,6 @@
     "test": "a_glyph_stroke_the_game_cannot_draw_is_refused"
   },
   {
-    "name": "glyph score ignores coverage",
-    "file": "crates/core/src/glyph.rs",
-    "find": "    (precision * coverage / 100) as i32",
-    "replace": "    precision as i32 + 0 * coverage as i32",
-    "test": "a_drawing_on_the_guide_scores_100_and_a_dot_scores_0"
-  },
-  {
     "name": "glyph score ignores precision",
     "file": "crates/core/src/glyph.rs",
     "find": "    let precision = inside * 100 / d.len() as i64;",
@@ -123,13 +116,6 @@
     "file": "crates/core/src/spell.rs",
     "find": "            } => form = *copies as i64 * *share_pct as i64,",
     "replace": "            } => form = 100 + 0 * (*copies as i64 * *share_pct as i64),",
-    "test": "acid_halo_costs_what_entry_one_worked_out"
-  },
-  {
-    "name": "after a trigger counts at full weight",
-    "file": "crates/core/src/spell.rs",
-    "find": "            PieceKind::Trigger { .. } => weight = weight * b.trigger_weight_pct as i64 / 100,",
-    "replace": "            PieceKind::Trigger { .. } => {}",
     "test": "acid_halo_costs_what_entry_one_worked_out"
   },
   {
@@ -217,13 +203,6 @@
     "test": "an_invasion_arrives_at_the_entry_for_its_target"
   },
   {
-    "name": "every student gets a seat",
-    "file": "crates/core/src/battle.rs",
-    "find": "            let (pos, range_pct) = if i < seats {",
-    "replace": "            let (pos, range_pct) = if i < seats + 100 {",
-    "test": "students_beyond_the_seats_stand_on_the_ground_with_less_range"
-  },
-  {
     "name": "a sub-tower adds no seat",
     "file": "crates/core/src/battle.rs",
     "find": "            if f.seats > 0 && b.standing.iter().any(|s| s.id == k as u16) {",
@@ -264,20 +243,6 @@
     "find": "        if self.station() == Some(s) {",
     "replace": "        if self.station() == Some(s) || s == s {",
     "test": "an_action_away_from_its_station_is_refused"
-  },
-  {
-    "name": "reading is instant",
-    "file": "crates/core/src/prep.rs",
-    "find": "                    left: content::ticks(b.read_ms),",
-    "replace": "                    left: 1,",
-    "test": "reading_takes_its_time_then_teaches_a_new_piece"
-  },
-  {
-    "name": "the lab skips the chain rules",
-    "file": "crates/core/src/prep.rs",
-    "find": "                spell::check(c, &self.draft).map_err(|e| e.key())?;",
-    "replace": "                let _ = spell::check(c, &self.draft);",
-    "test": "the_lab_saves_a_spell_only_from_known_pieces_and_by_the_rules"
   },
   {
     "name": "quality ignores the interview",
@@ -385,13 +350,6 @@
     "test": "medals_follow_each_trials_ladder"
   },
   {
-    "name": "the crash course ignores the average",
-    "file": "crates/core/src/game.rs",
-    "find": "                sum / n >= 80",
-    "replace": "                sum / n >= 800",
-    "test": "the_crash_course_ends_when_the_class_averages_eighty"
-  },
-  {
     "name": "another build is welcomed",
     "file": "crates/core/src/online.rs",
     "find": "                if protocol != PROTOCOL || build != self.build {",
@@ -490,13 +448,6 @@
     "test": "the_lobby_shows_every_seat_and_starts_only_when_everyone_is_ready"
   },
   {
-    "name": "a wall rises at once",
-    "file": "crates/core/src/prep.rs",
-    "find": "                let total = content::ticks(f.raise_s.max(0) * 1000).max(1);",
-    "replace": "                let total = content::ticks(0 * 1000).max(1);",
-    "test": "a_wall_placed_with_mana_rises_after_its_delay_and_not_before"
-  },
-  {
     "name": "a rising wall does not hold its cells",
     "file": "crates/core/src/prep.rs",
     "find": "                .chain(self.rising())",
@@ -515,13 +466,6 @@
     "file": "crates/core/src/session.rs",
     "find": "        if self.layout.open && (bits & prep::BACK != 0 || !at_map) {",
     "replace": "        if self.layout.open && (false || !at_map) {",
-    "test": "e_opens_the_map_at_the_map_table_and_esc_closes_it"
-  },
-  {
-    "name": "the map's panel is a side panel",
-    "file": "crates/core/src/session.rs",
-    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved\": rising, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
-    "replace": "        json!({\"id\": \"layout\", \"kind\": \"side\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved\": rising, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
     "test": "e_opens_the_map_at_the_map_table_and_esc_closes_it"
   },
   {
@@ -595,13 +539,6 @@
     "test": "every_chain_of_one_and_two_pieces_keeps_every_rule"
   },
   {
-    "name": "a spell costs no mana",
-    "file": "crates/core/src/spell.rs",
-    "find": "    let mana = (num + den - 1) / den.max(1);",
-    "replace": "    let mana = (num + den - 1) / den.max(1) * 0;",
-    "test": "every_chain_of_one_and_two_pieces_keeps_every_rule"
-  },
-  {
     "name": "a summon reads past the enemy list",
     "file": "crates/core/src/battle.rs",
     "find": "                let kind = c.enemy(enemy).unwrap_or(0) as u16;",
@@ -621,13 +558,6 @@
     "find": "            PieceKind::Invade if i > 0 => return Err(ChainError::InvadeNotFirst),",
     "replace": "            PieceKind::Invade if i > 99 => return Err(ChainError::InvadeNotFirst),",
     "test": "an_invasion_summons_before_any_trigger"
-  },
-  {
-    "name": "the map panel ticks",
-    "file": "crates/core/src/session.rs",
-    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
-    "replace": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"tick\": self.tick, \"saved_actions\": placed, \"actions\": [act_json(\"layout.turn\", \"\", s.t(\"map.turn\"), true), act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
-    "test": "the_map_panel_does_not_change_while_something_rises"
   },
   {
     "name": "a card stays twice as long",
@@ -691,5 +621,215 @@
     "find": "            actions.push(act_json(\"page.copy_link\", &o.room, s.t(\"online.copy_link\"), true));",
     "replace": "            actions.push(act_json(\"page.copy_nothing\", &o.room, s.t(\"online.copy_link\"), true));",
     "test": "the_host_s_lobby_offers_the_room_code_and_a_link_to_copy"
+  },
+  {
+    "name": "a held key counts every tick",
+    "file": "crates/core/src/prep.rs",
+    "find": "        let down = bits & !self.held;",
+    "replace": "        let down = bits;",
+    "test": "an_interview_played_with_held_keys_hires_the_applicant"
+  },
+  {
+    "name": "effectiveness is the score",
+    "file": "crates/core/src/glyph.rs",
+    "find": "    (min as i64 + (max - min) as i64 * s * s * s * s / 100_000_000) as i32",
+    "replace": "    (min as i64 + (max - min) as i64 * s / 100) as i32",
+    "test": "effectiveness_climbs_steeply_and_only_a_flawless_drawing_reaches_the_top"
+  },
+  {
+    "name": "nearness does not count",
+    "file": "crates/core/src/glyph.rs",
+    "find": "    let near = 100 - off * NEAR_WEIGHT / band;",
+    "replace": "    let near = 100;",
+    "test": "a_drawing_off_by_more_than_the_band_scores_0"
+  },
+  {
+    "name": "a student's summons have no limit",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    n = n.min(bal.summons_per_student - alive).max(0);",
+    "replace": "                    n = n.max(0);",
+    "test": "a_student_keeps_at_most_four_summons_alive_and_each_lasts_twelve_seconds"
+  },
+  {
+    "name": "a summon lasts for ever",
+    "file": "crates/core/src/battle.rs",
+    "find": "                        u.life = life;",
+    "replace": "                        u.life = 0;",
+    "test": "a_student_keeps_at_most_four_summons_alive_and_each_lasts_twelve_seconds"
+  },
+  {
+    "name": "an invasion keeps its numbers at every rival",
+    "file": "crates/core/src/game.rs",
+    "find": "        inv.count_pct = (inv.count_pct * c.balance().invasion_spread_pct / 100).max(1);",
+    "replace": "        inv.count_pct = (inv.count_pct * 100 / 100).max(1);",
+    "test": "an_archmage_s_invasion_reaches_every_rival"
+  },
+  {
+    "name": "an invasion reaches its sender",
+    "file": "crates/core/src/game.rs",
+    "find": "            if t != inv.from {",
+    "replace": "            if true {",
+    "test": "an_archmage_s_invasion_reaches_every_rival"
+  },
+  {
+    "name": "difficulty changes nothing",
+    "file": "crates/core/src/game.rs",
+    "find": "        let ramp = (100 + 35 * self.day) * c.balance().wild_pct / 100 * d.count_pct / 100;",
+    "replace": "        let ramp = (100 + 35 * self.day) * c.balance().wild_pct / 100 ;",
+    "test": "a_harder_difficulty_brings_more_and_tougher_wild_enemies"
+  },
+  {
+    "name": "every difficulty shares one best",
+    "file": "crates/core/src/session.rs",
+    "find": "            format!(\"{id}@{}\", self.c.difficulty(difficulty).id)",
+    "replace": "            id.clone()",
+    "test": "each_trial_has_its_own_difficulty_and_keeps_a_best_at_each"
+  },
+  {
+    "name": "office hours' tower seat is ignored",
+    "file": "crates/core/src/battle.rs",
+    "find": "            if (0..seats as i32).contains(&t) && !tower_taken[t as usize] {",
+    "replace": "            if false && !tower_taken[t as usize] {",
+    "test": "office_hours_seats_students_where_they_were_put_and_others_fill_in"
+  },
+  {
+    "name": "a rotation casts whatever is ready",
+    "file": "crates/core/src/battle.rs",
+    "find": "                if wanted.map(|w| w != si).unwrap_or(false) {",
+    "replace": "                if false {",
+    "test": "a_rotation_casts_its_spells_in_order"
+  },
+  {
+    "name": "a branch's second row never starts",
+    "file": "crates/core/src/battle.rs",
+    "find": "                                Some(i) => (tail[..i].to_vec(), tail[i + 1..].to_vec()),",
+    "replace": "                                Some(i) => (tail[..i].to_vec(), Vec::new()),",
+    "test": "a_branch_starts_both_rows_when_its_trigger_fires"
+  },
+  {
+    "name": "a spell may hold two branches",
+    "file": "crates/core/src/spell.rs",
+    "find": "    if branches.len() > 1 {",
+    "replace": "    if branches.len() > 2 {",
+    "test": "a_branch_comes_once_after_a_trigger_and_each_row_must_be_a_spell"
+  },
+  {
+    "name": "a ring locks off the mark",
+    "file": "crates/core/src/prep.rs",
+    "find": "                        if *r == 0 {",
+    "replace": "                        if true {",
+    "test": "a_seal_takes_longer_when_locked_off_the_mark_and_never_changes_the_spell"
+  },
+  {
+    "name": "any shelf takes any book",
+    "file": "crates/core/src/prep.rs",
+    "find": "                if shelf == *book {",
+    "replace": "                if true {",
+    "test": "a_book_is_found_by_shelving_ten_and_a_miss_makes_the_next_fall_faster"
+  },
+  {
+    "name": "the golem stops after one book",
+    "file": "crates/core/src/prep.rs",
+    "find": "                        self.jobs.push(Job { left: total, ..j });",
+    "replace": "                        let _ = (total, j);",
+    "test": "the_librarian_golem_finds_a_new_book_every_45_seconds"
+  },
+  {
+    "name": "a spell on yourself does not quicken mana",
+    "file": "crates/core/src/prep.rs",
+    "find": "        let regen = b.archmage_regen * 100 * (100 + regen_pct) / 100 / TPS;",
+    "replace": "        let regen = b.archmage_regen * 100 * 100 / 100 / TPS;",
+    "test": "spells_on_yourself_speed_mana_hold_more_and_cost_less"
+  },
+  {
+    "name": "nothing costs less",
+    "file": "crates/core/src/prep.rs",
+    "find": "        let cost = mana * 100 * (100 - self.discount) / 100;",
+    "replace": "        let cost = mana * 100 * 100 / 100;",
+    "test": "spells_on_yourself_speed_mana_hold_more_and_cost_less"
+  },
+  {
+    "name": "a rubbed-out cell keeps its mana",
+    "file": "crates/core/src/prep.rs",
+    "find": "        self.mana = (self.mana + refund * 100).min(cap);",
+    "replace": "        self.mana = (self.mana).min(cap);",
+    "test": "a_cell_rubbed_out_or_undone_gives_its_mana_back"
+  },
+  {
+    "name": "a placement takes two cells",
+    "file": "crates/core/src/prep.rs",
+    "find": "            cells: vec![(x, z)],",
+    "replace": "            cells: vec![(x, z), (x + 1, z)],",
+    "test": "a_wall_needs_its_spell_and_mana_and_may_not_close_the_route"
+  },
+  {
+    "name": "glyph score ignores coverage",
+    "file": "crates/core/src/glyph.rs",
+    "find": "    (precision * coverage * near / 10_000) as i32",
+    "replace": "    (precision * 100 * near / 10_000) as i32",
+    "test": "a_drawing_on_the_guide_scores_100_and_a_dot_scores_0"
+  },
+  {
+    "name": "after a trigger counts at full weight",
+    "file": "crates/core/src/spell.rs",
+    "find": "                weight = weight * b.trigger_weight_pct as i64 / 100;",
+    "replace": "                weight = weight;",
+    "test": "acid_halo_costs_what_entry_one_worked_out"
+  },
+  {
+    "name": "every student gets a seat",
+    "file": "crates/core/src/battle.rs",
+    "find": "            *slot = Some(if let Some(k) = tower_taken.iter().position(|t| !t) {",
+    "replace": "            *slot = Some(if let Some(k) = Some(0) {",
+    "test": "students_beyond_the_seats_stand_on_the_ground_with_less_range"
+  },
+  {
+    "name": "one shelved book finds a book",
+    "file": "crates/core/src/prep.rs",
+    "find": "                if *shelved >= b.sort_books {",
+    "replace": "                if *shelved >= 1 {",
+    "test": "a_book_is_found_by_shelving_ten_and_a_miss_makes_the_next_fall_faster"
+  },
+  {
+    "name": "the lab skips the chain rules",
+    "file": "crates/core/src/prep.rs",
+    "find": "        spell::check(c, &self.draft).map_err(|e| e.key())?;",
+    "replace": "        let _ = spell::check(c, &self.draft);",
+    "test": "the_lab_saves_a_spell_only_from_known_pieces_and_by_the_rules"
+  },
+  {
+    "name": "the crash course ignores the average",
+    "file": "crates/core/src/game.rs",
+    "find": "                sum / n >= c.file.trials[k as usize].target",
+    "replace": "                sum / n >= c.file.trials[k as usize].target * 10",
+    "test": "the_crash_course_ends_when_the_class_averages_eighty"
+  },
+  {
+    "name": "a wall rises at once",
+    "file": "crates/core/src/prep.rs",
+    "find": "                let total = content::ticks(f.raise_ms.max(0)).max(1);",
+    "replace": "                let total = content::ticks(0).max(1);",
+    "test": "a_wall_placed_with_mana_rises_after_its_delay_and_not_before"
+  },
+  {
+    "name": "the map's panel is a side panel",
+    "file": "crates/core/src/session.rs",
+    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "replace": "        json!({\"id\": \"layout\", \"kind\": \"side\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "test": "e_opens_the_map_at_the_map_table_and_esc_closes_it"
+  },
+  {
+    "name": "a spell costs no mana",
+    "file": "crates/core/src/spell.rs",
+    "find": "    let mut mana = (num + den - 1) / den.max(1);",
+    "replace": "    let mut mana = (num + den - 1) / den.max(1) * 0;",
+    "test": "every_chain_of_one_and_two_pieces_keeps_every_rule"
+  },
+  {
+    "name": "the map panel ticks",
+    "file": "crates/core/src/session.rs",
+    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "replace": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"tick\": self.tick, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "test": "the_map_panel_does_not_change_while_something_rises"
   }
 ]

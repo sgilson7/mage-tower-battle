@@ -22,6 +22,10 @@ One of the books the last archmage pulled off the library shelves. Reading it te
 
 Not: tome, scroll
 
+### Branch
+
+A piece that starts a spell's second row. When the trigger before it fires, the sets after the branch start too, beside the first row's.
+
 ### Builder golem
 
 A stone helper that builds a sub-tower or a wall for you without a spell. It is slow, and costs no mana.
@@ -43,6 +47,10 @@ Not: recharge, delay
 One preparation followed by one battle. A match has {match.days} days.
 
 Not: round
+
+### Difficulty
+
+How strong the day's wild enemies are, chosen in setup for a match and on each trial's card: Easy, Normal, Hard or Brutal. A harder difficulty sends more enemies with more health.
 
 ### Effectiveness
 
@@ -66,6 +74,10 @@ Not: raid
 
 The book on its lectern that lists what the next battle will bring to your tower.
 
+### Librarian golem
+
+A stone helper woken at the library for mana. It searches the pile on its own and brings you an unread book every so often, slower than sorting it yourself.
+
 ### Library
 
 The corner of the tower where the books lie scattered on the floor.
@@ -79,6 +91,10 @@ Not: energy
 ### Modifier
 
 A spell piece that changes the next piece in the spell, such as turning one shot into a ring of them.
+
+### Office hours
+
+The desk in the tower room where you see each student's numbers and choose where they stand in the battle and what they cast.
 
 ### Payload
 
@@ -108,6 +124,10 @@ Another archmage in the match, played by a person online or by the computer.
 
 Not: opponent
 
+### Rotation
+
+A list of spells a student casts in order, starting again at the end. Each step waits for that spell's cooldown and mana.
+
 ### School
 
 One of the {schools.count} kinds of magic every spell piece belongs to. A student may be better or worse at a school.
@@ -119,6 +139,10 @@ Not: element
 Your standing in the match. It starts at {score.start} and falls by every point of damage your tower takes; nothing raises it. The highest score after the last day wins.
 
 Not: health, points, lives
+
+### Seal
+
+The short puzzle that keeps a spell at the laboratory: one ring for each piece, turned until its glyph sits under the star. It changes how long saving takes, never the spell.
 
 ### Spell
 

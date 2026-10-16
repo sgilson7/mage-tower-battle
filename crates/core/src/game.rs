@@ -298,14 +298,17 @@ impl Match {
                             count_pct: c.balance().archmage_count_pct,
                         },
                         at,
+                        c,
                     );
                 }
             }
         }
     }
 
-    /// An invasion from `inv.from` to every other active seat (T29).
-    fn deliver_all(&mut self, inv: Incoming, visible_at: i32) {
+    /// An invasion from `inv.from` to every other active seat (T29). Sent
+    /// at every rival, each gets `invasion_spread_pct` of its numbers.
+    fn deliver_all(&mut self, mut inv: Incoming, visible_at: i32, c: &Content) {
+        inv.count_pct = (inv.count_pct * c.balance().invasion_spread_pct / 100).max(1);
         for t in 0..self.seats.len() as u8 {
             if t != inv.from {
                 self.deliver(t, inv.clone(), visible_at);
@@ -367,6 +370,7 @@ impl Match {
                     count_pct: c.balance().archmage_count_pct,
                 },
                 now,
+                c,
             );
             out.push((t, chain));
         }
@@ -469,7 +473,7 @@ impl Match {
                     strength: sum / n,
                     count_pct,
                 };
-                self.deliver_all(inv, at);
+                self.deliver_all(inv, at, c);
             }
         }
         let ticks = self.settings.battle_s * TPS;
@@ -606,6 +610,7 @@ impl Match {
                 count_pct: c.balance().archmage_count_pct,
             },
             at,
+            c,
         );
     }
 

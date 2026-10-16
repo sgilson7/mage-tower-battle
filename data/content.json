@@ -1243,28 +1243,29 @@
   "leak_mult": 3,
   "invasion_leak_mult": 1,
   "invasion_mana_pct": 150,
+  "invasion_spread_pct": 35,
   "archmage_count_pct": 150,
   "wild_pct": 60,
   "difficulties": [
    {
     "id": "easy",
-    "count_pct": 85,
+    "count_pct": 80,
     "health_pct": 85
    },
    {
     "id": "normal",
-    "count_pct": 125,
-    "health_pct": 110
+    "count_pct": 110,
+    "health_pct": 105
    },
    {
     "id": "hard",
-    "count_pct": 160,
-    "health_pct": 130
+    "count_pct": 140,
+    "health_pct": 125
    },
    {
     "id": "brutal",
-    "count_pct": 200,
-    "health_pct": 160
+    "count_pct": 180,
+    "health_pct": 150
    }
   ],
   "default_difficulty": 1

@@ -211,8 +211,10 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
             break;
         }
         let audience = p.students.len() as i32;
-        // a bigger class means a narrower band: skill falls a little with size
-        let score = (roll(rng) - audience / 3).clamp(5, 100);
+        // a bigger class means a narrower band: skill falls a little with size.
+        // Skill reads as a careful player's drawing: skill 65 draws about 84,
+        // since effectiveness now climbs steeply near the top (T26)
+        let score = (55 + roll(rng) * 45 / 100 - audience / 3).clamp(5, 99);
         p.bot_teach(c, i as u16, score);
     }
     // invasions last, so the time left can wait for mana to come back:

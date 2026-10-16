@@ -64,6 +64,21 @@ Machine: Apple silicon Mac (aarch64-apple-darwin), the person's laptop.
 - First run: no spell of up to four pieces broke a rule. 473 were noted: 471 invasions whose summon sits behind a trigger and never came, and 2 (`heavy fire_bolt ring glass_wall`, `heavy fire_bolt ring ivory_wall`) whose bolt dealt no damage in the scene. The most units on the field at once was 36.
 - After R4.21 (Invade goes first, and summons before any trigger), re-run on the same day: 589,309 spells in 97 s, 6,897 rows behaved differently from the first run, none broke a rule, and only the 2 wall-formation notes remain.
 
+## Round 5 (TRIAGE T15–T31), 2026-10-16
+
+Balance probe, `MATCHES=40 cargo test --release -p tool_core --test balance_probe -- --ignored --nocapture`, default settings (4 days, 150 s preparation, 90 s battles, Normal):
+
+| Plan | Wins of 40 | Mean damage taken | Of it from invasions |
+| --- | --- | --- | --- |
+| Spellcrafter | 2 | 4,095 | 2,859 |
+| Mass Teacher | 4 | 3,932 | 2,817 |
+| Attack Mage | 2 | 3,748 | 1,314 |
+| Balanced | 32 | 1,788 | 1,213 |
+
+Worst damage taken in one match: 7,602 of 10,000. The first run with round 5's rules gave means of 5,206 to 9,299 and a worst of 14,928; R5.7 says what changed between.
+
+Spell space, lengths 1–4 (34 pieces may go in a spell, Branch among them): 1,376,830 rows, 631,930 spells, played in 106 s; none broke a rule; 2 notes (the two wall formations that deal no damage). The most units on the field at once in the everyday test fell from 36 to 16 with the per-student summon limit.
+
 ## Not measured
 
 Devices, browsers and conditions no measurement here covers.

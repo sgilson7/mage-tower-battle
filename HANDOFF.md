@@ -58,6 +58,7 @@ Publishing: a push to `main` on GitHub runs `.github/workflows/deploy.yml` (chec
 - An online change must keep the browsers equal: anything a battle reads must come from the seed, the plans or the start message, never from the local seat.
 - R3.28: the bots' win shares miss the plan's one-in-ten target for the spellcrafter and attack mage; judge the plans by playing. Bots now also know Glass Wall from the start (T1), so the old balance numbers are stale.
 - A change to `content.json` or the rule code makes the spell log stale; re-run the logbook and commit `tests/spell-log/`.
+- Round 5 answered TRIAGE T15–T31 (rows R5.1–R5.13). Reading is a sorting game and saving a seal, so tests use the `sort` and `seal` helpers in `prep/tests.rs` and `session/tests.rs`; computer rivals use `read_now` and `save_now`.
 - Round 4 answered TRIAGE T1–T13 (rows R4.1–R4.18 and R4.20–R4.22). The game's version is the first entry of `data/news.json`: add an entry there with every update.
 
 ## Mistakes so far
@@ -79,21 +80,20 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R3.10: every name in `data/content.json` (pieces, enemies, features, helpers) and the type chart.
 - R3.28: the bots' win shares; decide whether to tune the attack mage and spellcrafter.
 - R3.40: try a room code with a friend on another network; the machine checks cover pasted codes on one machine only.
-- R5.3: what the wireframe's far-left red box and its two rows mean (PLAN.md round 5, question 1).
-- R5.4: round 5's names and numbers (PLAN.md round 5, questions 2–8). Round 5 waits for the person to read its plan before any code.
+- R5.10: round 5's names and numbers, all in `data/content.json`: the self spells, the librarian golem, the sorting game, the seal, per-cell prices, the difficulty levels, the invasion spread, the Crash Course target.
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
 
-16 October 2026, round 4 (TRIAGE T1–T13), on the commit that last changed this section:
+16 October 2026, round 5 (TRIAGE T15–T31), on the commit that last changed this section:
 
 - `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`.
-- `./scripts/count-tests.sh`: `192 passed, 0 failed, 3 ignored`.
-- `python3 scripts/break_tests.py`: every row added this round caught when run alone (T9–T13: 9 of 9); the last full run was 89 of 89 before them.
-- `tests/browser/contrast.py`: `CONTRAST CHECK PASSED in chromium, firefox, webkit`.
-- `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium`.
-- The spell-space logbook, lengths 1–4: 589,309 spells, none broke a rule, 2 notes.
+- `./scripts/count-tests.sh`: `210 passed, 0 failed, 3 ignored`.
+- `python3 scripts/break_tests.py`: every row caught (the full run before the last ten were re-targeted was 109 of 119 with 10 rotted, none missed; the ten re-targeted rows then 11 of 11).
+- `tests/browser/contrast.py` and `tests/browser/online.py`: passed in chromium, firefox and webkit.
+- Spell space, lengths 1–4: 631,930 spells, none broke a rule, 2 notes.
+- Balance probe, 40 matches: mean damage a match 1,788 to 4,095, worst 7,602 (MEASUREMENTS.md, round 5).
 
 ## The next action
 

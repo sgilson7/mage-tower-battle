@@ -28,6 +28,7 @@ impl Game {
         models: &str,
         sounds: &str,
         glossary: &str,
+        news: &str,
         save: &str,
         seed: u32,
     ) -> Result<Game, JsError> {
@@ -38,6 +39,7 @@ impl Game {
             models,
             sounds,
             glossary,
+            news,
             save,
             seed as u64,
         )

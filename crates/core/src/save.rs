@@ -18,6 +18,9 @@ pub struct Save {
     pub achievements: Vec<String>,
     pub settings: Option<Settings>,
     pub muted: bool,
+    /// The newest version whose notes this player has opened (T12).
+    #[serde(default)]
+    pub news_seen: String,
 }
 
 impl Save {

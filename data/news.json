@@ -1,0 +1,29 @@
+{
+ "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
+ "entries": [
+  {"version": "1.3.0", "date": "2026-10-16", "minor": false, "items": [
+   "A new title screen: a battle plays behind the menu while the camera circles it.",
+   "What's new: these notes, on the title screen. A New marker shows after an update.",
+   "Reading a book shows a large card for the piece it taught, with its glyph, what it does and its numbers, for three seconds or until the next book.",
+   "The glossary's spell pieces are the same cards.",
+   "Mana costs show with a mana symbol in the laboratory, on cards and in the glossary."
+  ]},
+  {"version": "1.2.1", "date": "2026-10-16", "minor": true, "items": [
+   "The map table's buttons answer every click while a wall rises."
+  ]},
+  {"version": "1.2.0", "date": "2026-10-16", "minor": false, "items": [
+   "Every archmage starts knowing Glass Wall and Raise Sub-tower. What you place costs its mana at once and rises a little later, while you do other things.",
+   "The map table: E opens the map, Esc closes it, and its panel sits beside the map.",
+   "The glossary: press G or the Glossary button at any time to read about every spell piece, your spells, every word and how to do each thing.",
+   "Each battle view has its own camera: drag to turn it, right-drag to move it, and turn the mouse wheel to zoom.",
+   "An invasion now starts with Invade and summons before any trigger, so every invasion you save sends something.",
+   "Buttons and chips are readable in a dark colour scheme."
+  ]},
+  {"version": "1.1.0", "date": "2026-10-16", "minor": false, "items": [
+   "Online play for up to four, by room code or by pasted codes, with computer rivals in the empty seats."
+  ]},
+  {"version": "1.0.0", "date": "2026-10-16", "minor": false, "items": [
+   "The first version: Versus against three computer rivals, a practice day, four trials with medals, and achievements."
+  ]}
+ ]
+}

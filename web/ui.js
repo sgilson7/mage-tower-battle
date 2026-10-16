@@ -25,6 +25,7 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
 
   function button(a) {
     const b = make("button", "act", a.label);
+    if (a.badge) b.append(make("span", "badge", a.badge));
     b.disabled = !a.enabled;
     b.dataset.action = a.name;
     b.dataset.value = a.value;
@@ -37,6 +38,14 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     return box;
   }
 
+  // a mana cost: the mana symbol and its number (T13)
+  function manaOf(m) {
+    const span = make("span", "mana", m.n);
+    span.title = m.label;
+    span.setAttribute("aria-label", m.label);
+    return span;
+  }
+
   function rowOf(r) {
     const li = make("li", r.school ? `row school-${r.school}` : "row");
     const text = make("div", "row-text");
@@ -44,6 +53,11 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     mark(label);
     text.append(label);
     if (r.detail) text.append(make("span", "row-detail", r.detail));
+    if (r.list) {
+      const ul = make("ul", "row-list");
+      for (const item of r.list) ul.append(make("li", "", item));
+      text.append(ul);
+    }
     li.append(text);
     if (r.bar) {
       const bar = make("span", "bar");
@@ -52,6 +66,7 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       bar.append(fill);
       li.append(bar);
     }
+    if (r.mana) li.append(manaOf(r.mana));
     if (r.chip) li.append(make("span", "chip", r.chip));
     if (r.actions) li.append(buttons(r.actions, "row-actions"));
     return li;
@@ -72,6 +87,7 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     const top = make("div", "card-top");
     top.append(make("span", "card-number", c.number), make("span", "card-kind", c.kind));
     if (c.chip) top.append(make("span", "chip", c.chip));
+    if (c.mana) top.append(manaOf(c.mana));
     body.append(top, make("h3", "card-name", c.name), make("p", "card-text", c.text), make("p", "card-facts", c.facts));
     box.append(svg, body);
     return box;
@@ -100,6 +116,11 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       box.append(h);
     }
     if (p.text) box.append(make("p", "", p.text));
+    if (p.mana) {
+      const cost = make("p", "panel-mana");
+      cost.append(manaOf(p.mana));
+      box.append(cost);
+    }
     for (const f of p.inputs || []) {
       const label = make("label", "field", f.label);
       const input = make("input");

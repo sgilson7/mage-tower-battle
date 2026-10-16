@@ -58,7 +58,7 @@ Publishing: a push to `main` on GitHub runs `.github/workflows/deploy.yml` (chec
 - An online change must keep the browsers equal: anything a battle reads must come from the seed, the plans or the start message, never from the local seat.
 - R3.28: the bots' win shares miss the plan's one-in-ten target for the spellcrafter and attack mage; judge the plans by playing. Bots now also know Glass Wall from the start (T1), so the old balance numbers are stale.
 - A change to `content.json` or the rule code makes the spell log stale; re-run the logbook and commit `tests/spell-log/`.
-- Round 4 answered TRIAGE T1–T8 (rows R4.1–R4.10 and R4.20–R4.22).
+- Round 4 answered TRIAGE T1–T13 (rows R4.1–R4.18 and R4.20–R4.22). The game's version is the first entry of `data/news.json`: add an entry there with every update.
 
 ## Mistakes so far
 
@@ -84,12 +84,12 @@ R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
 
-16 October 2026, round 4 (TRIAGE T1–T8), on the commit that last changed this section:
+16 October 2026, round 4 (TRIAGE T1–T13), on the commit that last changed this section:
 
 - `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`.
-- `./scripts/count-tests.sh`: `187 passed, 0 failed, 3 ignored`.
-- `python3 scripts/break_tests.py`: `89 of 89 breaks caught`.
-- `tests/browser/contrast.py`: `CONTRAST CHECK PASSED in chromium, firefox, webkit`; it fails at 1.1:1 with the old chip colour.
+- `./scripts/count-tests.sh`: `192 passed, 0 failed, 3 ignored`.
+- `python3 scripts/break_tests.py`: every row added this round caught when run alone (T9–T13: 9 of 9); the last full run was 89 of 89 before them.
+- `tests/browser/contrast.py`: `CONTRAST CHECK PASSED in chromium, firefox, webkit`.
 - `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium`.
 - The spell-space logbook, lengths 1–4: 589,309 spells, none broke a rule, 2 notes.
 

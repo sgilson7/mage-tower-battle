@@ -32,6 +32,7 @@ pub enum Screen {
     Achievements,
     Help,
     Online,
+    News,
     Play,
 }
 
@@ -90,6 +91,12 @@ pub struct Session {
     pasted: bool,
     /// The glossary's open tab, while it is open (T8).
     pub glossary: Option<String>,
+    /// The battle behind the menus (T11), and how many have been played.
+    demo: Option<Match>,
+    demos: u64,
+    /// What's new (T12): each update's notes, newest first.
+    news: News,
+    all_news: bool,
     /// The card for the book just read, and the ticks it stays (T10).
     pub card: Option<(Value, i32)>,
     /// Each battle view's own camera (T5), and the drag moving one.
@@ -100,6 +107,20 @@ pub struct Session {
     net_queue: Vec<Event>,
     sums: Vec<(i32, u8, u64)>,
     desync_told: bool,
+}
+
+/// What's new, as data/news.json holds it (T12).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct News {
+    pub entries: Vec<NewsEntry>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct NewsEntry {
+    pub version: String,
+    pub date: String,
+    pub minor: bool,
+    pub items: Vec<String>,
 }
 
 /// An SVG path and view box drawing glyphs side by side, in glyph units,
@@ -130,6 +151,11 @@ struct Drag {
     pan: bool,
 }
 
+/// A mana cost the page draws as a mana symbol with its number (T13).
+fn mana(s: &Strings, n: i32) -> Value {
+    json!({"n": n.to_string(), "label": s.f("lab.spell_mana", &[("mana", n.to_string())])})
+}
+
 fn act_json(name: &str, value: &str, label: String, enabled: bool) -> Value {
     json!({"name": name, "value": value, "label": label, "enabled": enabled})
 }
@@ -147,6 +173,7 @@ impl Session {
         models_json: &str,
         sounds_json: &str,
         glossary_md: &str,
+        news_json: &str,
         save_text: &str,
         seed: u64,
     ) -> Result<Session, String> {
@@ -155,6 +182,10 @@ impl Session {
         let c = Content::parse(content_json).map_err(|e| e.message())?;
         let look = Look::parse(palette_json, models_json)?;
         let recipes = sound::parse(sounds_json)?;
+        let news: News = serde_json::from_str(news_json).map_err(|e| format!("news.json: {e}"))?;
+        if news.entries.is_empty() {
+            return Err("news.json: no entries".into());
+        }
         let entries = glossary::parse(glossary_md).map_err(|e| e.message())?;
         let b = c.balance();
         let fill = [
@@ -217,6 +248,10 @@ impl Session {
             online_code: String::new(),
             pasted: false,
             glossary: None,
+            news,
+            all_news: false,
+            demo: None,
+            demos: 0,
             card: None,
             cams: [scene::Orbit::start(false); 4],
             drag: None,
@@ -288,6 +323,12 @@ impl Session {
                     "achievements" => Screen::Achievements,
                     "help" => Screen::Help,
                     "online" => Screen::Online,
+                    "news" => {
+                        // opening the notes marks this version as seen
+                        self.save.news_seen = self.news.entries[0].version.clone();
+                        self.save_dirty = true;
+                        Screen::News
+                    }
                     other => return Err(self.s.f("error.no_screen", &[("name", other.to_string())])),
                 };
                 if self.screen != Screen::Play {
@@ -343,6 +384,7 @@ impl Session {
                     .collect()
             }
             "online.pasted" => self.pasted = true,
+            "news.minor" => self.all_news = !self.all_news,
             "glossary.toggle" => {
                 self.glossary = match self.glossary {
                     Some(_) => None,
@@ -903,8 +945,51 @@ impl Session {
         }
     }
 
+    // ---- the title's battle (T11) ----
+
+    /// Behind every menu a computer archmage's tower holds against a day,
+    /// and the camera circles it; a new day starts when one ends.
+    fn step_demo(&mut self) {
+        let done = self
+            .demo
+            .as_ref()
+            .map(|m| m.phase != Phase::Battle)
+            .unwrap_or(true);
+        if done {
+            self.demos += 1;
+            let seed = self.seed ^ self.demos.wrapping_mul(0x2545_f491_4f6c_dd1d);
+            let mut st = Settings::from_content(&self.c);
+            st.battle_s = self.c.balance().battle_s;
+            let kinds = [
+                SeatKind::Bot(STYLES[(self.demos % 4) as usize]),
+                SeatKind::Empty,
+                SeatKind::Empty,
+                SeatKind::Empty,
+            ];
+            let mut m = Match::new(&self.c, seed, Mode::Versus, st, kinds, Default::default(), 0);
+            m.begin_battle(&self.c);
+            self.demo = Some(m);
+            self.static_key = (-1, -1, -1);
+        }
+        if let Some(m) = self.demo.as_mut() {
+            for b in m.battles.iter_mut().flatten() {
+                b.step(&self.c);
+            }
+            if m.battles.iter().flatten().all(|b| b.done()) {
+                m.phase = Phase::Summary;
+            }
+        }
+        // a slow circle: one turn in demo_turn_s seconds
+        let turn_ticks = (self.c.balance().demo_turn_s.max(1) * TPS) as i64;
+        let mut o = scene::Orbit::start(false);
+        o.yaw += ((self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks) as i32;
+        o.dist = o.dist * 3 / 4;
+        self.cams[0] = o;
+    }
+
     fn begin_play(&mut self) {
         self.screen = Screen::Play;
+        self.demo = None;
         self.cams = [scene::Orbit::start(self.close); 4];
         self.drag = None;
         self.view = View::All;
@@ -948,6 +1033,10 @@ impl Session {
         self.card = self.card.take().filter(|c| c.1 > 0);
         self.pump_online();
         if self.glossary_pauses() {
+            return;
+        }
+        if self.m.is_none() {
+            self.step_demo();
             return;
         }
         // the map table: E opens the map, Esc closes it (T3)
@@ -1270,7 +1359,8 @@ impl Session {
 
     fn build_frame(&mut self) {
         let mut f = FrameOut::default();
-        let Some(m) = self.m.as_ref() else {
+        // a match, or behind the menus the title's battle
+        let Some(m) = self.m.as_ref().or(self.demo.as_ref()) else {
             self.frame = f;
             return;
         };
@@ -1471,6 +1561,7 @@ impl Session {
             Screen::Achievements => self.ui_achievements(),
             Screen::Help => self.ui_help(),
             Screen::Online => self.ui_online(),
+            Screen::News => self.ui_news(),
             Screen::Play => self.ui_play(),
         };
         if let Some(tab) = &self.glossary {
@@ -1507,8 +1598,27 @@ impl Session {
             act_json("screen.show", "achievements", s.t("title.achievements"), true),
             act_json("screen.show", "help", s.t("title.help"), true),
         ];
-        let p = json!({"id": "title", "kind": "center", "heading": s.t("game.name"), "text": s.t("title.blurb"), "actions": actions});
-        self.base("title", s.t("game.name"), vec![p])
+        // after Ape Race's: the name over a live battle, the menu, the
+        // controls, and what is new (T11, T12)
+        let (version, unseen) = self.version();
+        let mut actions = actions;
+        let mut news = act_json("screen.show", "news", s.t("news.button"), true);
+        if unseen {
+            news["badge"] = json!(s.t("news.new"));
+        }
+        actions.push(news);
+        let controls: Vec<Value> = [
+            "walk", "use", "back", "notes", "glossary", "turn", "camera", "mute",
+        ]
+        .iter()
+        .map(|k| row(s.t(&format!("controls.{k}")), s.t(&format!("controls.{k}.keys"))))
+        .collect();
+        let logo =
+            json!({"id": "logo", "kind": "logo", "heading": s.t("game.name"), "text": s.t("title.tagline")});
+        let menu = json!({"id": "title", "kind": "menu", "actions": actions});
+        let keys = json!({"id": "controls", "kind": "controls", "heading": s.t("controls.heading"), "rows": controls});
+        let corner = json!({"id": "version", "kind": "version", "actions": [act_json("screen.show", "news", s.f("title.version", &[("version", version.to_string())]), true)]});
+        self.base("title", s.t("game.name"), vec![logo, menu, keys, corner])
     }
 
     fn ui_setup(&self) -> Value {
@@ -1615,6 +1725,30 @@ impl Session {
         v
     }
 
+    /// The latest version, and whether this player has not opened its notes.
+    pub fn version(&self) -> (&str, bool) {
+        let v = self.news.entries[0].version.as_str();
+        (v, self.save.news_seen != v)
+    }
+
+    fn ui_news(&self) -> Value {
+        let s = &self.s;
+        let rows: Vec<Value> = self
+            .news
+            .entries
+            .iter()
+            .filter(|e| self.all_news || !e.minor)
+            .map(|e| json!({"label": s.f("news.version", &[("version", e.version.clone()), ("date", e.date.clone())]), "list": e.items}))
+            .collect();
+        let toggle = s.t(if self.all_news {
+            "news.hide_minor"
+        } else {
+            "news.show_minor"
+        });
+        let p = json!({"id": "news", "kind": "center", "heading": s.t("news.heading"), "rows": rows, "actions": [act_json("news.minor", "", toggle, true), act_json("screen.show", "title", s.t("back"), true)]});
+        self.base("news", s.t("news.heading"), vec![p])
+    }
+
     fn ui_trials(&self) -> Value {
         let s = &self.s;
         let medals = ["medal.bronze", "medal.silver", "medal.gold", "medal.archmage"];
@@ -1719,7 +1853,7 @@ impl Session {
                                     .iter()
                                     .map(|&k| c.file.pieces[k as usize].name.clone())
                                     .collect();
-                                row(
+                                let mut r = row(
                                     spell::name(c, ch),
                                     s.f(
                                         "gloss.spell_detail",
@@ -1730,7 +1864,9 @@ impl Session {
                                             ("mana", st.mana.to_string()),
                                         ],
                                     ),
-                                )
+                                );
+                                r["mana"] = mana(s, st.mana);
+                                r
                             })
                             .collect()
                     })
@@ -1865,7 +2001,16 @@ impl Session {
             PieceKind::Invade | PieceKind::Trigger { .. } => {}
         }
         let (d, view) = icon(std::slice::from_ref(&piece.glyph));
-        json!({"number": s.f("gloss.number", &[("n", (i + 1).to_string())]), "name": piece.name, "kind": s.f("card.kind", &[("school", school.name.clone()), ("kind", s.t(kind))]), "school": school.id, "text": piece.text, "facts": lines.join(" "), "chip": chip, "icon": d, "view": view})
+        // what it costs: a payload's mana on its own, a placement's or a helper's
+        let cost = match &piece.kind {
+            PieceKind::Payload { .. } => Some(match spell::raises(c, i as u16) {
+                Some(f) => c.file.features[f].mana,
+                None => spell::stats(c, &[i as u16]).mana,
+            }),
+            PieceKind::Helper { helper } => c.helper(helper).map(|h| c.file.helpers[h].mana),
+            _ => None,
+        };
+        json!({"number": s.f("gloss.number", &[("n", (i + 1).to_string())]), "name": piece.name, "kind": s.f("card.kind", &[("school", school.name.clone()), ("kind", s.t(kind))]), "school": school.id, "text": piece.text, "facts": lines.join(" "), "chip": chip, "icon": d, "view": view, "mana": cost.map(|n| mana(s, n))})
     }
 
     /// A whole spell a tome taught, as a card.
@@ -1899,7 +2044,7 @@ impl Session {
                 ("mana", st.mana.to_string()),
             ],
         );
-        json!({"number": "", "name": c.file.tomes[t].name, "kind": s.t("gloss.tome_kind"), "school": school, "text": s.t("gloss.tome_text"), "facts": facts, "chip": "", "icon": d, "view": view})
+        json!({"number": "", "name": c.file.tomes[t].name, "kind": s.t("gloss.tome_kind"), "school": school, "text": s.t("gloss.tome_text"), "facts": facts, "chip": "", "icon": d, "view": view, "mana": mana(s, st.mana)})
     }
 
     fn ui_help(&self) -> Value {
@@ -2089,7 +2234,10 @@ impl Session {
                         PieceKind::Trigger { .. } => "kind.trigger",
                         PieceKind::Helper { .. } => "kind.helper",
                     };
-                    rows.push(json!({"label": piece.name, "detail": piece.text, "chip": s.t(kind), "school": c.file.schools[c.piece_school[i]].id, "actions": [act_json("lab.add", &piece.id, s.t("lab.add"), true)]}));
+                    // a payload's own mana; a modifier's depends on the spell it is in
+                    let cost = matches!(piece.kind, PieceKind::Payload { .. })
+                        .then(|| mana(s, spell::stats(c, &[i as u16]).mana));
+                    rows.push(json!({"label": piece.name, "detail": piece.text, "chip": s.t(kind), "mana": cost, "school": c.file.schools[c.piece_school[i]].id, "actions": [act_json("lab.add", &piece.id, s.t("lab.add"), true)]}));
                 }
                 let draft: Vec<Value> = p
                     .draft
@@ -2127,8 +2275,9 @@ impl Session {
                         )
                     )
                 };
-                let saved: Vec<Value> = p.spells.iter().enumerate().map(|(k, ch)| json!({"label": spell::name(c, ch), "detail": s.f("lab.spell_mana", &[("mana", spell::stats(c, ch).mana.to_string())]), "chip": if k as u16 == p.chosen { s.t("lab.chosen") } else { String::new() }, "actions": [act_json("spell.choose", &k.to_string(), s.t("lab.choose"), true)]})).collect();
-                json!({"id": "station", "kind": "side", "heading": s.t("station.lab"), "text": stats, "draft": draft, "rows": rows, "saved": saved, "actions": [act_json("lab.save", "", s.t("lab.save"), !p.draft.is_empty()), act_json("lab.clear", "", s.t("lab.clear"), !p.draft.is_empty())]})
+                let saved: Vec<Value> = p.spells.iter().enumerate().map(|(k, ch)| json!({"label": spell::name(c, ch), "mana": mana(s, spell::stats(c, ch).mana), "chip": if k as u16 == p.chosen { s.t("lab.chosen") } else { String::new() }, "actions": [act_json("spell.choose", &k.to_string(), s.t("lab.choose"), true)]})).collect();
+                let draft_mana = (!p.draft.is_empty()).then(|| mana(s, spell::stats(c, &p.draft).mana));
+                json!({"id": "station", "kind": "side", "heading": s.t("station.lab"), "text": stats, "mana": draft_mana, "draft": draft, "rows": rows, "saved": saved, "actions": [act_json("lab.save", "", s.t("lab.save"), !p.draft.is_empty()), act_json("lab.clear", "", s.t("lab.clear"), !p.draft.is_empty())]})
             }
             Station::Recruit => {
                 let rows: Vec<Value> = p
@@ -2265,7 +2414,8 @@ impl Session {
             .map(|f| {
                 let ft = &self.c.file.features[f];
                 let detail = if self.layout.golem { s.f("map.golem_cost", &[("s", ft.golem_s.to_string())]) } else { s.f("map.mana_cost", &[("mana", ft.mana.to_string()), ("s", ft.raise_s.to_string())]) };
-                json!({"label": ft.name, "detail": detail, "chip": if self.layout.feature == Some(f) { s.t("map.selected") } else { String::new() }, "actions": [act_json("layout.feature", &ft.id, s.t("map.pick"), true)]})
+                let cost = (!self.layout.golem).then(|| mana(s, ft.mana));
+                json!({"label": ft.name, "detail": detail, "mana": cost, "chip": if self.layout.feature == Some(f) { s.t("map.selected") } else { String::new() }, "actions": [act_json("layout.feature", &ft.id, s.t("map.pick"), true)]})
             })
             .collect();
         let text = if rows.is_empty() {

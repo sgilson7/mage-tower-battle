@@ -1111,6 +1111,7 @@
    "sub_tower"
   ],
   "card_s": 3,
+  "demo_turn_s": 90,
   "days": 4,
   "prep_s": 240,
   "battle_s": 90,

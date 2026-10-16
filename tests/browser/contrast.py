@@ -37,7 +37,7 @@ MEASURE = """() => {
     return [27, 22, 38];
   };
   const out = [];
-  for (const el of document.querySelectorAll("#panels button, #panels .chip, #panels .row-label, #panels .row-detail, #panels h2, #panels p")) {
+  for (const el of document.querySelectorAll("#panels button, #panels .chip, #panels .row-label, #panels .row-detail, #panels h2, #panels h3, #panels p, #panels .mana, #panels .card-kind, #panels .card-number")) {
     if (el.disabled || !el.offsetParent || !el.textContent.trim()) continue;
     const fg = lum(rgb(getComputedStyle(el).color).slice(0, 3));
     const bg = lum(back(el));
@@ -85,7 +85,7 @@ def run(p, engine, origin):
         print(f"\n[{engine}, {scheme}]")
         look(page, "title", scheme)
         page.click("#glossary-button")
-        page.wait_for_selector("#panels .panel-glossary .row", state="attached")
+        page.wait_for_selector("#panels .panel-glossary .card", state="attached")
         look(page, "glossary", scheme)
         page.click("button[data-action='glossary.close']")
         page.click("button[data-action='match.start'][data-value='practice']")

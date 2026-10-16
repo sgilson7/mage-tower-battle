@@ -15,11 +15,11 @@ const text = async (path) => (await fetch(path)).text();
 
 async function main() {
   await init();
-  const files = ["strings.json", "content.json", "palette.json", "models.json", "sounds.json", "glossary.md", "controls.json", "display.json", "shaders/scene.vert", "shaders/scene.frag"];
-  const [strings, content, palette, models, sounds, glossary, controls, display, vert, frag] = await Promise.all(files.map((f) => text(`data/${f}`)));
+  const files = ["strings.json", "content.json", "palette.json", "models.json", "sounds.json", "glossary.md", "news.json", "controls.json", "display.json", "shaders/scene.vert", "shaders/scene.frag"];
+  const [strings, content, palette, models, sounds, glossary, news, controls, display, vert, frag] = await Promise.all(files.map((f) => text(`data/${f}`)));
   const seed = new Uint32Array(1);
   crypto.getRandomValues(seed);
-  const game = new Game(strings, content, palette, models, sounds, glossary, readSave(), seed[0]);
+  const game = new Game(strings, content, palette, models, sounds, glossary, news, readSave(), seed[0]);
   const N = JSON.parse(numbers());
   const D = JSON.parse(display);
   const C = JSON.parse(controls);

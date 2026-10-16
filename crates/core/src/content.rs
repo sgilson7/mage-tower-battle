@@ -233,6 +233,8 @@ pub struct Balance {
     pub start_pieces: Vec<String>,
     /// Seconds a book's card stays on screen (T10).
     pub card_s: i32,
+    /// Seconds the title's camera takes to circle its battle once (T11).
+    pub demo_turn_s: i32,
     pub days: i32,
     pub prep_s: i32,
     pub battle_s: i32,

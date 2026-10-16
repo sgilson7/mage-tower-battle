@@ -11,6 +11,7 @@ fn session() -> Session {
         include_str!("../../../../data/models.json"),
         include_str!("../../../../data/sounds.json"),
         include_str!("../../../../GLOSSARY.md"),
+        include_str!("../../../../data/news.json"),
         "",
         42,
     )
@@ -622,4 +623,148 @@ fn a_book_read_shows_its_card_for_three_seconds_or_until_the_next_book() {
     let (b, left) = read(&mut s);
     assert_ne!(a["name"], b["name"], "the next book replaces the card");
     assert!(left > TPS * 3 - 5, "and starts its own three seconds");
+}
+
+#[test]
+fn a_battle_plays_behind_the_title_while_the_camera_circles_it() {
+    let mut s = session();
+    run(&mut s, 2);
+    let demo = s.demo.as_ref().expect("a battle behind the menu");
+    assert_eq!(demo.phase, Phase::Battle);
+    assert!(s.frame_out().commands.chunks(6).any(|c| c[0] == 0), "it is drawn");
+    let (yaw, tick) = (
+        s.cams[0].yaw,
+        s.demo.as_ref().unwrap().battles[0].as_ref().unwrap().tick,
+    );
+    run(&mut s, 60);
+    assert_ne!(s.cams[0].yaw, yaw, "the camera moves");
+    assert!(
+        s.demo.as_ref().unwrap().battles[0].as_ref().unwrap().tick > tick,
+        "the battle goes on"
+    );
+    assert!(s.sounds().is_empty(), "the title's battle makes no sound");
+    s.act("match.start", "practice").unwrap();
+    assert!(s.demo.is_none(), "a match replaces it");
+}
+
+#[test]
+fn whats_new_is_marked_new_until_its_notes_are_opened() {
+    let mut s = session();
+    let title = s.ui();
+    no_missing(&title);
+    let menu = title["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "title")
+        .cloned()
+        .unwrap();
+    let news = menu["actions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["value"] == "news")
+        .cloned()
+        .unwrap();
+    assert_eq!(news["badge"], "New", "a first visit has not seen the notes");
+    let latest = s.news.entries[0].version.clone();
+    assert!(
+        title.to_string().contains(&latest),
+        "the version shows on the title"
+    );
+    s.act("screen.show", "news").unwrap();
+    let ui = s.ui();
+    no_missing(&ui);
+    let shown = ui["panels"][0]["rows"].as_array().unwrap().len();
+    assert_eq!(
+        shown,
+        s.news.entries.iter().filter(|e| !e.minor).count(),
+        "minor patches are hidden"
+    );
+    s.act("news.minor", "").unwrap();
+    assert_eq!(
+        s.ui()["panels"][0]["rows"].as_array().unwrap().len(),
+        s.news.entries.len()
+    );
+    let saved = s.take_save();
+    assert!(saved.contains(&format!("\"news_seen\":\"{latest}\"")), "{saved}");
+    s.act("screen.show", "title").unwrap();
+    let menu = s.ui()["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "title")
+        .cloned()
+        .unwrap();
+    assert!(!menu.to_string().contains("\"badge\""), "seen, so no badge");
+    // a later visit with an older note seen shows the badge again
+    let mut s2 = Session::new(
+        include_str!("../../../../data/strings.json"),
+        include_str!("../../../../data/content.json"),
+        include_str!("../../../../data/palette.json"),
+        include_str!("../../../../data/models.json"),
+        include_str!("../../../../data/sounds.json"),
+        include_str!("../../../../GLOSSARY.md"),
+        include_str!("../../../../data/news.json"),
+        &saved.replace(&latest, "0.0.1"),
+        1,
+    )
+    .unwrap();
+    assert!(s2.ui().to_string().contains("\"badge\""));
+    let _ = s2.take_save();
+}
+
+#[test]
+fn mana_costs_are_sent_for_the_mana_symbol() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Lab);
+    run(&mut s, 1);
+    s.act("lab.add", "fire_bolt").unwrap();
+    let c = s.c.clone();
+    let bolt = spell::stats(&c, &[c.piece("fire_bolt").unwrap() as u16]).mana;
+    let ui = s.ui();
+    let lab = ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "station")
+        .cloned()
+        .unwrap();
+    assert_eq!(lab["mana"]["n"], bolt.to_string(), "the draft's cost");
+    assert_eq!(lab["mana"]["label"], format!("{bolt} mana"));
+    s.act("lab.add", "ice_shard").unwrap();
+    s.act("lab.save", "").unwrap();
+    let ui = s.ui();
+    let lab = ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "station")
+        .cloned()
+        .unwrap();
+    assert!(
+        lab["saved"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["mana"]["n"].is_string()),
+        "each saved spell's cost"
+    );
+    s.act("glossary.toggle", "").unwrap();
+    let g = s.ui()["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "glossary")
+        .cloned()
+        .unwrap();
+    let card = g["cards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "Fire Bolt")
+        .cloned()
+        .unwrap();
+    assert_eq!(card["mana"]["n"], bolt.to_string());
 }

@@ -649,5 +649,40 @@
     "find": "        json!({\"id\": \"glossary\", \"kind\": \"glossary\", \"heading\": s.t(\"gloss.heading\"), \"text\": text, \"saved_actions\": tabs, \"rows\": rows, \"cards\": cards, \"actions\": [act_json(\"glossary.close\", \"\", s.t(\"gloss.close\"), true)]})",
     "replace": "        json!({\"id\": \"glossary\", \"kind\": \"glossary\", \"heading\": s.t(\"gloss.heading\"), \"text\": text, \"saved_actions\": tabs, \"rows\": rows, \"cards\": [], \"actions\": [act_json(\"glossary.close\", \"\", s.t(\"gloss.close\"), true)]})",
     "test": "the_glossary_opens_over_any_screen_lists_every_piece_and_pauses_a_solo_day"
+  },
+  {
+    "name": "the title's battle never runs",
+    "file": "crates/core/src/session.rs",
+    "find": "        if self.m.is_none() {",
+    "replace": "        if false {",
+    "test": "a_battle_plays_behind_the_title_while_the_camera_circles_it"
+  },
+  {
+    "name": "the title's camera stands still",
+    "file": "crates/core/src/session.rs",
+    "find": "        o.yaw += ((self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks) as i32;",
+    "replace": "        o.yaw = o.yaw + 0 * ((self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks) as i32;",
+    "test": "a_battle_plays_behind_the_title_while_the_camera_circles_it"
+  },
+  {
+    "name": "the New marker always shows",
+    "file": "crates/core/src/session.rs",
+    "find": "                        self.save.news_seen = self.news.entries[0].version.clone();",
+    "replace": "                        self.save.news_seen = String::new();",
+    "test": "whats_new_is_marked_new_until_its_notes_are_opened"
+  },
+  {
+    "name": "minor patches always show",
+    "file": "crates/core/src/session.rs",
+    "find": "            .filter(|e| self.all_news || !e.minor)",
+    "replace": "            .filter(|e| true)",
+    "test": "whats_new_is_marked_new_until_its_notes_are_opened"
+  },
+  {
+    "name": "the draft has no mana symbol",
+    "file": "crates/core/src/session.rs",
+    "find": "                let draft_mana = (!p.draft.is_empty()).then(|| mana(s, spell::stats(c, &p.draft).mana));",
+    "replace": "                let draft_mana = false.then(|| mana(s, spell::stats(c, &p.draft).mana));",
+    "test": "mana_costs_are_sent_for_the_mana_symbol"
   }
 ]

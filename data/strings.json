@@ -404,5 +404,12 @@
  "library.golem_busy": "The librarian golem is already searching.",
  "library.dud": "{value} again: a book you already know. Sort again for a new one.",
  "sort.none": "There is no book falling.",
- "sort.bad": "That is not a shelf."
+ "sort.bad": "That is not a shelf.",
+ "lab.self_only": "A spell on yourself is cast with Q, not added to a spell.",
+ "self.unknown": "You know no spell to cast on yourself.",
+ "self.cast": "{value}: cast on yourself.",
+ "kind.self": "on yourself",
+ "gloss.self": "Cast on yourself from anywhere with Q or its icon by the HUD: {mana} mana, for {s}.",
+ "gloss.self_day": "the rest of the day",
+ "self.left": "{s} s"
 }

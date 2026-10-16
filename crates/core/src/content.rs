@@ -147,6 +147,19 @@ pub enum PieceKind {
     /// A trigger's second row (T17): the sets after it start when the same
     /// trigger fires, beside the first row's.
     Branch,
+    /// A spell the archmage casts on themself (T24): for `life_ms` (0 for
+    /// the rest of the day), mana returns `regen_pct` faster, holds
+    /// `max_pct` more, and costs `discount_pct` less.
+    SelfCast {
+        mana: i32,
+        #[serde(default)]
+        regen_pct: i32,
+        #[serde(default)]
+        max_pct: i32,
+        #[serde(default)]
+        discount_pct: i32,
+        life_ms: i32,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize)]

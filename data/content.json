@@ -845,6 +845,48 @@
     "vee"
    ],
    "kind": "branch"
+  },
+  {
+   "id": "rising_tide",
+   "name": "Rising Tide",
+   "school": "restoration",
+   "text": "Cast on yourself: your mana comes back twice as fast for a minute.",
+   "glyph": [
+    "arch",
+    "ripple"
+   ],
+   "kind": "self_cast",
+   "mana": 20,
+   "regen_pct": 100,
+   "life_ms": 60000
+  },
+  {
+   "id": "deep_well",
+   "name": "Deep Well",
+   "school": "restoration",
+   "text": "Cast on yourself: you hold half again as much mana for the rest of the day.",
+   "glyph": [
+    "loop",
+    "line"
+   ],
+   "kind": "self_cast",
+   "mana": 30,
+   "max_pct": 50,
+   "life_ms": 0
+  },
+  {
+   "id": "quiet_mind",
+   "name": "Quiet Mind",
+   "school": "restoration",
+   "text": "Cast on yourself: what you spend mana on costs less for half a minute.",
+   "glyph": [
+    "hook",
+    "arch"
+   ],
+   "kind": "self_cast",
+   "mana": 15,
+   "discount_pct": 30,
+   "life_ms": 30000
   }
  ],
  "enemies": [

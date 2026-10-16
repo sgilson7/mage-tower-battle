@@ -215,8 +215,12 @@ pub struct Note {
 pub struct Prep {
     /// The keys held last tick, to find the ones pressed this tick.
     pub held: u32,
+    /// Percent off what you spend, from a spell cast on yourself (T24).
+    pub discount: i32,
     /// Cells laid on the map today, in order, for undo (T23).
     pub laid: Vec<(i32, i32)>,
+    /// Spells cast on yourself and the ticks each has left (T24).
+    pub boons: Vec<(u16, i32)>,
     pub seat: u8,
     pub pos: V3,
     pub prev: V3,
@@ -301,7 +305,9 @@ impl Prep {
         }
         let mut p = Prep {
             held: 0,
+            discount: 0,
             laid: Vec::new(),
+            boons: Vec::new(),
             seat,
             pos: v3(0, 0, 3 * ONE),
             prev: v3(0, 0, 3 * ONE),
@@ -395,6 +401,8 @@ impl Prep {
         self.clock = prep_ticks;
         self.day_ticks = prep_ticks;
         self.mana = c.balance().archmage_mana * 100;
+        self.boons.clear();
+        self.laid.clear();
         self.applicants = (0..c.balance().applicants).map(|_| self.applicant(c)).collect();
         self.activity = Activity::Idle;
         self.sent.clear();
@@ -433,7 +441,15 @@ impl Prep {
             self.clock -= 1;
         }
         let b = c.balance();
-        self.mana = (self.mana + b.archmage_regen * 100 / TPS).min(b.archmage_mana * 100);
+        // what you cast on yourself (T24)
+        for bn in self.boons.iter_mut() {
+            bn.1 -= 1;
+        }
+        self.boons.retain(|bn| bn.1 > 0);
+        let (regen_pct, _, discount) = self.boon_pcts(c);
+        self.discount = discount.clamp(0, 90);
+        let regen = b.archmage_regen * 100 * (100 + regen_pct) / 100 / TPS;
+        self.mana = (self.mana + regen).min(self.mana_cap(c));
         self.work_jobs(c);
         self.prev = self.pos;
         let mut finished_reading = false;
@@ -868,11 +884,37 @@ impl Prep {
     }
 
     fn spend(&mut self, mana: i32) -> Result<(), &'static str> {
-        if self.mana < mana * 100 {
+        let cost = mana * 100 * (100 - self.discount) / 100;
+        if self.mana < cost {
             return Err("prep.no_mana");
         }
-        self.mana -= mana * 100;
+        self.mana -= cost;
         Ok(())
+    }
+
+    /// The regeneration, capacity and discount percents of what is cast on
+    /// yourself now.
+    pub fn boon_pcts(&self, c: &Content) -> (i32, i32, i32) {
+        let mut out = (0, 0, 0);
+        for &(k, _) in &self.boons {
+            if let PieceKind::SelfCast {
+                regen_pct,
+                max_pct,
+                discount_pct,
+                ..
+            } = c.file.pieces[k as usize].kind
+            {
+                out.0 += regen_pct;
+                out.1 += max_pct;
+                out.2 += discount_pct;
+            }
+        }
+        out
+    }
+
+    /// How much mana you can hold now.
+    pub fn mana_cap(&self, c: &Content) -> i32 {
+        c.balance().archmage_mana * 100 * (100 + self.boon_pcts(c).1) / 100
     }
 
     /// Starts drawing a spell's or a helper's glyphs at the podium.
@@ -947,6 +989,34 @@ impl Prep {
                     self.activity = Activity::Idle;
                     self.read_book(c, false);
                 }
+            }
+            "self.cast" => {
+                // value: the piece; empty (Q) casts the first known one not
+                // already working, else the first known (T24)
+                let mine: Vec<usize> = (0..c.file.pieces.len())
+                    .filter(|&i| self.known[i] && matches!(c.file.pieces[i].kind, PieceKind::SelfCast { .. }))
+                    .collect();
+                let k = if value.is_empty() {
+                    mine.iter()
+                        .copied()
+                        .find(|&i| !self.boons.iter().any(|bn| bn.0 as usize == i))
+                        .or(mine.first().copied())
+                } else {
+                    c.piece(value).filter(|i| mine.contains(i))
+                }
+                .ok_or("self.unknown")?;
+                let PieceKind::SelfCast { mana, life_ms, .. } = c.file.pieces[k].kind else {
+                    return Err("self.unknown");
+                };
+                self.spend(mana)?;
+                let left = if life_ms > 0 {
+                    content::ticks(life_ms)
+                } else {
+                    self.day_ticks.max(self.clock) + 1
+                };
+                self.boons.retain(|bn| bn.0 as usize != k);
+                self.boons.push((k as u16, left));
+                self.note("self.cast", c.file.pieces[k].name.clone());
             }
             "library.golem" => {
                 // a librarian golem finds unread books on its own (T21)

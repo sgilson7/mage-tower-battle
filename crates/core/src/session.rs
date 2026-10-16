@@ -2154,7 +2154,13 @@ impl Session {
             .iter()
             .map(|(kind, label)| {
                 let tiles: Vec<Value> = (0..c.file.pieces.len())
-                    .filter(|&i| p.known[i] && !matches!(c.file.pieces[i].kind, PieceKind::Helper { .. }))
+                    .filter(|&i| {
+                        p.known[i]
+                            && !matches!(
+                                c.file.pieces[i].kind,
+                                PieceKind::Helper { .. } | PieceKind::SelfCast { .. }
+                            )
+                    })
                     .map(|i| self.tile(i as u16))
                     .filter(|t| t["kind"] == *kind)
                     .map(|mut t| {
@@ -2188,6 +2194,7 @@ impl Session {
             PieceKind::Trigger { .. } => "kind.trigger",
             PieceKind::Helper { .. } => "kind.helper",
             PieceKind::Branch => "kind.branch",
+            PieceKind::SelfCast { .. } => "kind.self",
         };
         let school = &c.file.schools[c.piece_school[i]];
         let mut lines: Vec<String> = Vec::new();
@@ -2255,6 +2262,14 @@ impl Session {
                     ));
                 }
             }
+            PieceKind::SelfCast { mana: m, life_ms, .. } => {
+                let how_long = if *life_ms > 0 {
+                    s.f("self.left", &[("s", strings::seconds(*life_ms))])
+                } else {
+                    s.t("gloss.self_day")
+                };
+                lines.push(s.f("gloss.self", &[("mana", m.to_string()), ("s", how_long)]));
+            }
             PieceKind::Invade | PieceKind::Trigger { .. } | PieceKind::Branch => {}
         }
         let (d, view) = icon(std::slice::from_ref(&piece.glyph));
@@ -2265,6 +2280,7 @@ impl Session {
                 None => spell::stats(c, &[i as u16]).mana,
             }),
             PieceKind::Helper { helper } => c.helper(helper).map(|h| c.file.helpers[h].mana),
+            PieceKind::SelfCast { mana: m, .. } => Some(*m),
             _ => None,
         };
         json!({"number": s.f("gloss.number", &[("n", (i + 1).to_string())]), "name": piece.name, "kind": s.f("card.kind", &[("school", school.name.clone()), ("kind", s.t(kind))]), "school": school.id, "text": piece.text, "facts": lines.join(" "), "chip": chip, "icon": d, "view": view, "mana": cost.map(|n| mana(s, n))})
@@ -2429,6 +2445,31 @@ impl Session {
             // beside the station's panel, not on top of it
             panels.push(json!({"id": "jobs", "kind": "jobs", "heading": s.t("jobs.heading"), "rows": rows}));
         }
+        // spells you can cast on yourself: small icons, their text on hover (T24, T28)
+        let selves: Vec<Value> = (0..self.c.file.pieces.len())
+            .filter(|&i| p.known[i] && matches!(self.c.file.pieces[i].kind, PieceKind::SelfCast { .. }))
+            .map(|i| {
+                let piece = &self.c.file.pieces[i];
+                let left = p.boons.iter().find(|bn| bn.0 as usize == i).map(|bn| bn.1);
+                let label = left
+                    .map(|t| s.f("self.left", &[("s", ((t + TPS - 1) / TPS).to_string())]))
+                    .unwrap_or_default();
+                let card = self.piece_card(i, String::new());
+                let mut a = act_json("self.cast", &piece.id, label, true);
+                a["icon"] = card["icon"].clone();
+                a["view"] = card["view"].clone();
+                a["hint"] = json!(format!(
+                    "{}: {} {}",
+                    piece.name,
+                    piece.text,
+                    card["facts"].as_str().unwrap_or("")
+                ));
+                a
+            })
+            .collect();
+        if !selves.is_empty() {
+            panels.push(json!({"id": "self", "kind": "self", "actions": selves}));
+        }
         panels.push(json!({"id": "ready", "kind": "corner", "actions": [act_json("day.ready", "", s.t("prep.ready"), true), act_json("match.leave", "", s.t("leave"), true)]}));
         let labels: Vec<Value> = if busy.is_none() && !self.layout.open {
             self.station_labels(p)
@@ -2516,6 +2557,7 @@ impl Session {
                         PieceKind::Trigger { .. } => "kind.trigger",
                         PieceKind::Helper { .. } => "kind.helper",
                         PieceKind::Branch => "kind.branch",
+                        PieceKind::SelfCast { .. } => "kind.self",
                     };
                     // a payload's own mana; a modifier's depends on the spell it is in
                     let cost = matches!(piece.kind, PieceKind::Payload { .. })

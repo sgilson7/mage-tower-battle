@@ -31,7 +31,12 @@ use tool_core::spell;
 /// The pieces a chain may hold, as indices into the content's pieces.
 fn tokens(c: &Content) -> Vec<u16> {
     (0..c.file.pieces.len())
-        .filter(|&i| !matches!(c.file.pieces[i].kind, PieceKind::Helper { .. }))
+        .filter(|&i| {
+            !matches!(
+                c.file.pieces[i].kind,
+                PieceKind::Helper { .. } | PieceKind::SelfCast { .. }
+            )
+        })
         .map(|i| i as u16)
         .collect()
 }

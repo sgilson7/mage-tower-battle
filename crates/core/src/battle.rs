@@ -616,7 +616,7 @@ impl Battle {
                     copies,
                     share_pct,
                 } => form = Some((*arrange, *copies, *share_pct)),
-                PieceKind::Invade | PieceKind::Helper { .. } => {}
+                PieceKind::Invade | PieceKind::Helper { .. } | PieceKind::SelfCast { .. } => {}
                 // a branch row is started by its trigger, never read through
                 PieceKind::Trigger { .. } | PieceKind::Branch => return,
                 PieceKind::Payload { effect, .. } => {

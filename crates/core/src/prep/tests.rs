@@ -561,3 +561,58 @@ fn a_seal_takes_longer_when_locked_off_the_mark_and_never_changes_the_spell() {
     );
     assert!(matches!(p.activity, Activity::Idle));
 }
+
+#[test]
+fn spells_on_yourself_speed_mana_hold_more_and_cost_less() {
+    let c = shipped();
+    let mut p = prep(&c);
+    assert_eq!(p.act(&c, "self.cast", ""), Err("self.unknown"), "none known yet");
+    learn(&mut p, &c, &["rising_tide", "deep_well", "quiet_mind"]);
+    let b = c.balance();
+    // archmage_regen 2 a second: 200 hundredths a second, 3 a tick at 60 ticks
+    p.mana = 0;
+    p.step(&c, 0);
+    let plain = p.mana;
+    // Rising Tide (20 mana, regen +100% for 60 s) by Q: the first not working
+    p.mana = 10_000;
+    p.act(&c, "self.cast", "").unwrap();
+    assert_eq!(p.mana, 10_000 - 2000);
+    p.mana = 0;
+    p.step(&c, 0);
+    assert_eq!(p.mana, plain * 2, "twice as fast");
+    // Deep Well (30 mana, +50% held all day)
+    p.mana = 10_000;
+    p.act(&c, "self.cast", "").unwrap();
+    assert_eq!(p.mana_cap(&c), b.archmage_mana * 100 * 150 / 100);
+    // Quiet Mind (15 mana, 30% off for 30 s): a glass wall cell's 2 mana costs 1.4
+    p.mana = 10_000;
+    p.act(&c, "self.cast", "quiet_mind").unwrap();
+    p.step(&c, 0);
+    go(&mut p, Station::Map);
+    let before = p.mana;
+    p.act(&c, "layout.place", "glass_wall,3,3,0").unwrap();
+    assert_eq!(before - p.mana, 140);
+    // Rising Tide runs out after 60 s (3,600 ticks)
+    for _ in 0..3600 {
+        p.step(&c, 0);
+    }
+    assert!(!p
+        .boons
+        .iter()
+        .any(|bn| c.file.pieces[bn.0 as usize].id == "rising_tide"));
+    assert!(
+        p.boons
+            .iter()
+            .any(|bn| c.file.pieces[bn.0 as usize].id == "deep_well"),
+        "the well lasts the day"
+    );
+    let well = [
+        c.piece("deep_well").unwrap() as u16,
+        c.piece("fire_bolt").unwrap() as u16,
+    ];
+    assert_eq!(
+        spell::check(&c, &well),
+        Err(spell::ChainError::SelfOnly),
+        "not a piece of a spell"
+    );
+}

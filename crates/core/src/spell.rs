@@ -24,6 +24,7 @@ pub enum ChainError {
     InvadeWithoutSummon,
     InvadeNotFirst,
     BranchFirst,
+    SelfOnly,
     BranchTwice,
     TooDeep,
     Helper,
@@ -41,6 +42,7 @@ impl ChainError {
             ChainError::InvadeWithoutSummon => "lab.invade_without_summon",
             ChainError::InvadeNotFirst => "lab.invade_first",
             ChainError::BranchFirst => "lab.branch_first",
+            ChainError::SelfOnly => "lab.self_only",
             ChainError::BranchTwice => "lab.branch_twice",
             ChainError::TooDeep => "lab.too_deep",
             ChainError::Helper => "lab.helper",
@@ -91,6 +93,9 @@ pub fn check(c: &Content, pieces: &[u16]) -> Result<(), ChainError> {
         let row_b: Vec<u16> = pieces[..=t].iter().chain(&pieces[bi + 1..]).copied().collect();
         check(c, &row_a)?;
         return check(c, &row_b);
+    }
+    if kinds.iter().any(|k| matches!(k, PieceKind::SelfCast { .. })) {
+        return Err(ChainError::SelfOnly);
     }
     if kinds.iter().any(|k| matches!(k, PieceKind::Helper { .. })) {
         return Err(ChainError::Helper);
@@ -233,7 +238,7 @@ pub fn stats(c: &Content, pieces: &[u16]) -> Stats {
                 cd_pct = 0;
                 form = 100;
             }
-            PieceKind::Invade | PieceKind::Helper { .. } => {}
+            PieceKind::Invade | PieceKind::Helper { .. } | PieceKind::SelfCast { .. } => {}
         }
     }
     let cd = cooldown.unwrap_or(1000).max(300);

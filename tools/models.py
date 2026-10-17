@@ -1,6 +1,6 @@
-"""Writes data/models.json: every character as spheres and a few cones and
-cylinders, after the journal's mockups (entry 1, decision 37: sphere-built,
-like Chumbles, not cubes).
+"""Writes data/models.json. The mages are faceted parts with jointed arms
+after Ape Race's apes (T34); the enemies and helpers are still spheres and
+a few cones and cylinders (entry 1, decision 37), faceted by the mesh.
 
     python3 tools/models.py
 
@@ -35,29 +35,50 @@ def face(y, z, r, node="head"):
 
 
 def mage(arch=False, size=1.0):
-    r = 0.5
-    hy = r * 2.25
+    """A mage of faceted parts after Ape Race's apes (T34): a robe that
+    flares to the floor, a chest and belt, arms that turn at the shoulder
+    with the hand and cuff on the arm, feet that step, a faceted head with
+    eyes and a nose, and a hat with a bent tip. The archmage has a beard
+    and a staff whose stone glows; a student has hair and a scarf."""
     out = [
-        ball(r * 1.05, "robe", 0, r * 0.75, 0, 1, 0.8, 1, far=True),
-        ball(r * 0.82, "robe", 0, r * 1.35, 0),
-        ball(r * 0.86, "trim", 0, r * 0.16, 0, 1.08, 0.18, 1.08),
-        ball(r * 0.74, "skin", 0, hy, 0, node="head", far=True),
+        part("frustum", (0, 55, 0), (112, 100, 112), "robe", far=True),
+        part("cyl", (0, 8, 0), (116, 10, 116), "trim"),
+        part("cyl", (0, 125, 0), (62, 50, 58), "robe", far=True),
+        part("cyl", (0, 103, 0), (64, 9, 60), "trim"),
+        part("blob", (0, 168, 0), (46, 44, 46), "skin", "head", far=True),
+        part("cube", (0, 165, 22), (10, 10, 10), "skin", "head"),
+        part("cube", (-9, 173, 20), (5, 6, 3), "eye", "head"),
+        part("cube", (9, 173, 20), (5, 6, 3), "eye", "head"),
+        part("frustum", (0, 182, 0), (88, 5, 88), "hat", "head", far=True),
+        part("cyl", (0, 189, 0), (46, 10, 46), "trim", "head"),
+        part("frustum", (0, 210, 0), (46, 34, 46), "hat", "head"),
+        part("cone", (5, 246, -4), (30, 46, 30), "hat", "head", tilt=(-40, -90)),
     ]
-    out += face(hy, 0, r * 0.74)
     if arch:
-        for x, y, z, s in [(0, -0.42, 0.5, 0.3), (-0.2, -0.35, 0.48, 0.22), (0.2, -0.35, 0.48, 0.22), (0, -0.62, 0.42, 0.22), (-0.12, -0.56, 0.46, 0.18), (0.12, -0.56, 0.46, 0.18)]:
-            out.append(ball(s * r, "beard", x * r * 1.3, hy + y * r, z * r, node="head"))
-    hr = r * 0.74
-    hat_y = hy + r * 0.55
-    tall = 1.9 if arch else 1.3
-    out.append(ball(hr * 1.35, "hat", 0, hat_y, 0, 1, 0.16, 1, node="head", far=True))
-    out.append(part("cone", (0, (hat_y + hr * tall * 0.8) * 100, 0), (hr * 1.56 * 100, hr * tall * 1.6 * 100, hr * 1.56 * 100), "hat", "head", tilt=(-30, 50 if arch else 25)))
-    out.append(ball(hr * 0.16, "gold", -hr * 0.4, hat_y + hr * tall * 1.5, 0.05, node="head"))
-    out.append(ball(r * 0.2, "skin", -r * 0.95, r * 1.1, r * 0.35, node="hand_l"))
-    out.append(ball(r * 0.2, "skin", r * 0.95, r * 1.1, r * 0.35, node="hand_r"))
+        out.append(part("cone", (0, 146, 10), (40, 44, 28), "beard", "head", tilt=(470, 0)))
+        out.append(part("gem", (13, 268, -7), (12, 14, 12), "gold", "head"))
+    else:
+        out.append(part("blob", (0, 176, -5), (50, 38, 50), "hair", "head"))
+        out.append(part("cyl", (0, 147, 0), (54, 14, 52), "trim"))
+    for sx, node in ((-1, "arm_l"), (1, "arm_r")):
+        q = [sx * 33, 142, 0]
+        for prt in (
+            part("frustum", (sx * 33, 115, 0), (30, 56, 30), "robe", node),
+            part("cyl", (sx * 33, 88, 0), (32, 6, 32), "trim", node),
+            part("blob", (sx * 33, 79, 0), (17, 17, 17), "skin", node),
+        ):
+            prt["q"] = q
+            out.append(prt)
+    for sx, node in ((-1, "foot_l"), (1, "foot_r")):
+        out.append(part("chunk", (sx * 16, 5, 10), (16, 10, 28), "boots", node))
     if arch:
-        out.append(part("cyl", (r * 105, r * 160, r * 35), (10, 240, 10), "wood", "hand_r"))
-        out.append(ball(0.17, "staff_orb", r * 1.05, r * 1.6 + 1.25, r * 0.35, node="hand_r"))
+        for prt in (
+            part("cyl", (33, 125, 8), (7, 200, 7), "wood", "grip_r"),
+            part("cyl", (33, 223, 8), (12, 8, 12), "gold", "grip_r"),
+            part("gem", (33, 238, 8), (20, 26, 20), "staff_orb", "grip_r"),
+        ):
+            out.append(prt)
+        out[-1]["g"] = 450
     return scale(out, size)
 
 
@@ -65,6 +86,8 @@ def scale(parts, k):
     for p in parts:
         p["p"] = [round(v * k) for v in p["p"]]
         p["s"] = [round(v * k) for v in p["s"]]
+        if "q" in p:
+            p["q"] = [round(v * k) for v in p["q"]]
     return parts
 
 

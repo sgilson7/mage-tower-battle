@@ -10,8 +10,7 @@ use crate::fx::{self, Fx, ONE};
 use crate::geom::{v3, V3};
 use crate::look::{Look, Pose};
 use crate::mesh::Mesh;
-use crate::prep::{self, Activity, Prep, Station, Work};
-use crate::render::{mix, Batch, Camera, Frame3, Pass, Rgb};
+use crate::render::{mix, Batch, Camera, Frame3, Mood, Pass, Rgb};
 use crate::rng::Rng;
 
 fn sz(x: Fx, y: Fx, z: Fx) -> Frame3 {
@@ -21,283 +20,7 @@ fn cm(v: i32) -> Fx {
     v * ONE / 100
 }
 
-fn table(b: &mut Batch, look: &Look, at: V3, yaw: i32, w: Fx, d: Fx, top: &str) {
-    b.inked(
-        Mesh::Cube,
-        at.add(v3(0, ONE, 0)),
-        &Frame3::new(yaw, 0, 0, v3(w, cm(18), d)),
-        look.colour(top),
-    );
-    for (sx, sz_) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] {
-        let off = crate::render::rotate(
-            v3(sx * (w / 2 - cm(20)), cm(50), sz_ * (d / 2 - cm(20))),
-            yaw,
-            0,
-            0,
-        );
-        b.inked(
-            Mesh::Cyl,
-            at.add(off),
-            &sz(cm(16), ONE, cm(16)),
-            look.colour("wood_dark"),
-        );
-    }
-}
-
-/// The room's furniture: floor, rug, the back wall with its windows, the
-/// shelves, and each station's furniture.
-pub fn room_static(look: &Look) -> Batch {
-    let mut b = Batch::new(look.colour("ink"));
-    b.push(
-        Mesh::Cyl,
-        Pass::Solid,
-        v3(0, -cm(20), 0),
-        &sz(30 * ONE, cm(40), 30 * ONE),
-        look.colour("floor"),
-        0,
-    );
-    for k in -10..=10 {
-        b.push(
-            Mesh::Cube,
-            Pass::Solid,
-            v3(k * cm(140), cm(1), 0),
-            &sz(cm(5), cm(2), 28 * ONE),
-            look.colour("floor_line"),
-            0,
-        );
-    }
-    for (r, role, y) in [(42, "rug", 3), (36, "rug_trim", 4), (33, "rug", 5)] {
-        b.push(
-            Mesh::Cyl,
-            Pass::Solid,
-            v3(0, cm(y), cm(50)),
-            &sz(cm(r * 20), cm(5), cm(r * 16)),
-            look.colour(role),
-            0,
-        );
-    }
-    // the back half of the round wall
-    for k in 0..16 {
-        let a = fx::QUARTER_TURN + fx::HALF_TURN * k / 15;
-        let at = v3(
-            fx::mul(fx::sin(a), 15 * ONE),
-            5 * ONE,
-            fx::mul(fx::cos(a), 15 * ONE),
-        );
-        b.push(
-            Mesh::Cube,
-            Pass::Solid,
-            at,
-            &Frame3::new(a, 0, 0, v3(cm(310), 10 * ONE, cm(40))),
-            look.colour("wall"),
-            0,
-        );
-        if k % 2 == 1 {
-            let w = v3(
-                fx::mul(fx::sin(a), cm(1470)),
-                6 * ONE,
-                fx::mul(fx::cos(a), cm(1470)),
-            );
-            b.push(
-                Mesh::Cube,
-                Pass::Solid,
-                w,
-                &Frame3::new(a, 0, 0, v3(cm(140), cm(360), cm(10))),
-                look.colour("window"),
-                ONE / 2,
-            );
-        } else {
-            let p = v3(
-                fx::mul(fx::sin(a), cm(1430)),
-                5 * ONE,
-                fx::mul(fx::cos(a), cm(1430)),
-            );
-            b.inked(Mesh::Cyl, p, &sz(ONE, 10 * ONE, ONE), look.colour("pillar"));
-        }
-    }
-    // library shelves, nearly empty
-    let lib = prep::station_pos(Station::Library);
-    for (dx, dz, yaw) in [(-300, -150, 120), (-50, -450, 80), (-410, 190, 190)] {
-        let at = lib.add(v3(cm(dx), 0, cm(dz)));
-        let yaw = fx::TURN * yaw / 1000;
-        b.inked(
-            Mesh::Cube,
-            at.add(v3(0, cm(170), 0)),
-            &Frame3::new(yaw, 0, 0, v3(cm(320), cm(340), cm(70))),
-            look.colour("shelf"),
-        );
-        for k in 0..4 {
-            let off = crate::render::rotate(v3(0, cm(75 + k * 80), cm(14)), yaw, 0, 0);
-            b.push(
-                Mesh::Cube,
-                Pass::Solid,
-                at.add(off),
-                &Frame3::new(yaw, 0, 0, v3(cm(290), cm(62), cm(50))),
-                look.colour("shelf_back"),
-                0,
-            );
-        }
-    }
-    // the laboratory
-    let lab = prep::station_pos(Station::Lab);
-    table(
-        &mut b,
-        look,
-        lab,
-        fx::TURN * -95 / 1000,
-        cm(360),
-        cm(180),
-        "lab_table",
-    );
-    b.inked(
-        Mesh::Cyl,
-        lab.add(v3(cm(260), cm(50), cm(120))),
-        &sz(cm(150), ONE, cm(150)),
-        look.colour("cauldron"),
-    );
-    b.inked(
-        Mesh::Sphere,
-        lab.add(v3(cm(260), cm(150), cm(120))),
-        &sz(cm(140), cm(110), cm(140)),
-        look.colour("cauldron"),
-    );
-    b.push(
-        Mesh::Cyl,
-        Pass::Solid,
-        lab.add(v3(cm(260), cm(205), cm(120))),
-        &sz(cm(120), cm(5), cm(120)),
-        look.colour("brew"),
-        ONE,
-    );
-    for (k, role) in ["type_fire", "type_acid", "type_frost"].iter().enumerate() {
-        let at = lab.add(v3(
-            cm(-90 + 90 * k as i32),
-            cm(150),
-            cm(-20 + 30 * (k as i32 % 2)),
-        ));
-        b.push(
-            Mesh::Ico,
-            Pass::Solid,
-            at,
-            &Frame3::new(fx::TURN / 8, fx::TURN / 9, 0, v3(cm(50), cm(60), cm(50))),
-            look.colour(role),
-            ONE * 3 / 4,
-        );
-    }
-    // the invasion book on its lectern
-    let book = prep::station_pos(Station::Book);
-    b.inked(
-        Mesh::Cyl,
-        book.add(v3(0, cm(70), 0)),
-        &sz(cm(70), cm(140), cm(70)),
-        look.colour("wood_dark"),
-    );
-    b.inked(
-        Mesh::Cube,
-        book.add(v3(0, cm(150), cm(10))),
-        &Frame3::new(0, fx::TURN * 60 / 1000, 0, v3(cm(120), cm(12), cm(80))),
-        look.colour("invasion_book"),
-    );
-    // the map table
-    let map = prep::station_pos(Station::Map);
-    table(&mut b, look, map, 0, cm(340), cm(240), "wood");
-    b.push(
-        Mesh::Cube,
-        Pass::Solid,
-        map.add(v3(0, cm(112), 0)),
-        &sz(cm(300), cm(6), cm(200)),
-        look.colour("map_green"),
-        0,
-    );
-    b.inked(
-        Mesh::Cyl,
-        map.add(v3(cm(90), cm(140), cm(-40))),
-        &sz(cm(30), cm(55), cm(30)),
-        look.colour("tower_stone"),
-    );
-    b.inked(
-        Mesh::Cone,
-        map.add(v3(cm(90), cm(185), cm(-40))),
-        &sz(cm(38), cm(35), cm(38)),
-        look.colour("tower_roof"),
-    );
-    // the podium and its benches
-    let pod = prep::station_pos(Station::Podium);
-    b.inked(
-        Mesh::Cyl,
-        pod.add(v3(cm(220), cm(20), cm(-140))),
-        &sz(cm(300), cm(40), cm(300)),
-        look.colour("wood"),
-    );
-    b.inked(
-        Mesh::Cyl,
-        pod.add(v3(cm(220), cm(100), cm(-140))),
-        &sz(cm(60), cm(130), cm(60)),
-        look.colour("wood_light"),
-    );
-    b.inked(
-        Mesh::Cube,
-        pod.add(v3(cm(220), cm(170), cm(-135))),
-        &Frame3::new(
-            fx::TURN * -140 / 1000,
-            fx::TURN * 55 / 1000,
-            0,
-            v3(cm(100), cm(10), cm(70)),
-        ),
-        look.colour("wood_dark"),
-    );
-    for (k, (dx, dz)) in [(-160, 140), (-70, 290), (20, 440)].iter().enumerate() {
-        let _ = k;
-        b.inked(
-            Mesh::Cube,
-            pod.add(v3(cm(*dx), cm(55), cm(*dz))),
-            &Frame3::new(fx::TURN * -140 / 1000, 0, 0, v3(cm(420), cm(15), cm(60))),
-            look.colour("wood_light"),
-        );
-    }
-    // office hours: a desk at the south wall (T15)
-    let office = prep::station_pos(Station::Office);
-    table(&mut b, look, office, 0, cm(260), cm(130), "wood");
-    // the recruitment table
-    let rec = prep::station_pos(Station::Recruit);
-    table(
-        &mut b,
-        look,
-        rec,
-        fx::TURN * 125 / 1000,
-        cm(300),
-        cm(160),
-        "wood_light",
-    );
-    b
-}
-
-/// Where the scattered books lie, the same each match.
-fn book_spots() -> Vec<(V3, i32, usize)> {
-    let mut r = Rng::new(7);
-    let lib = prep::station_pos(Station::Library);
-    (0..90)
-        .map(|_| {
-            let a = r.between(0, fx::TURN - 1);
-            let d = r.between(ONE / 2, cm(400));
-            (
-                lib.add(v3(fx::mul(fx::cos(a), d), cm(8), fx::mul(fx::sin(a), d) * 4 / 5)),
-                r.between(0, fx::TURN - 1),
-                r.below(7) as usize,
-            )
-        })
-        .collect()
-}
-
-const BOOKS: [&str; 7] = [
-    "book_red",
-    "book_blue",
-    "book_green",
-    "book_purple",
-    "book_gold",
-    "book_pink",
-    "book_grey",
-];
+pub use crate::room::{near_wall_shown, room_camera, room_dynamic, room_mood, room_static};
 
 pub fn school_colour(look: &Look, c: &Content, school: usize) -> Rgb {
     look.colour(&format!(
@@ -306,178 +29,99 @@ pub fn school_colour(look: &Look, c: &Content, school: usize) -> Rgb {
     ))
 }
 
-/// Everyone and everything that moves in the room.
-pub fn room_dynamic(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32) {
-    // books still on the floor
-    let left = p.pile.len();
-    for (k, (at, yaw, col)) in book_spots().into_iter().enumerate() {
-        if k * 40 >= left.max(1) * 90 {
-            break;
-        }
-        b.inked(
-            Mesh::Cube,
-            at,
-            &Frame3::new(yaw, 0, 0, v3(cm(62), cm(14), cm(46))),
-            look.colour(BOOKS[col]),
-        );
-    }
-    // the archmage
-    let moving = p.pos != p.prev;
-    let reading = matches!(p.activity, Activity::Reading { .. });
-    let pose = Pose {
-        yaw: p.yaw,
-        walk: if moving { tick * 900 } else { 0 },
-        stride: cm(30),
-        cast: if matches!(p.activity, Activity::Drawing { .. }) {
-            ONE
-        } else {
-            0
-        },
-        ..Default::default()
-    };
-    look.draw(
-        b,
-        "archmage",
-        p.pos,
-        &pose,
-        &[
-            ("robe", look.colour("archmage_robe")),
-            ("hat", look.colour("archmage_robe")),
-        ],
-        false,
-    );
-    if reading {
-        for k in 0..6 {
-            let a = (tick * 300 + k * fx::TURN / 6) % fx::TURN;
-            let at = p.pos.add(v3(
-                fx::mul(fx::sin(a), cm(70)),
-                cm(170) + (k % 3) * cm(25),
-                fx::mul(fx::cos(a), cm(70)),
-            ));
-            b.orb(at, cm(6), look.colour("type_acid"));
-        }
-    }
-    // students on the benches, then standing in rows behind them
-    let pod = prep::station_pos(Station::Podium);
-    for (i, s) in p.students.iter().enumerate().take(60) {
-        let (row, col) = (i / 6, i % 6);
-        let along = crate::render::rotate(v3(cm(-170 + col as i32 * 68), 0, 0), fx::TURN * -140 / 1000, 0, 0);
-        let base = pod
-            .add(v3(
-                cm(-160 + 90 * row as i32),
-                if row < 3 { cm(62) } else { 0 },
-                cm(140 + 150 * row as i32),
-            ))
-            .add(along);
-        let robe = school_colour(look, c, s.school as usize);
-        let pose = Pose {
-            yaw: fx::TURN * 360 / 1000,
-            scale: ONE,
-            ..Default::default()
-        };
-        look.draw(
-            b,
-            "student",
-            base,
-            &pose,
-            &[("robe", robe), ("hat", robe)],
-            row > 4,
-        );
-    }
-    // applicants waiting at the recruitment table
-    let rec = prep::station_pos(Station::Recruit);
-    for (i, a) in p.applicants.iter().enumerate() {
-        let base = rec.add(v3(cm(-160 - 110 * i as i32), 0, cm(160 + 110 * i as i32)));
-        let robe = school_colour(look, c, a.school as usize);
-        look.draw(
-            b,
-            "student",
-            base,
-            &Pose {
-                yaw: fx::TURN * 375 / 1000,
-                ..Default::default()
-            },
-            &[("robe", robe), ("hat", look.colour("eye"))],
-            false,
-        );
-    }
-    // helpers at work
-    for j in &p.jobs {
-        let (model, at, yaw) = match &j.work {
-            Work::Teach(_) => (
-                "penguin",
-                pod.add(v3(cm(220), cm(40), cm(-140))),
-                fx::TURN * 360 / 1000,
-            ),
-            Work::Recruit => ("wisp_helper", rec.add(v3(cm(90), 0, cm(-100))), 0),
-            // the librarian golem goes through the pile (T21)
-            Work::Search => (
-                "golem",
-                prep::station_pos(Station::Library).add(v3(cm(160), 0, cm(220))),
-                fx::TURN * 3 / 8,
-            ),
-            Work::Train => ("trainer", pod.add(v3(cm(-300), 0, cm(100))), fx::TURN / 4),
-            Work::Raise(_) => continue,
-            Work::Build(_) => {
-                let a = (tick * 120) % fx::TURN;
-                (
-                    "golem",
-                    prep::station_pos(Station::Map).add(v3(
-                        fx::mul(fx::sin(a), cm(330)),
-                        0,
-                        fx::mul(fx::cos(a), cm(330)),
-                    )),
-                    a + fx::QUARTER_TURN,
-                )
-            }
-        };
-        look.draw(
-            b,
-            model,
-            at,
-            &Pose {
-                yaw,
-                walk: tick * 700,
-                stride: cm(20),
-                ..Default::default()
-            },
-            &[],
-            false,
-        );
+/// A field in daylight: blue sky light, the grass's green bounced up, a
+/// warm sun, and pale haze far off (T36).
+pub fn field_mood(look: &Look) -> Mood {
+    Mood {
+        fog: look.colour("fog_field"),
+        fog_near: 40 * ONE,
+        fog_far: 150 * ONE,
+        sky: look.colour("light_sky_field"),
+        ground: look.colour("light_ground_field"),
+        sun: look.colour("sun_field"),
+        sun_dir: v3(-ONE * 4 / 10, ONE * 8 / 10, ONE * 45 / 100),
     }
 }
 
-pub fn room_camera(p: &Prep) -> Camera {
-    let at = v3(p.pos.x * 3 / 4, ONE, p.pos.z * 3 / 4);
-    Camera {
-        eye: at.add(v3(0, 15 * ONE, 13 * ONE)),
-        at: at.add(v3(0, 0, -ONE)),
-        focal: ONE * 29 / 10,
-    }
+/// A shade of a colour, lighter or darker by up to `amt`.
+fn vary(c: Rgb, r: &mut Rng, amt: Fx) -> Rgb {
+    let l = r.between(-amt, amt);
+    [
+        (c[0] + l).clamp(0, ONE),
+        (c[1] + l).clamp(0, ONE),
+        (c[2] + l).clamp(0, ONE),
+    ]
 }
 
 /// A field's scenery, tower and placed features.
 pub fn arena_static(look: &Look, c: &Content, a: &Arena, b_: Option<&Battle>, seats: usize) -> Batch {
-    let mut b = Batch::new(look.colour("ink"));
+    let mut b = Batch::new();
     let half = arena::SIZE * arena::CELL / 2;
-    // grass in patches of two shades
+    // grass in faceted patches, each its own shade and a little raised or
+    // sunk, the way Ape Race's ground reads as facets (T36)
     let mut r = Rng::new(31);
-    for z in 0..8 {
-        for x in 0..8 {
+    for z in 0..16 {
+        for x in 0..16 {
             let at = v3(
-                -half + (x * 2 + 1) * half / 8,
-                -cm(5),
-                -half + (z * 2 + 1) * half / 8,
+                -half + (x * 2 + 1) * half / 16,
+                -cm(6) + r.between(-cm(3), cm(3)),
+                -half + (z * 2 + 1) * half / 16,
             );
             let role = if r.below(3) == 0 { "grass_dark" } else { "grass" };
             b.push(
-                Mesh::Cube,
+                Mesh::Chunk,
                 Pass::Solid,
                 at,
-                &sz(half / 4 + cm(2), cm(10), half / 4 + cm(2)),
-                look.colour(role),
+                &sz(half / 8 + cm(4), cm(12), half / 8 + cm(4)),
+                vary(look.colour(role), &mut r, ONE / 30),
                 0,
             );
+        }
+    }
+    // the earth under the grass, so the field reads as a slab of ground
+    b.solid(
+        Mesh::Chunk,
+        v3(0, -cm(80), 0),
+        &sz(half * 2 + cm(30), cm(140), half * 2 + cm(30)),
+        look.colour("earth"),
+    );
+    b.solid(
+        Mesh::Chunk,
+        v3(0, -cm(170), 0),
+        &sz(half * 2 - cm(60), cm(60), half * 2 - cm(60)),
+        look.colour("earth_dark"),
+    );
+    // tufts, flowers and pebbles on the open ground
+    for z in 0..arena::SIZE {
+        for x in 0..arena::SIZE {
+            if a.at(x, z) == Cell::Scenery || r.below(5) != 0 {
+                continue;
+            }
+            let at = arena::centre(x, z).add(v3(r.between(-cm(50), cm(50)), 0, r.between(-cm(50), cm(50))));
+            match r.below(3) {
+                0 => {
+                    for k in 0..3 {
+                        b.solid(
+                            Mesh::Cone,
+                            at.add(v3((k - 1) * cm(9), cm(12), (k % 2) * cm(7))),
+                            &Frame3::new(k * 9000, (k - 1) * 3000, 0, v3(cm(10), cm(26), cm(10))),
+                            look.colour("grass_dark"),
+                        );
+                    }
+                }
+                1 => b.solid(
+                    Mesh::Gem,
+                    at.add(v3(0, cm(14), 0)),
+                    &sz(cm(14), cm(10), cm(14)),
+                    look.colour(["flower_0", "flower_1", "flower_2"][r.below(3) as usize]),
+                ),
+                _ => b.solid(
+                    Mesh::Rock,
+                    at.add(v3(0, cm(6), 0)),
+                    &Frame3::new(r.between(0, fx::TURN), 0, 0, v3(cm(26), cm(16), cm(22))),
+                    vary(look.colour("rock"), &mut r, ONE / 20),
+                ),
+            }
         }
     }
     // the trail along today's route
@@ -499,27 +143,27 @@ pub fn arena_static(look: &Look, c: &Content, a: &Arena, b_: Option<&Battle>, se
             }
             let at = arena::centre(x, z);
             if (x * 7 + z * 3) % 3 == 0 {
-                b.inked(
-                    Mesh::Ico,
+                b.solid(
+                    Mesh::Rock,
                     at.add(v3(0, cm(40), 0)),
                     &Frame3::new(x * 1000, z * 700, 0, v3(cm(130), cm(90), cm(120))),
                     look.colour("rock"),
                 );
             } else {
-                b.inked(
-                    Mesh::Cyl,
+                b.solid(
+                    Mesh::Frustum,
                     at.add(v3(0, cm(60), 0)),
-                    &sz(cm(30), cm(120), cm(30)),
+                    &sz(cm(38), cm(120), cm(38)),
                     look.colour("trunk"),
                 );
                 let role = if (x + z) % 2 == 0 { "tree" } else { "tree_dark" };
-                b.inked(
+                b.solid(
                     Mesh::Ico,
                     at.add(v3(0, cm(180), 0)),
                     &Frame3::new(x * 500, 0, 0, v3(cm(190), cm(180), cm(190))),
                     look.colour(role),
                 );
-                b.inked(
+                b.solid(
                     Mesh::Ico,
                     at.add(v3(cm(30), cm(250), cm(10))),
                     &Frame3::new(z * 900, 0, 0, v3(cm(140), cm(130), cm(140))),
@@ -531,14 +175,14 @@ pub fn arena_static(look: &Look, c: &Content, a: &Arena, b_: Option<&Battle>, se
     // the entry: two posts and a lintel
     let e = arena::centre(a.entry.0, a.entry.1);
     for dx in [-1, 1] {
-        b.inked(
+        b.solid(
             Mesh::Cyl,
             e.add(v3(dx * cm(160), cm(110), 0)),
             &sz(cm(40), cm(220), cm(40)),
             look.colour("tower_ring"),
         );
     }
-    b.inked(
+    b.solid(
         Mesh::Cube,
         e.add(v3(0, cm(230), 0)),
         &sz(cm(380), cm(30), cm(50)),
@@ -546,19 +190,36 @@ pub fn arena_static(look: &Look, c: &Content, a: &Arena, b_: Option<&Battle>, se
     );
     // the tower, its ring, its roof and its seats
     let t = battle::tower_centre(a);
-    b.inked(
+    b.solid(
         Mesh::Cyl,
         t.add(v3(0, cm(350), 0)),
         &sz(cm(440), cm(700), cm(440)),
         look.colour("tower_stone"),
     );
-    b.inked(
+    b.solid(
         Mesh::Cyl,
         t.add(v3(0, cm(720), 0)),
         &sz(cm(500), cm(60), cm(500)),
         look.colour("tower_ring"),
     );
-    b.inked(
+    // stone courses round the tower's foot, block by block
+    for row in 0..3 {
+        for k in 0..14 {
+            let ang = (k * 2 + row % 2) * fx::TURN / 28;
+            let at = t.add(v3(
+                fx::mul(fx::sin(ang), cm(225)),
+                cm(30) + row * cm(55),
+                fx::mul(fx::cos(ang), cm(225)),
+            ));
+            b.solid(
+                Mesh::Chunk,
+                at,
+                &Frame3::new(ang, 0, 0, v3(cm(96), cm(50), cm(40))),
+                vary(look.colour("tower_ring"), &mut r, ONE / 24),
+            );
+        }
+    }
+    b.solid(
         Mesh::Cone,
         t.add(v3(0, cm(920), 0)),
         &sz(cm(540), cm(340), cm(540)),
@@ -584,7 +245,7 @@ pub fn arena_static(look: &Look, c: &Content, a: &Arena, b_: Option<&Battle>, se
     for i in 0..seats.min(12) {
         let s = battle::seat_pos(t, i);
         let dir = s.sub(t).flat();
-        b.inked(
+        b.solid(
             Mesh::Cyl,
             s.sub(v3(0, cm(20), 0)),
             &sz(cm(150), cm(30), cm(150)),
@@ -628,13 +289,13 @@ fn draw_feature(b: &mut Batch, look: &Look, c: &Content, feature: u16, cells: &[
                 ONE / 3,
             ),
             "ivory_wall" => {
-                b.inked(
+                b.solid(
                     Mesh::Cube,
                     at.add(v3(0, cm(70), 0)),
                     &sz(arena::CELL, cm(140), cm(55)),
                     look.colour("ivory"),
                 );
-                b.inked(
+                b.solid(
                     Mesh::Sphere,
                     at.add(v3(0, cm(145), 0)),
                     &sz(cm(64), cm(64), cm(64)),
@@ -642,13 +303,13 @@ fn draw_feature(b: &mut Batch, look: &Look, c: &Content, feature: u16, cells: &[
                 );
             }
             "sub_tower" => {
-                b.inked(
+                b.solid(
                     Mesh::Cyl,
                     at.add(v3(0, cm(150), 0)),
                     &sz(cm(200), cm(300), cm(200)),
                     look.colour("tower_stone"),
                 );
-                b.inked(
+                b.solid(
                     Mesh::Cyl,
                     at.add(v3(0, cm(315), 0)),
                     &sz(cm(240), cm(35), cm(240)),
@@ -762,13 +423,13 @@ pub fn arena_dynamic(b: &mut Batch, look: &Look, c: &Content, bt: &Battle, far: 
         );
     }
     for l in &bt.lures {
-        b.inked(
+        b.solid(
             Mesh::Cyl,
             l.pos.add(v3(0, ONE, 0)),
             &sz(cm(20), 2 * ONE, cm(20)),
             look.colour("wood"),
         );
-        b.inked(
+        b.solid(
             Mesh::Sphere,
             l.pos.add(v3(0, cm(160), 0)),
             &sz(cm(110), cm(130), cm(110)),
@@ -807,7 +468,7 @@ pub fn arena_dynamic(b: &mut Batch, look: &Look, c: &Content, bt: &Battle, far: 
                 ));
                 let grow = p.radius * (30 - p.life.min(24)) / 24;
                 b.push(
-                    Mesh::Sphere,
+                    Mesh::Halo,
                     Pass::Glow,
                     p.pos.add(v3(0, ONE / 2, 0)),
                     &sz(grow * 2, grow, grow * 2),
@@ -823,7 +484,7 @@ pub fn arena_dynamic(b: &mut Batch, look: &Look, c: &Content, bt: &Battle, far: 
     if bt.ward > 0 {
         let r = cm(500) + bt.ward.min(battle::WARD_CAP) * cm(1) / 10;
         b.push(
-            Mesh::Sphere,
+            Mesh::Halo,
             Pass::Glow,
             t.add(v3(0, cm(300), 0)),
             &sz(r, r, r),
@@ -972,7 +633,7 @@ mod tests {
             for _ in 0..60 * 25 {
                 bt.step(&c);
             }
-            let mut b = Batch::new(look.colour("ink"));
+            let mut b = Batch::new();
             arena_dynamic(&mut b, &look, &c, &bt, true);
             total += b.count() + arena_static(&look, &c, &bt.arena, Some(&bt), 12).count();
         }
@@ -984,12 +645,22 @@ mod tests {
     fn the_room_draws_its_furniture_once_and_its_people_each_frame() {
         let c = content::shipped();
         let look = crate::look::shipped();
-        let s = room_static(&look);
+        let (s, near) = room_static(&look);
         assert!(s.count() > 100);
-        let mut p = Prep::new(&c, 0, 1, 1);
+        let mut p = crate::prep::Prep::new(&c, 0, 1, 1);
         p.start_day(&c, 600);
-        let mut d = Batch::new(look.colour("ink"));
+        let mut d = Batch::new();
         room_dynamic(&mut d, &look, &c, &p, 1);
         assert!(d.count() > 30, "{}", d.count());
+        // a full class of sixty: the room still stays under the watch
+        // screen's cap (LTC G7)
+        let one = p.students[0].clone();
+        p.students = (0..60)
+            .map(|i| crate::prep::Student { id: i, ..one.clone() })
+            .collect();
+        let mut full = Batch::new();
+        room_dynamic(&mut full, &look, &c, &p, 1);
+        let total = s.count() + near.count() + full.count();
+        assert!(total < 16_000, "{total} instances in the room");
     }
 }

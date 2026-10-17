@@ -915,5 +915,131 @@
     "find": "                let chip = if k < at { \"seal.sealed\" } else if k == at { \"seal.turning\" } else { \"seal.next\" };",
     "replace": "                let chip = if k < at { \"seal.sealed\" } else if k == usize::MAX { \"seal.turning\" } else { \"seal.next\" };",
     "test": "the_seal_lists_its_rings_and_the_sorting_game_has_a_shelf_button_each"
+  },
+  {
+    "name": "a sphere's faces are smooth",
+    "file": "crates/core/src/mesh.rs",
+    "find": "            let smooth = mesh == Mesh::Halo;",
+    "replace": "            let smooth = mesh != Mesh::Blob;",
+    "test": "every_face_is_flat_so_shapes_read_as_facets"
+  },
+  {
+    "name": "a frustum is a plain cylinder",
+    "file": "crates/core/src/mesh.rs",
+    "find": "            let top = if mesh == Mesh::Frustum { ONE * 3 / 5 } else { ONE };",
+    "replace": "            let top = if mesh == Mesh::Frustum { ONE } else { ONE };",
+    "test": "a_frustum_narrows_toward_its_top_and_a_chunk_is_not_a_true_cube"
+  },
+  {
+    "name": "the haze's start and end are swapped",
+    "file": "crates/core/src/render.rs",
+    "find": "        self.views.extend_from_slice(&[mood.fog_near, mood.fog_far, 0, 0]);",
+    "replace": "        self.views.extend_from_slice(&[mood.fog_far, mood.fog_near, 0, 0]);",
+    "test": "a_viewport_carries_its_mood_where_the_page_reads_it"
+  },
+  {
+    "name": "the sun's direction is not made one long",
+    "file": "crates/core/src/render.rs",
+    "find": "        let d = mood.sun_dir.with_len(ONE);",
+    "replace": "        let d = mood.sun_dir;",
+    "test": "a_viewport_carries_its_mood_where_the_page_reads_it"
+  },
+  {
+    "name": "every solid shape is drawn twice",
+    "file": "crates/core/src/render.rs",
+    "find": "    pub fn solid(&mut self, mesh: Mesh, at: V3, f: &Frame3, rgb: Rgb) {",
+    "replace": "    pub fn solid(&mut self, mesh: Mesh, at: V3, f: &Frame3, rgb: Rgb) { self.push(mesh, Pass::Solid, at, f, rgb, 0);",
+    "test": "a_batch_emits_one_draw_per_mesh_and_pass_with_byte_offsets"
+  },
+  {
+    "name": "casting leaves the arm down",
+    "file": "crates/core/src/look.rs",
+    "find": "        let arm_r = fx::mul(swing, ARM_SWING) - fx::mul(pose.cast, ARM_CAST) + pose.arms.1;",
+    "replace": "        let arm_r = fx::mul(swing, ARM_SWING) + pose.arms.1;",
+    "test": "casting_lifts_the_right_arm_about_its_shoulder_above_the_head"
+  },
+  {
+    "name": "both arms swing the same way",
+    "file": "crates/core/src/look.rs",
+    "find": "        let arm_l = -fx::mul(swing, ARM_SWING) + pose.arms.0;",
+    "replace": "        let arm_l = fx::mul(swing, ARM_SWING) + pose.arms.0;",
+    "test": "walking_swings_the_arms_against_each_other_and_sitting_lowers_the_body"
+  },
+  {
+    "name": "sitting does not lower the body",
+    "file": "crates/core/src/look.rs",
+    "find": "        let lift = bob - pose.sit;",
+    "replace": "        let lift = bob;",
+    "test": "walking_swings_the_arms_against_each_other_and_sitting_lowers_the_body"
+  },
+  {
+    "name": "the staff turns with the arm and points back",
+    "file": "crates/core/src/look.rs",
+    "find": "                        at = at.add(crate::render::rotate(arm, 0, arm_r, 0).sub(arm));",
+    "replace": "                        at = hand.add(crate::render::rotate(at.sub(hand).add(arm), 0, arm_r, 0)).sub(arm);",
+    "test": "casting_lifts_the_right_arm_about_its_shoulder_above_the_head"
+  },
+  {
+    "name": "the camera never comes down",
+    "file": "crates/core/src/room.rs",
+    "find": "    if t == 0 {",
+    "replace": "    if t >= 0 {",
+    "test": "the_camera_stays_high_far_from_stations_and_comes_down_behind_the_archmage_at_one"
+  },
+  {
+    "name": "the camera comes down anywhere in the room",
+    "file": "crates/core/src/room.rs",
+    "find": "    let (from, to) = (ONE * 45 / 10, ONE * 32 / 10);",
+    "replace": "    let (from, to) = (ONE * 99, ONE * 32 / 10);",
+    "test": "the_camera_stays_high_far_from_stations_and_comes_down_behind_the_archmage_at_one"
+  },
+  {
+    "name": "the near wall shows from high above",
+    "file": "crates/core/src/room.rs",
+    "find": "    cam.eye.y < WALL_TOP && cam.eye.flat_len() < WALL_R",
+    "replace": "    cam.eye.y < WALL_TOP * 9",
+    "test": "the_camera_stays_high_far_from_stations_and_comes_down_behind_the_archmage_at_one"
+  },
+  {
+    "name": "the wall stands full height all round",
+    "file": "crates/core/src/room.rs",
+    "find": "    if c < -ONE / 20 {",
+    "replace": "    if c < ONE * 2 {",
+    "test": "the_wall_steps_down_toward_the_camera_and_the_near_part_is_kept_apart"
+  },
+  {
+    "name": "the near wall goes in with the room",
+    "file": "crates/core/src/room.rs",
+    "find": "            let to = if row < wall_rows(a) { &mut b } else { &mut near };",
+    "replace": "            let to = if row < wall_rows(a) { &mut b } else { &mut b };",
+    "test": "the_wall_steps_down_toward_the_camera_and_the_near_part_is_kept_apart"
+  },
+  {
+    "name": "the shelves stand empty",
+    "file": "crates/core/src/room.rs",
+    "find": "            while x < w / 2 - cm(16) {",
+    "replace": "            while x < -w {",
+    "test": "the_shelves_hold_books_and_the_floor_piles_shrink_as_the_pile_empties"
+  },
+  {
+    "name": "the floor keeps every book",
+    "file": "crates/core/src/room.rs",
+    "find": "    (left * 90 / 40).min(90)",
+    "replace": "    90",
+    "test": "the_shelves_hold_books_and_the_floor_piles_shrink_as_the_pile_empties"
+  },
+  {
+    "name": "students sit facing away from the dais",
+    "file": "crates/core/src/room.rs",
+    "find": "    let face = crate::geom::yaw_of(-u.x, -u.z);",
+    "replace": "    let face = crate::geom::yaw_of(u.x, u.z);",
+    "test": "seated_students_face_the_dais"
+  },
+  {
+    "name": "the room draws a class without limit",
+    "file": "crates/core/src/room.rs",
+    "find": "    for (i, s) in p.students.iter().enumerate().take(60) {",
+    "replace": "    for (i, s) in p.students.iter().cycle().enumerate().take(6000) {",
+    "test": "the_room_draws_its_furniture_once_and_its_people_each_frame"
   }
 ]

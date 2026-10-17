@@ -28,6 +28,7 @@ pub mod ragdoll;
 pub mod render;
 pub mod rhythm;
 pub mod rng;
+pub mod room;
 pub mod save;
 pub mod scene;
 pub mod session;

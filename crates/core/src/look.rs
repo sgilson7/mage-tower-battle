@@ -20,6 +20,13 @@ pub enum Node {
     HandR,
     FootL,
     FootR,
+    /// An arm, turned about its shoulder (`Part::pivot`): it swings when
+    /// walking and lifts to cast or read (T34).
+    ArmL,
+    ArmR,
+    /// Held in the right hand: carried along as the arm turns, but kept
+    /// upright, so a raised staff stands up rather than pointing back.
+    GripR,
 }
 
 impl Node {
@@ -31,6 +38,9 @@ impl Node {
             "hand_r" => Node::HandR,
             "foot_l" => Node::FootL,
             "foot_r" => Node::FootR,
+            "arm_l" => Node::ArmL,
+            "arm_r" => Node::ArmR,
+            "grip_r" => Node::GripR,
             _ => return None,
         })
     }
@@ -45,6 +55,12 @@ struct RawPart {
     n: String,
     t: [i32; 2],
     far: bool,
+    /// An arm part's shoulder, in cm.
+    #[serde(default)]
+    q: Option<[i32; 3]>,
+    /// How much the part glows, in thousandths.
+    #[serde(default)]
+    g: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -61,6 +77,8 @@ pub struct Part {
     pub node: Node,
     pub tilt: (i32, i32),
     pub far: bool,
+    pub pivot: V3,
+    pub glow: Fx,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -84,7 +102,21 @@ pub struct Pose {
     pub flash: bool,
     /// Drawn in ice.
     pub frozen: bool,
+    /// Extra turn of each arm about its shoulder, in turns; negative lifts
+    /// it forward (left, right).
+    pub arms: (i32, i32),
+    /// The head's nod: positive looks down.
+    pub nod: i32,
+    /// How far the body has sunk to sit, Q16 metres before scaling.
+    pub sit: Fx,
+    /// A slow rise and fall while standing, by phase; 0 is still.
+    pub breath: i32,
 }
+
+/// How far an arm swings each way when walking, in turns.
+pub const ARM_SWING: i32 = fx::TURN / 14;
+/// How far the right arm lifts to cast: past level, toward overhead.
+pub const ARM_CAST: i32 = fx::TURN * 3 / 8;
 
 const MAGENTA: Rgb = [ONE, 0, ONE];
 
@@ -128,6 +160,8 @@ impl Look {
                     node,
                     tilt: (fx::TURN * p.t[0] / 1000, fx::TURN * p.t[1] / 1000),
                     far: p.far,
+                    pivot: p.q.map(|q| v3(cm(q[0]), cm(q[1]), cm(q[2]))).unwrap_or(V3::ZERO),
+                    glow: p.g * ONE / 1000,
                 });
             }
             models.insert(name, out);
@@ -156,30 +190,68 @@ impl Look {
         let k = if pose.scale == 0 { ONE } else { pose.scale };
         let swing = fx::sin(pose.walk);
         let bob = if pose.walk == 0 {
-            0
+            fx::mul(fx::sin(pose.breath), ONE / 80)
         } else {
             fx::mul(fx::sin(pose.walk * 2).abs(), pose.stride / 6)
         };
+        // how far the whole body rises with breath or step, less how far it
+        // has sunk to sit
+        let lift = bob - pose.sit;
+        // arms: swing against the feet, the right lifts to cast
+        let arm_l = -fx::mul(swing, ARM_SWING) + pose.arms.0;
+        let arm_r = fx::mul(swing, ARM_SWING) - fx::mul(pose.cast, ARM_CAST) + pose.arms.1;
+        let head_y = parts
+            .iter()
+            .filter(|p| p.node == Node::Head)
+            .map(|p| p.at.y)
+            .min()
+            .unwrap_or(0);
+        // where the right hand rests: the lowest part of the right arm
+        let hand_r = parts
+            .iter()
+            .filter(|p| p.node == Node::ArmR)
+            .min_by_key(|p| p.at.y)
+            .map(|p| (p.at, p.pivot));
         for p in parts {
             if far && !p.far {
                 continue;
             }
             let mut at = p.at;
+            let mut turn = 0;
             match p.node {
-                Node::FootL => at.z += fx::mul(swing, pose.stride),
-                Node::FootR => at.z -= fx::mul(swing, pose.stride),
+                Node::FootL => at.z += fx::mul(swing, pose.stride) + pose.sit,
+                Node::FootR => at.z -= fx::mul(swing, pose.stride) - pose.sit,
                 Node::HandL => at.z -= fx::mul(swing, pose.stride / 2),
                 Node::HandR => {
                     at.z += fx::mul(swing, pose.stride / 2);
                     at.y += fx::mul(pose.cast, ONE * 3 / 5);
                     at.z += fx::mul(pose.cast, ONE / 4);
                 }
-                Node::Head | Node::Body => at.y += bob,
+                Node::ArmL | Node::ArmR => {
+                    turn = if p.node == Node::ArmL { arm_l } else { arm_r };
+                    at = p.pivot.add(crate::render::rotate(at.sub(p.pivot), 0, turn, 0));
+                    at.y += lift;
+                }
+                Node::Head => {
+                    // a nod turns the head about its neck
+                    let neck = v3(0, head_y - ONE * 15 / 100, 0);
+                    at = neck.add(crate::render::rotate(at.sub(neck), 0, pose.nod, 0));
+                    turn = pose.nod;
+                    at.y += lift;
+                }
+                Node::GripR => {
+                    if let Some((hand, pivot)) = hand_r {
+                        let arm = hand.sub(pivot);
+                        at = at.add(crate::render::rotate(arm, 0, arm_r, 0).sub(arm));
+                    }
+                    at.y += lift;
+                }
+                Node::Body => at.y += lift,
             }
             let at = crate::render::rotate(at.scale(k), pose.yaw, pose.lean.0, pose.lean.1);
             let f = Frame3::new(
                 pose.yaw,
-                pose.lean.0 + p.tilt.0,
+                pose.lean.0 + p.tilt.0 + turn,
                 pose.lean.1 + p.tilt.1,
                 p.size.scale(k),
             );
@@ -199,10 +271,10 @@ impl Look {
             } else {
                 p.mesh
             };
-            if far {
-                b.push(mesh, Pass::Solid, base.add(at), &f, rgb, 0);
-            } else {
-                b.inked(mesh, base.add(at), &f, rgb);
+            b.push(mesh, Pass::Solid, base.add(at), &f, rgb, p.glow);
+            if p.glow > 0 && !far {
+                let halo = Frame3::new(pose.yaw, 0, 0, p.size.scale(k).scale(ONE * 3));
+                b.push(Mesh::Halo, Pass::Glow, base.add(at), &halo, rgb, p.glow / 3);
             }
         }
     }
@@ -221,8 +293,8 @@ impl Look {
             match n {
                 Node::Body => (h(0, 57), pt(ragdoll::PELVIS).lerp(pt(ragdoll::CHEST), ONE / 2)),
                 Node::Head => (h(0, 93), pt(ragdoll::HEAD)),
-                Node::HandL => (h(-30, 58), pt(ragdoll::HAND_L)),
-                Node::HandR => (h(30, 58), pt(ragdoll::HAND_R)),
+                Node::HandL | Node::ArmL => (h(-30, 58), pt(ragdoll::HAND_L)),
+                Node::HandR | Node::ArmR | Node::GripR => (h(30, 58), pt(ragdoll::HAND_R)),
                 Node::FootL => (h(-12, 4), pt(ragdoll::FOOT_L)),
                 Node::FootR => (h(12, 4), pt(ragdoll::FOOT_R)),
             }
@@ -270,6 +342,10 @@ mod tests {
     use super::*;
     use crate::content;
 
+    fn cm(v: i32) -> Fx {
+        v * ONE / 100
+    }
+
     #[test]
     fn every_enemy_helper_and_mage_has_a_model_and_every_role_a_colour() {
         let look = shipped();
@@ -311,15 +387,91 @@ mod tests {
     #[test]
     fn the_far_view_draws_fewer_parts_and_no_ink() {
         let look = shipped();
-        let mut near = Batch::new(look.colour("ink"));
-        let mut far = Batch::new(look.colour("ink"));
+        let mut near = Batch::new();
+        let mut far = Batch::new();
         look.draw(&mut near, "giant", V3::ZERO, &Pose::default(), &[], false);
         look.draw(&mut far, "giant", V3::ZERO, &Pose::default(), &[], true);
         assert!(
-            far.count() * 4 < near.count(),
+            far.count() * 2 < near.count(),
             "{} vs {}",
             far.count(),
             near.count()
         );
+    }
+
+    /// Where the archmage's parts of one colour end up, highest first.
+    fn tops(look: &Look, pose: &Pose, role: &str) -> Vec<(Fx, Fx)> {
+        let mut b = Batch::new();
+        let swap: Vec<(&str, Rgb)> = vec![];
+        look.draw(&mut b, "archmage", V3::ZERO, pose, &swap, false);
+        let mut v = Vec::new();
+        let want = look.colour(role);
+        for l in b.lists_for_test() {
+            for i in l.chunks(crate::render::INSTANCE_VALUES) {
+                if [i[12], i[13], i[14]] == want {
+                    v.push((i[7], i[11]));
+                }
+            }
+        }
+        v.sort_by_key(|a| std::cmp::Reverse(a.0));
+        v
+    }
+
+    #[test]
+    fn casting_lifts_the_right_arm_about_its_shoulder_above_the_head() {
+        let look = shipped();
+        let stand = tops(&look, &Pose::default(), "staff_orb");
+        let cast = tops(
+            &look,
+            &Pose {
+                cast: ONE,
+                ..Default::default()
+            },
+            "staff_orb",
+        );
+        let head = tops(&look, &Pose::default(), "skin")[0].0;
+        assert!(!stand.is_empty() && !cast.is_empty());
+        // the staff's stone rises and swings forward (+z) when the arm turns
+        assert!(cast[0].0 > stand[0].0 + cm(40), "{:?} {:?}", cast[0], stand[0]);
+        assert!(cast[0].1 > stand[0].1 + cm(40), "{:?} {:?}", cast[0], stand[0]);
+        // and the lifted hand (the highest skin part) is above the head's centre
+        let hand = tops(
+            &look,
+            &Pose {
+                cast: ONE,
+                ..Default::default()
+            },
+            "skin",
+        )[0]
+        .0;
+        assert!(hand > head, "{hand} {head}");
+    }
+
+    #[test]
+    fn walking_swings_the_arms_against_each_other_and_sitting_lowers_the_body() {
+        let look = shipped();
+        let step = Pose {
+            walk: fx::QUARTER_TURN,
+            stride: cm(30),
+            ..Default::default()
+        };
+        // with the left foot forward the right hand is forward: the two
+        // hands (the lowest skin parts) differ in the sign of their z
+        let hands = tops(&look, &step, "skin");
+        let zs: Vec<Fx> = hands.iter().rev().take(2).map(|h| h.1).collect();
+        assert!(
+            zs.len() == 2 && zs[0].signum() != zs[1].signum() && zs[0] != 0,
+            "{zs:?}"
+        );
+        let sit = Pose {
+            sit: cm(50),
+            ..Default::default()
+        };
+        let (up, down) = (
+            tops(&look, &Pose::default(), "skin")[0].0,
+            tops(&look, &sit, "skin")[0].0,
+        );
+        // the sinking is in the model's own metres: 50 cm lower
+        assert!((up - down - cm(50)).abs() < cm(2), "{up} {down}");
     }
 }

@@ -2,6 +2,18 @@
  "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
  "entries": [
   {
+   "version": "1.6.0",
+   "date": "2026-10-17",
+   "minor": false,
+   "items": [
+    "The tower is drawn like Ape Race's maps: faceted stone and timber, windows that let dusk light across the floor, full bookshelves, and each station dressed for what you do there.",
+    "Mages have arms and feet. They swing their arms as they walk, lift the staff to cast, hold a book up to read, and sit on the benches to listen.",
+    "Stand at a station and the camera comes down behind you, the way Ape Race follows its ape. Walk away and it rises again.",
+    "The battlefield has the same light: faceted grass, flowers and stones, and a haze far off.",
+    "The black outlines are gone, and the HUD is dark and see-through, so the scene shows behind it."
+   ]
+  },
+  {
    "version": "1.5.0",
    "date": "2026-10-16",
    "minor": false,

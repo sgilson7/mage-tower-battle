@@ -1482,24 +1482,26 @@ impl Session {
             self.frame = f;
             return;
         };
-        let ink = self.look.colour("ink");
         match m.phase {
             Phase::Prep | Phase::Waiting => {
                 let key = (0, m.day, 0);
                 if self.static_key != key {
                     self.statics = StaticScene::default();
-                    let room = scene::room_static(&self.look);
+                    let (room, near) = scene::room_static(&self.look);
                     self.statics.add(&room);
+                    self.statics.add(&near);
                     self.statics.version += 1 + self.tick as u32;
                     self.static_key = key;
                 }
                 if let Some(p) = m.local_prep() {
                     let cam = scene::room_camera(p);
                     let (x, y, w, h) = (0, 0, self.canvas.0, self.canvas.1);
-                    f.viewport(x, y, w, h, &cam, self.look.colour("sky_room"));
+                    f.viewport(x, y, w, h, &cam, &scene::room_mood(&self.look));
                     f.static_draws(&self.statics.parts[0]);
-                    let mut b = Batch::new(ink);
-                    b.eye = Some((cam.eye, ONE_M));
+                    if scene::near_wall_shown(&cam) {
+                        f.static_draws(&self.statics.parts[1]);
+                    }
+                    let mut b = Batch::new();
                     scene::room_dynamic(&mut b, &self.look, &self.c, p, self.tick);
                     f.batch(&b);
                 }
@@ -1516,7 +1518,7 @@ impl Session {
                                 self.statics.add(&s);
                             }
                             None => {
-                                self.statics.add(&Batch::new(ink));
+                                self.statics.add(&Batch::new());
                             }
                         }
                     }
@@ -1527,13 +1529,12 @@ impl Session {
                 let far = shown.len() > 1;
                 for (vp, &seat) in self.viewports(shown.len()).into_iter().zip(shown.iter()) {
                     let cam = self.cams[seat.min(3)].camera();
-                    f.viewport(vp.0, vp.1, vp.2, vp.3, &cam, self.look.colour("sky_field"));
+                    f.viewport(vp.0, vp.1, vp.2, vp.3, &cam, &scene::field_mood(&self.look));
                     if let Some(Some(bt)) = m.battles.get(seat) {
                         if let Some(part) = self.statics.parts.get(seat) {
                             f.static_draws(part);
                         }
-                        let mut b = Batch::new(ink);
-                        b.eye = Some((cam.eye, ONE_M));
+                        let mut b = Batch::new();
                         scene::arena_dynamic(&mut b, &self.look, &self.c, bt, far);
                         f.batch(&b);
                     }
@@ -2535,6 +2536,11 @@ impl Session {
     }
 
     fn station_labels(&self, p: &prep::Prep) -> Vec<Value> {
+        // once the camera has come down behind the archmage, the station
+        // in front of them speaks for itself (T35)
+        if crate::room::closeness(p).0 > crate::fx::ONE / 2 {
+            return vec![];
+        }
         let cam = scene::room_camera(p);
         let (w, h) = self.canvas;
         let aspect = (w.max(1) as i64 * crate::fx::ONE as i64 / h.max(1) as i64) as i32;
@@ -3542,9 +3548,6 @@ impl Session {
         }
     }
 }
-
-/// Within a metre of the eye, shapes get no ink.
-const ONE_M: crate::fx::Fx = crate::fx::ONE;
 
 #[cfg(test)]
 mod tests;

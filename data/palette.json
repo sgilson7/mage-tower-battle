@@ -9,7 +9,7 @@
  "elf_robe": "#5fae4f", "elf_skin": "#e8d0a8", "leaf_hat": "#3c8a3a", "ember": "#ff7a3a", "horn": "#3a2a2a",
  "frost_fur": "#dfefff", "frost_skin": "#8fb8d8", "slime": "#8cd65a", "boar": "#7a5a48", "snout": "#e8a8a0",
  "ghost": "#d6ecff", "lava_rock": "#4a3a36", "lava_glow": "#ff8a2a", "whelp": "#d9604a", "wing": "#f29e6a",
- "floor": "#b88456", "floor_line": "#9a6a42", "rug": "#7a4fb0", "rug_trim": "#e8b23a", "wall": "#8c7bb0", "pillar": "#6e5f8f",
+ "floor": "#a86d40", "floor_line": "#9a6a42", "rug": "#6a2f7c", "rug_trim": "#e0a03a", "rug_dark": "#4d2357", "rug_light": "#7d3c91", "wall": "#655b78", "wall_light": "#766a82", "pillar": "#6e5f8f",
  "window": "#9fd0ff", "shelf": "#8a5a35", "shelf_back": "#3a2a22", "lab_table": "#7a5a8a", "cauldron": "#2f2b3a", "brew": "#7cf06b",
  "book_red": "#d9604a", "book_blue": "#4f7fd9", "book_green": "#3fae8c", "book_purple": "#8b5cd6", "book_gold": "#e8b23a", "book_pink": "#c94f8a", "book_grey": "#6f8a9a",
  "page": "#faf3e0", "invasion_book": "#c23b3b", "map_green": "#8fbf6a",
@@ -17,8 +17,11 @@
  "tower_stone": "#d8cfc0", "tower_ring": "#c4b8a6", "tower_roof": "#6b46c1", "tower_window": "#ffd98a",
  "glass": "#9fe3ff", "ivory": "#f4ecd6", "lava": "#ff6a1f", "lava_rim": "#4a3a36", "bait": "#e8c56a", "lure": "#ff8fd1",
  "oil": "#3a2f4a", "thorns": "#3c7a3a", "mana_spring": "#8fc7ff", "ward": "#ffe28a",
- "ice": "#bff0ff", "charm": "#ff6fa8", "sky_room": "#2a2140", "sky_field": "#bfe3ff",
+ "ice": "#bff0ff", "charm": "#ff6fa8", "fog_room": "#3a2a4c", "light_sky_room": "#c2b2ff", "light_ground_room": "#9a5a32", "sun_room": "#ffc98a",
+ "fog_field": "#cfe6ff", "light_sky_field": "#e4efff", "light_ground_field": "#8a9a62", "sun_field": "#fff0d8",
  "school_destruction": "#e06a3a", "school_alteration": "#3fae8c", "school_conjuration": "#6b46c1", "school_illusion": "#ff6fa8", "school_restoration": "#e8b23a",
  "type_fire": "#ff7a2a", "type_frost": "#9be7ff", "type_acid": "#8cff5a", "type_leaf": "#5fae4f", "type_earth": "#b08a5a", "type_bone": "#f3eee0", "type_spirit": "#c9a7ff",
+ "flower_0": "#ffd76a", "flower_1": "#ff8fb8", "flower_2": "#f4f0ff", "earth": "#8a6242", "earth_dark": "#6a4832", "shadow": "#2a1a2e", "wood_darker": "#4a2d1f", "iron": "#2d2433", "wax": "#f2e3c6", "window_sky": "#ffbf7a", "stone_light": "#7d6f92", "banner": "#7b2333", "lab_table_dark": "#3e2a49", "map_edge": "#7fe3ff", "chalkboard": "#26352e", "rune": "#9cf2ff", "flame": "#ffcf6a", "invasion_glow": "#ff4b5a", "dust": "#ffe2b0",
+ "boots": "#3a2a2a", "hair": "#4a2e1c", "hair_0": "#3b2618", "hair_1": "#d9a35a", "hair_2": "#1f1612", "hair_3": "#a8452a",
  "rival_0": "#5b3cc4", "rival_1": "#d9604a", "rival_2": "#3fae8c", "rival_3": "#e8b23a"
 }

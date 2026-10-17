@@ -2,8 +2,8 @@
 // every size, stride and offset comes from the core's numbers(), so this
 // file holds no layout of its own. After Long Time Comin's gl.js, with
 // viewport commands so the watch screen draws four fields in one frame.
-// Passes: solid; ink (front faces culled, which leaves the outline); glow
-// (added, no depth writes).
+// Passes: solid; glow (added, no depth writes). Each viewport sets its own
+// light and haze from the view's values (T34).
 
 function compile(gl, type, source) {
   const shader = gl.createShader(type);
@@ -65,6 +65,7 @@ export function makeRenderer(canvas, N, shaders, meshData, uniformValues) {
     at += size;
   }
   const uVP = uniform("uVP");
+  const viewUniforms = N.view.uniforms.map(([u, start, size]) => ({ loc: uniform(u), start, size }));
   const uPass = uniform("uPass");
   const V = N.view;
   const P = N.passes;
@@ -82,7 +83,7 @@ export function makeRenderer(canvas, N, shaders, meshData, uniformValues) {
     }
     gl.disable(gl.BLEND);
     gl.depthMask(true);
-    gl.cullFace(pass === P.ink ? gl.FRONT : gl.BACK);
+    gl.cullFace(gl.BACK);
   }
 
   return {
@@ -113,6 +114,9 @@ export function makeRenderer(canvas, N, shaders, meshData, uniformValues) {
           gl.depthMask(true);
           gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
           gl.uniformMatrix4fv(uVP, false, views.subarray(e + V.matrix[0], e + V.matrix[1]));
+          for (const v of viewUniforms) {
+            gl[`uniform${v.size}fv`](v.loc, views.subarray(e + v.start, e + v.start + v.size));
+          }
           current = null;
           continue;
         }

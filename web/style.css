@@ -52,6 +52,13 @@
   --note-bg: #fffbe0;
   --track: #e6dcc9;
   --font: ui-rounded, "SF Pro Rounded", "Nunito", "Segoe UI Rounded", system-ui, sans-serif;
+  /* the HUD over the 3D view, after Ape Race's menus (T34): dark and see-
+     through in either theme, so it sits over the scene without hiding it */
+  --glass-bg: rgba(28, 20, 44, 0.84);
+  --glass-ink: #f6ecd9;
+  --glass-muted: #cbbbe6;
+  --glass-line: rgba(255, 214, 140, 0.28);
+  --glass-gold: #ffcf4d;
 }
 @media (prefers-color-scheme: dark) {
   :root { --paper: #2a2238; --panel: #2a2238; --ink: #f2ecff; --muted: #b9aedc; --drawn: #f2ecff; --shade: rgba(10, 8, 18, 0.6); --chip-bg: #4a3d66; --row-bg: rgba(255, 255, 255, 0.06); --dial: #3a3050; --card-bg: #342a48; --on-bg: #4a3d22; --note-bg: #3a3328; --track: #4a3d66; }
@@ -389,3 +396,13 @@ body[data-screen="play"] .panel-seal, body[data-screen="play"] .panel-sort { pos
 .act.shelf.school-restoration { background: color-mix(in srgb, var(--restoration) 68%, #000); }
 body[data-screen="play"] .panel-golem-card { position: absolute; right: 16px; top: 250px; width: 280px; font-size: 13px; z-index: 1; }
 .panel-golem-card h2 { font-size: 17px; }
+
+/* the HUD over the 3D view (T34): dark see-through cards, gold for what
+   matters, the same in light and dark themes */
+body[data-screen="play"] .hud-item, body[data-screen="play"] .hud-item.timer { background: var(--glass-bg); color: var(--glass-ink); border: 1px solid var(--glass-line); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); backdrop-filter: blur(3px); }
+body[data-screen="play"] .hud-item .hud-label { color: var(--glass-muted); opacity: 1; }
+body[data-screen="play"] .hud-item.timer .hud-value { color: var(--glass-gold); }
+body[data-screen="play"] .hud-item .bar { border: 1px solid var(--glass-line); background: rgba(255, 255, 255, 0.14); }
+body[data-screen="play"] .hud-item .bar i { background: linear-gradient(90deg, #6ad7ff, #a98bff); }
+.label3d.station, .label3d.seat { background: var(--glass-bg); color: var(--glass-gold); border: 1px solid var(--glass-line); border-radius: 999px; padding: 3px 12px 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+body[data-phase="prep"][data-busy=""] .panel-bottom, body[data-screen="play"] .panel-hint { background: var(--glass-bg); color: var(--glass-ink); border: 1px solid var(--glass-line); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); backdrop-filter: blur(3px); }

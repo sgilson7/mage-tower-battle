@@ -27,6 +27,12 @@ def attr(page, name):
     return page.get_attribute("body", f"data-{name}") or ""
 
 
+def text_now(page, selector):
+    """The text of the element if it is there now, else empty: no waiting."""
+    el = page.query_selector(selector)
+    return el.inner_text() if el else ""
+
+
 def hold_until(page, key, done, limit_s=90):
     """Holds a key (or none) until done() or the limit."""
     if key:
@@ -56,7 +62,9 @@ def run(page, check, engine):
     box = page.locator("#overlay").bounding_box()
     page.mouse.click(box["x"] + box["width"] * 0.4, box["y"] + box["height"] * 0.25)
     # what rises is listed beside the map, under the route (T32)
-    hold_until(page, None, lambda: "×" in page.inner_text("#route"), limit_s=LONG / 1000)
+    # read what is there each time: inner_text alone waits 30 s for a panel
+    # being rebuilt and throws, which ended a WebKit run early (R7.14)
+    hold_until(page, None, lambda: "×" in text_now(page, "#route"), limit_s=LONG / 1000)
     # a slow press and release, as a person clicks, while the wall rises
     pick = page.locator("button[data-action='layout.feature'][data-value='sub_tower']").bounding_box()
     page.mouse.move(pick["x"] + pick["width"] / 2, pick["y"] + pick["height"] / 2)

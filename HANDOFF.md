@@ -28,7 +28,7 @@ Mage Tower Battle is a browser game for one to four players. Each player is an a
 | `game.rs` | a match: days, scores, invasions, trials and medals |
 | `online.rs` | the room protocol: hello, lobby, start, invasions, plans, checksums |
 | `session.rs` | screens, the `act` door, the `ui` view model, the frame |
-| `mesh.rs`, `render.rs`, `look.rs`, `scene.rs`, `overlay.rs`, `sound.rs` | what is drawn and heard, as numbers the page uploads |
+| `mesh.rs`, `render.rs`, `look.rs`, `scene.rs`, `room.rs`, `overlay.rs`, `sound.rs` | what is drawn and heard, as numbers the page uploads; `room.rs` is the tower's room and its camera |
 | `crates/shim` | wasm-bindgen exports only |
 | `web/` | `app.js` (frame loop), `gl.js`, `ui.js`, `keys.js`, `sound.js`, `store.js`, `online.js`, `net/` (transport, vendored Trystero) |
 | `data/` | content, strings, palette, models, sounds, controls, display, shaders |
@@ -60,6 +60,7 @@ Publishing: a push to `main` on GitHub runs `.github/workflows/deploy.yml` (chec
 - A change to `content.json` or the rule code makes the spell log stale; re-run the logbook and commit `tests/spell-log/`.
 - Round 5 answered TRIAGE T15–T31 (rows R5.1–R5.13). Reading is a sorting game and saving a seal, so tests use the `sort` and `seal` helpers in `prep/tests.rs` and `session/tests.rs`; computer rivals use `read_now` and `save_now`.
 - Round 6 answered TRIAGE T32–T33 (rows R6.1–R6.9). Panels with a mockup are built from `blocks` the core lays out (`web/ui.js` `blocks`), each naming its column; a button may carry `grab` (acts on press) and `drop` (acts when a grab is let go over it). Who sits where is `battle::seating`, shared by the battle and both pictures of the field. Compare a changed screen with its mockup's picture before handing it over (`CLAUDE.md` rule 13).
+- Round 7 answered TRIAGE T34–T37 (rows R7.1–R7.13): the Ape Race look. Each viewport carries its mood (`render::Mood`: haze, sky and ground light, sun) and the page sets it as uniforms; there is no ink pass. Arms are nodes turned about a shoulder pivot (`q` in `models.json`), hand-held parts are `grip_r`. The room is `room.rs`: its static scene has two parts, the room and the near wall (drawn when `room::near_wall_shown`). The camera comes down at a station by `room::closeness`.
 - Round 4 answered TRIAGE T1–T13 (rows R4.1–R4.18 and R4.20–R4.22). The game's version is the first entry of `data/news.json`: add an entry there with every update.
 
 ## Mistakes so far
@@ -84,19 +85,21 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R3.40: try a room code with a friend on another network; the machine checks cover pasted codes on one machine only.
 - R5.10: round 5's names and numbers, all in `data/content.json`: the self spells, the librarian golem, the sorting game, the seal, per-cell prices, the difficulty levels, the invasion spread, the Crash Course target.
 - R6.9: round 6's new words for office hours, seating on the map, the seal, the sorting game and the builder (listed at the foot of `SECOND-ORDER.md`).
+- R7.3: whether to rebuild the enemies and helpers with arms like the mages, or keep them round.
+- R7.11: the new look's colours, the haze's distances, the HUD's dark glass and the close camera's distance, to judge by playing; and the What's new text for 1.6.0, listed at the foot of `SECOND-ORDER.md`.
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
 
-16 October 2026, round 6 (TRIAGE T32–T33), on the commit that last changed this section:
+17 October 2026, round 7 (TRIAGE T34–T37), on the commit that last changed this section:
 
-- `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`, including a student dragged to another seat on the map.
-- `./scripts/count-tests.sh`: `220 passed, 0 failed, 3 ignored`.
-- `python3 scripts/break_tests.py`: 128 of 131 caught, 3 rotted by this round's rewrite and none missed; the 3 re-targeted rows then 3 of 3.
-- `tests/browser/contrast.py`: passed in chromium, firefox and webkit, now also on office hours and the map's seating in both themes (it first failed on two mana numbers in the dark theme, fixed).
-- `tests/browser/online.py`: passed in chromium.
-- Each rebuilt screen compared with its mockup's picture: journal entry 7.
+- `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`. One earlier WebKit run stopped at a wait that threw instead of polling (R7.14); fixed, then passed three times.
+- `./scripts/count-tests.sh`: `228 passed, 0 failed, 3 ignored`.
+- `python3 scripts/break_tests.py`: 149 of 149 caught, 18 of them new this round.
+- `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium, firefox, webkit` (T37).
+- `tests/browser/contrast.py`: passed in chromium, firefox and webkit, both themes, with the dark HUD.
+- The new look compared with its mockups side by side: journal entry 8, part 5.
 
 ## The next action
 

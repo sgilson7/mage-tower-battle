@@ -18,6 +18,7 @@ use crate::online::{self, Event, Msg, Online, Role};
 use crate::overlay;
 use crate::prep::{self, Activity, Draw, Station};
 use crate::render::{Batch, Camera, FrameOut, StaticScene};
+use crate::room;
 use crate::save::Save;
 use crate::scene;
 use crate::sound::{self, Recipe};
@@ -98,9 +99,12 @@ pub struct Session {
     pasted: bool,
     /// The glossary's open tab, while it is open (T8).
     pub glossary: Option<String>,
-    /// The battle behind the menus (T11), and how many have been played.
+    /// The tower behind the menus (T11, T47), and how many have been made.
     demo: Option<Match>,
     demos: u64,
+    /// The title's archmage: which station of `room::TOUR` they are
+    /// walking to, and the ticks left to stand there once arrived (T47).
+    tour: (usize, i32),
     /// What's new (T12): each update's notes, newest first.
     news: News,
     all_news: bool,
@@ -280,6 +284,7 @@ impl Session {
             all_news: false,
             demo: None,
             demos: 0,
+            tour: (0, 0),
             card: None,
             trial_diff: Vec::new(),
             office_pick: None,
@@ -1086,46 +1091,53 @@ impl Session {
         }
     }
 
-    // ---- the title's battle (T11) ----
+    // ---- the title's tower (T11, T47) ----
 
-    /// Behind every menu a computer archmage's tower holds against a day,
-    /// and the camera circles it; a new day starts when one ends.
+    /// Behind every menu the camera turns slowly in the middle of the
+    /// tower, and an archmage walks from station to station with their
+    /// class on the benches (T11, T47).
     fn step_demo(&mut self) {
-        let done = self
-            .demo
-            .as_ref()
-            .map(|m| m.phase != Phase::Battle)
-            .unwrap_or(true);
-        if done {
+        if self.demo.is_none() {
             self.demos += 1;
             let seed = self.seed ^ self.demos.wrapping_mul(0x2545_f491_4f6c_dd1d);
-            let mut st = Settings::from_content(&self.c);
-            st.battle_s = self.c.balance().battle_s;
-            let kinds = [
-                SeatKind::Bot(STYLES[(self.demos % 4) as usize]),
-                SeatKind::Empty,
-                SeatKind::Empty,
-                SeatKind::Empty,
-            ];
-            let mut m = Match::new(&self.c, seed, Mode::Versus, st, kinds, Default::default(), 0);
-            m.begin_battle(&self.c);
+            let kinds = [SeatKind::Local, SeatKind::Empty, SeatKind::Empty, SeatKind::Empty];
+            let st = Settings::from_content(&self.c);
+            let m = Match::new(&self.c, seed, Mode::Versus, st, kinds, Default::default(), 0);
             self.demo = Some(m);
+            self.tour = (0, 0);
             self.static_key = (-1, -1, -1);
         }
-        if let Some(m) = self.demo.as_mut() {
-            for b in m.battles.iter_mut().flatten() {
-                b.step(&self.c);
-            }
-            if m.battles.iter().flatten().all(|b| b.done()) {
-                m.phase = Phase::Summary;
+        let walk = crate::content::cms(self.c.balance().walk_cms);
+        let stay = self.c.balance().demo_stay_s * TPS;
+        let (mut next, mut left) = self.tour;
+        if let Some(p) = self.demo.as_mut().and_then(|m| m.local_prep_mut()) {
+            p.prev = p.pos;
+            let st = room::TOUR[next % room::TOUR.len()];
+            let to = room::stand_at(st).sub(p.pos).flat();
+            if left > 0 {
+                // standing at the station, facing it
+                left -= 1;
+                let face = prep::station_pos(st).sub(p.pos);
+                p.yaw = crate::geom::yaw_of(face.x, face.z);
+                if left == 0 {
+                    next = (next + 1) % room::TOUR.len();
+                }
+            } else if to.flat_len() <= walk {
+                p.pos = p.pos.add(to);
+                left = stay;
+            } else {
+                p.pos = p.pos.add(to.with_len(walk));
+                p.yaw = crate::geom::yaw_of(to.x, to.z);
             }
         }
-        // a slow circle: one turn in demo_turn_s seconds
+        self.tour = (next, left);
+    }
+
+    /// The title's camera now: one turn in `demo_turn_s` (T47).
+    fn title_view(&self) -> Camera {
         let turn_ticks = (self.c.balance().demo_turn_s.max(1) * TPS) as i64;
-        let mut o = scene::Orbit::start(false);
-        o.yaw += ((self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks) as i32;
-        o.dist = o.dist * 3 / 4;
-        self.cams[0] = o;
+        let turn = (self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks;
+        room::title_camera(turn as i32)
     }
 
     fn begin_play(&mut self) {
@@ -1500,7 +1512,7 @@ impl Session {
 
     fn build_frame(&mut self) {
         let mut f = FrameOut::default();
-        // a match, or behind the menus the title's battle
+        // a match, or behind the menus the title's tower
         let Some(m) = self.m.as_ref().or(self.demo.as_ref()) else {
             self.frame = f;
             return;
@@ -1517,7 +1529,13 @@ impl Session {
                     self.static_key = key;
                 }
                 if let Some(p) = m.local_prep() {
-                    let cam = scene::room_camera(p);
+                    // behind the menus the camera turns in the middle of
+                    // the room (T47)
+                    let cam = if self.m.is_none() {
+                        self.title_view()
+                    } else {
+                        scene::room_camera(p)
+                    };
                     let (x, y, w, h) = (0, 0, self.canvas.0, self.canvas.1);
                     f.viewport(x, y, w, h, &cam, &scene::room_mood(&self.look));
                     f.static_draws(&self.statics.parts[0]);

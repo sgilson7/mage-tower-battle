@@ -581,20 +581,6 @@
     "test": "the_glossary_opens_over_any_screen_lists_every_piece_and_pauses_a_solo_day"
   },
   {
-    "name": "the title's battle never runs",
-    "file": "crates/core/src/session.rs",
-    "find": "        if self.m.is_none() {",
-    "replace": "        if false {",
-    "test": "a_battle_plays_behind_the_title_while_the_camera_circles_it"
-  },
-  {
-    "name": "the title's camera stands still",
-    "file": "crates/core/src/session.rs",
-    "find": "        o.yaw += ((self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks) as i32;",
-    "replace": "        o.yaw = o.yaw + 0 * ((self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks) as i32;",
-    "test": "a_battle_plays_behind_the_title_while_the_camera_circles_it"
-  },
-  {
     "name": "the New marker always shows",
     "file": "crates/core/src/session.rs",
     "find": "                        self.save.news_seen = self.news.entries[0].version.clone();",
@@ -1223,5 +1209,40 @@
     "find": "        self.dip += (want - self.dip).clamp(-DIP_PER_TICK, DIP_PER_TICK);",
     "replace": "        self.dip = want;",
     "test": "walking_anywhere_in_the_room_never_turns_or_jumps_the_camera"
+  },
+  {
+    "name": "the title's camera stands still",
+    "file": "crates/core/src/session.rs",
+    "find": "        let turn = (self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks;",
+    "replace": "        let turn = 0 * (self.tick as i64 % turn_ticks) * crate::fx::TURN as i64 / turn_ticks;",
+    "test": "the_title_turns_in_the_middle_of_the_tower_while_the_archmage_walks_its_stations"
+  },
+  {
+    "name": "the title's archmage stands still",
+    "file": "crates/core/src/session.rs",
+    "find": "                p.pos = p.pos.add(to.with_len(walk));",
+    "replace": "                p.pos = p.pos;",
+    "test": "the_title_turns_in_the_middle_of_the_tower_while_the_archmage_walks_its_stations"
+  },
+  {
+    "name": "the title's archmage stays at the first station",
+    "file": "crates/core/src/session.rs",
+    "find": "                    next = (next + 1) % room::TOUR.len();",
+    "replace": "                    next = next % room::TOUR.len();",
+    "test": "the_title_turns_in_the_middle_of_the_tower_while_the_archmage_walks_its_stations"
+  },
+  {
+    "name": "the title shows a battle",
+    "file": "crates/core/src/session.rs",
+    "find": "            let m = Match::new(&self.c, seed, Mode::Versus, st, kinds, Default::default(), 0);",
+    "replace": "            let mut m = Match::new(&self.c, seed, Mode::Versus, st, kinds, Default::default(), 0); m.begin_battle(&self.c);",
+    "test": "the_title_turns_in_the_middle_of_the_tower_while_the_archmage_walks_its_stations"
+  },
+  {
+    "name": "the title's tower never runs",
+    "file": "crates/core/src/session.rs",
+    "find": "        if self.m.is_none() {",
+    "replace": "        if false {",
+    "test": "the_title_turns_in_the_middle_of_the_tower_while_the_archmage_walks_its_stations"
   }
 ]

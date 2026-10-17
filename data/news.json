@@ -2,6 +2,14 @@
  "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
  "entries": [
   {
+   "version": "1.7.2",
+   "date": "2026-10-17",
+   "minor": false,
+   "items": [
+    "The title screen is inside the tower: the camera turns slowly past every station while an archmage walks the room and the class waits on the benches."
+   ]
+  },
+  {
    "version": "1.7.1",
    "date": "2026-10-17",
    "minor": false,

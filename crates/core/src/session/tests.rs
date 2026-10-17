@@ -750,23 +750,42 @@ fn a_book_read_shows_its_card_for_three_seconds_or_until_the_next_book() {
 }
 
 #[test]
-fn a_battle_plays_behind_the_title_while_the_camera_circles_it() {
+fn the_title_turns_in_the_middle_of_the_tower_while_the_archmage_walks_its_stations() {
     let mut s = session();
     run(&mut s, 2);
-    let demo = s.demo.as_ref().expect("a battle behind the menu");
-    assert_eq!(demo.phase, Phase::Battle);
+    let demo = s.demo.as_ref().expect("a tower behind the menu");
+    // the room, not a battle (T47)
+    assert_eq!(demo.phase, Phase::Prep);
     assert!(s.frame_out().commands.chunks(6).any(|c| c[0] == 0), "it is drawn");
-    let (yaw, tick) = (
-        s.cams[0].yaw,
-        s.demo.as_ref().unwrap().battles[0].as_ref().unwrap().tick,
-    );
+    // demo_turn_s 60: a quarter turn in 15 s, and the camera stays inside
+    // the room, below the wall's top, so the whole wall is drawn
+    let turn = |t: i32| crate::room::title_camera(t);
+    let (a, b) = (turn(0), turn(crate::fx::QUARTER_TURN));
+    assert!(a.at.z < a.eye.z, "it starts looking north");
+    assert!(b.at.x > b.eye.x, "a quarter turn later it looks east");
+    for t in [0, crate::fx::QUARTER_TURN, crate::fx::HALF_TURN] {
+        assert!(scene::near_wall_shown(&turn(t)));
+    }
+    let before = s.title_view();
     run(&mut s, 60);
-    assert_ne!(s.cams[0].yaw, yaw, "the camera moves");
-    assert!(
-        s.demo.as_ref().unwrap().battles[0].as_ref().unwrap().tick > tick,
-        "the battle goes on"
+    assert_ne!(s.title_view().at, before.at, "the camera turns");
+    // the archmage walks to the library first (4.5 m/s), stands there 3 s,
+    // then sets off for the invasion book
+    let start = s.demo.as_ref().unwrap().local_prep().unwrap().pos;
+    let lib = crate::room::stand_at(Station::Library);
+    let walk_ticks = (lib.sub(start).flat_len() / crate::content::cms(450)) as i32 + 2;
+    run(&mut s, walk_ticks);
+    assert_eq!(s.demo.as_ref().unwrap().local_prep().unwrap().pos, lib);
+    assert_eq!(s.tour.0, 0);
+    run(&mut s, 3 * TPS);
+    assert_eq!(s.tour.0, 1, "on to the next station");
+    run(&mut s, 30);
+    assert_ne!(
+        s.demo.as_ref().unwrap().local_prep().unwrap().pos,
+        lib,
+        "walking again"
     );
-    assert!(s.sounds().is_empty(), "the title's battle makes no sound");
+    assert!(s.sounds().is_empty(), "the title makes no sound");
     s.act("match.start", "practice").unwrap();
     assert!(s.demo.is_none(), "a match replaces it");
 }

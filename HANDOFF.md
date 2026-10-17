@@ -93,10 +93,19 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R8.8: `raid` and `health` are allowed in `data/` with reasons, and four glossary entries are new (Health, Journey, Raider, Temperament); confirm or change.
 - R8.10: round 8's new words, the temperaments and What's new 1.7.0 (listed at the foot of `SECOND-ORDER.md`).
 - R9.3: the camera's new distances and pace near a station, to judge by playing; and What's new 1.7.1.
+- R9.6: the title's camera height, turn speed and the order of stations; and What's new 1.7.2.
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
+
+17 October 2026, T47 (the title inside the tower):
+
+- `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`.
+- `./scripts/count-tests.sh`: `244 passed, 0 failed, 3 ignored`.
+- `python3 scripts/break_tests.py title`: 5 of 5 (the old title-battle rows re-aimed or replaced).
+- `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium`.
+- Screenshots of the title over 30 s, with and without the menus.
 
 17 October 2026, T46 (the camera near a station):
 

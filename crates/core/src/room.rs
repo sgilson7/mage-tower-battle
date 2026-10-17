@@ -1210,6 +1210,41 @@ pub fn room_camera(p: &Prep) -> Camera {
     }
 }
 
+/// The stations the title's archmage walks between, round the room (T47).
+pub const TOUR: [Station; 6] = [
+    Station::Library,
+    Station::Book,
+    Station::Lab,
+    Station::Podium,
+    Station::Office,
+    Station::Recruit,
+];
+
+/// Where the archmage stands to use a station: on its side toward the
+/// middle of the room.
+pub fn stand_at(s: Station) -> V3 {
+    let at = prep::station_pos(s);
+    at.add(
+        V3::ZERO
+            .sub(at)
+            .flat()
+            .with_len(prep::PROP + prep::BODY + ONE / 10),
+    )
+}
+
+/// The title's camera: high in the middle of the room, turning slowly so
+/// every station passes, with the map table in front of it (T47). `turn`
+/// runs 0 to a whole turn.
+pub fn title_camera(turn: i32) -> Camera {
+    let dir = v3(fx::sin(turn), 0, -fx::cos(turn));
+    let mid = prep::station_pos(Station::Map);
+    Camera {
+        eye: mid.sub(dir.scale(cm(300))).add(v3(0, cm(620), 0)),
+        at: mid.add(dir.scale(cm(850))).add(v3(0, cm(60), 0)),
+        focal: ONE * 17 / 10,
+    }
+}
+
 fn flame(b: &mut Batch, look: &Look, at: V3, size: Fx, tick: i32, phase: i32) {
     let k = ONE
         + fx::mul(fx::sin(tick * 1900 + phase * 7919), ONE / 8)

@@ -961,8 +961,8 @@
   {
     "name": "the camera comes down anywhere in the room",
     "file": "crates/core/src/room.rs",
-    "find": "    let (from, to) = (ONE * 45 / 10, ONE * 32 / 10);",
-    "replace": "    let (from, to) = (ONE * 99, ONE * 32 / 10);",
+    "find": "    ramp(d, ONE * 45 / 10)",
+    "replace": "    ramp(d, ONE * 99)",
     "test": "the_camera_stays_high_far_from_stations_and_comes_down_behind_the_archmage_at_one"
   },
   {
@@ -1209,5 +1209,19 @@
     "find": "            if let Some(mind) = self.ui_mind(b) {",
     "replace": "            if let Some(mind) = None::<Value> {",
     "test": "office_hours_draws_a_students_tree_and_the_battle_lights_it_as_it_runs"
+  },
+  {
+    "name": "the camera turns to face the station",
+    "file": "crates/core/src/room.rs",
+    "find": "        at: v3(eye.x, cm(150), p.pos.z + pull.z),",
+    "replace": "        at: v3(p.pos.x + pull.x, cm(150), p.pos.z + pull.z),",
+    "test": "walking_anywhere_in_the_room_never_turns_or_jumps_the_camera"
+  },
+  {
+    "name": "the camera drops at once",
+    "file": "crates/core/src/prep.rs",
+    "find": "        self.dip += (want - self.dip).clamp(-DIP_PER_TICK, DIP_PER_TICK);",
+    "replace": "        self.dip = want;",
+    "test": "walking_anywhere_in_the_room_never_turns_or_jumps_the_camera"
   }
 ]

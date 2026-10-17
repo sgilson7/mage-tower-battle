@@ -24,6 +24,8 @@ pub const REACH: Fx = ONE * 3;
 /// Its furniture keeps the archmage this far from its centre.
 pub const PROP: Fx = ONE * 13 / 10;
 pub const BODY: Fx = ONE * 2 / 5;
+/// How much of the way down the camera comes each tick (T46).
+pub const DIP_PER_TICK: Fx = ONE / 45;
 pub const MAX_SPELLS: usize = 12;
 /// The target an invasion is sent at: every rival (T29).
 pub const EVERY_RIVAL: u8 = 255;
@@ -272,6 +274,10 @@ pub struct Prep {
     pub pos: V3,
     pub prev: V3,
     pub yaw: i32,
+    /// How far the camera has come down toward a station, 0 to ONE. It
+    /// follows `room::closeness` at a set pace, so it eases down over
+    /// three quarters of a second however fast the archmage walks (T46).
+    pub dip: Fx,
     pub clock: i32,
     pub day_ticks: i32,
     /// Archmage mana in hundredths.
@@ -359,6 +365,7 @@ impl Prep {
             pos: v3(0, 0, 3 * ONE),
             prev: v3(0, 0, 3 * ONE),
             yaw: crate::fx::HALF_TURN,
+            dip: 0,
             clock: 0,
             day_ticks: 0,
             mana: c.balance().archmage_mana * 100,
@@ -465,6 +472,7 @@ impl Prep {
         self.ready = false;
         self.pos = v3(0, 0, 3 * ONE);
         self.prev = self.pos;
+        self.dip = 0;
     }
 
     pub fn station(&self) -> Option<Station> {
@@ -636,6 +644,9 @@ impl Prep {
             }
             self.hire(c, score, one);
         }
+        // the camera eases toward where the archmage now stands (T46)
+        let want = crate::room::closeness(self).0;
+        self.dip += (want - self.dip).clamp(-DIP_PER_TICK, DIP_PER_TICK);
         if bits & BACK != 0 && self.busy() {
             self.activity = Activity::Idle;
             self.note("prep.cancelled", "");

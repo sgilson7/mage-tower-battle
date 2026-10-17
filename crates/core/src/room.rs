@@ -1138,25 +1138,39 @@ pub fn floor_books(left: usize) -> usize {
     (left * 90 / 40).min(90)
 }
 
-/// How near the camera has come to a station, 0 (the overview) to ONE
-/// (behind the archmage), and which station. It starts to come down four
-/// and a half metres away and is all the way down at a little over the
-/// three metres a station reaches (T35).
+/// How near the camera has come to a station `d` away, 0 (the overview)
+/// to ONE (down beside the archmage). It starts to come down four and a
+/// half metres away and is all the way down at a little over the three
+/// metres a station reaches (T35).
+fn near(d: Fx) -> Fx {
+    ramp(d, ONE * 45 / 10)
+}
+
+/// 0 at `from` metres or further, ONE at the station's 3.2 m, eased.
+fn ramp(d: Fx, from: Fx) -> Fx {
+    let to = ONE * 32 / 10;
+    let t = fx::div((from - d).clamp(0, from - to), from - to);
+    // eased, so it starts and stops gently
+    fx::mul(fx::mul(t, t), 3 * ONE - 2 * t)
+}
+
+/// How near the camera has come to the nearest station, and which.
 pub fn closeness(p: &Prep) -> (Fx, Station) {
     let (st, d) = prep::STATIONS
         .iter()
         .map(|t| (t.0, prep::station_pos(t.0).sub(p.pos).flat_len()))
         .min_by_key(|t| t.1)
         .unwrap_or((Station::Map, 99 * ONE));
-    let (from, to) = (ONE * 45 / 10, ONE * 32 / 10);
-    let t = fx::div((from - d).clamp(0, from - to), from - to);
-    // eased, so it starts and stops gently
-    (fx::mul(fx::mul(t, t), 3 * ONE - 2 * t), st)
+    (near(d), st)
 }
 
 /// The room's camera: the overview from high above the archmage, coming
-/// down to just behind them, looking at the station, when they stand at
-/// one, the way Ape Race follows its ape (T35).
+/// down to just behind them when they stand at a station, the way Ape Race
+/// follows its ape (T35). It always looks the overview's way, north, so
+/// the keys keep their directions on the screen; it never turns to face a
+/// station (T46). It follows the archmage without turning; only how far
+/// ahead or back it looks is pulled toward every station by how near that
+/// station is, so it slides from one to the next and never jumps.
 pub fn room_camera(p: &Prep) -> Camera {
     let at = v3(p.pos.x * 3 / 4, ONE, p.pos.z * 3 / 4);
     let over = Camera {
@@ -1164,29 +1178,29 @@ pub fn room_camera(p: &Prep) -> Camera {
         at: at.add(v3(0, 0, -ONE)),
         focal: ONE * 29 / 10,
     };
-    let (t, st) = closeness(p);
+    // how far down it has come so far: `Prep::dip` eases toward
+    // `closeness`
+    let t = p.dip;
     if t == 0 {
         return over;
     }
-    let s = prep::station_pos(st);
-    let to = s.sub(p.pos).flat();
-    let dir = if to.flat_len() > ONE / 3 {
-        to.with_len(ONE)
-    } else {
-        v3(fx::sin(p.yaw), 0, fx::cos(p.yaw))
-    };
-    let mut eye = p.pos.sub(dir.scale(cm(560))).add(v3(0, cm(520), 0));
+    // behind and a little right of the archmage, so the station sits
+    // left of the side panel that opens there
+    let mut eye = p.pos.add(v3(cm(170), cm(600), cm(640)));
     let flat = eye.flat();
     if flat.flat_len() > WALL_R - 2 * ONE {
         let inside = flat.with_len(WALL_R - 2 * ONE);
         eye = v3(inside.x, eye.y, inside.z);
     }
-    // look a little right of the station, so it sits left of the side
-    // panel that opens there
-    let right = v3(-dir.z, 0, dir.x);
+    let pull = prep::STATIONS.iter().fold(V3::ZERO, |sum, s| {
+        let to = prep::station_pos(s.0).sub(p.pos).flat();
+        // over a longer way than the camera comes down, so the look
+        // slides rather than tilts (T46)
+        sum.add(to.scale(ramp(to.flat_len(), 7 * ONE)))
+    });
     let close = Camera {
         eye,
-        at: s.add(v3(0, cm(150), 0)).add(right.scale(cm(170))),
+        at: v3(eye.x, cm(150), p.pos.z + pull.z),
         focal: ONE * 19 / 10,
     };
     Camera {
@@ -1604,6 +1618,8 @@ mod tests {
         p.start_day(c, 600);
         p.pos = at;
         p.prev = at;
+        // the camera already settled there
+        p.dip = closeness(&p).0;
         p
     }
 
@@ -1622,15 +1638,75 @@ mod tests {
         let (t, st) = closeness(&near);
         assert_eq!((t, st), (ONE, Station::Library));
         let cam = room_camera(&near);
-        // 5.6 m behind (further south), 5.2 m up, looking at the station
-        // and 1.7 m to its right (east, for a camera looking north)
-        assert_eq!(cam.eye, near.pos.add(v3(0, cm(520), cm(560))));
+        // 6.4 m behind (further south), 1.7 m to the right (east, for a
+        // camera looking north), 6 m up, looking north at the station's
+        // row
+        assert_eq!(cam.eye, near.pos.add(v3(cm(170), cm(600), cm(640))));
         assert_eq!(cam.at, lib.add(v3(cm(170), cm(150), 0)));
+        // from the library's east side it still looks north, and does not
+        // turn to face the library (T46)
+        let east = prep_at(&c, lib.add(v3(2 * ONE, 0, 0)));
+        let cam = room_camera(&east);
+        assert_eq!(closeness(&east), (ONE, Station::Library));
+        assert_eq!((cam.at.x - cam.eye.x, cam.at.z - cam.eye.z), (0, -cm(640)));
         assert!(cam.eye.y < over.eye.y && near_wall_shown(&cam) && !near_wall_shown(&over));
         // halfway in, the camera is between the two
         let mid = prep_at(&c, lib.add(v3(0, 0, ONE * 385 / 100)));
         let t = closeness(&mid).0;
         assert!(t > ONE / 4 && t < ONE * 3 / 4, "{t}");
+    }
+
+    #[test]
+    fn walking_anywhere_in_the_room_never_turns_or_jumps_the_camera() {
+        // the keys move the archmage along the room's axes, so the camera
+        // must keep one heading for them to keep their directions on the
+        // screen, and a step must never swing it (T46). Walk east across
+        // the room in rows, a tick at a time, past every station.
+        let c = content::shipped();
+        let mut z = -12 * ONE;
+        let mut dipped = 0;
+        while z < 12 * ONE {
+            let mut p = prep_at(&c, v3(-12 * ONE, 0, z));
+            // the first step puts the archmage inside the wall
+            p.step(&c, prep::RIGHT);
+            p.dip = closeness(&p).0;
+            let mut last = room_camera(&p);
+            for _ in 0..400 {
+                p.step(&c, prep::RIGHT);
+                let cam = room_camera(&p);
+                // looking north, never more than a few degrees aside
+                let (dx, dz) = (cam.at.x - cam.eye.x, cam.at.z - cam.eye.z);
+                assert!(dz < 0 && dx.abs() * 3 < -dz, "at {:?}: {dx} {dz}", p.pos);
+                // walking is 7.5 cm a tick; coming down adds a forty-fifth
+                // of the way from the overview, at most 15 m, so 33 cm. The
+                // old camera, turning to face each station and coming all
+                // the way down in 1.3 m of walking, moved over 60 cm.
+                let moved = cam.eye.sub(last.eye).len().max(cam.at.sub(last.at).len());
+                assert!(moved < cm(42), "at {:?} the camera moved {moved}", p.pos);
+                if p.dip == ONE {
+                    dipped += 1;
+                }
+                last = cam;
+            }
+            z += ONE / 2;
+        }
+        // the walk did pass stations with the camera all the way down
+        assert!(dipped > 100, "{dipped}");
+    }
+
+    #[test]
+    fn the_camera_comes_down_over_three_quarters_of_a_second() {
+        let c = content::shipped();
+        let lib = prep::station_pos(Station::Library);
+        let mut p = prep_at(&c, v3(0, 0, 5 * ONE));
+        p.pos = lib.add(v3(0, 0, 2 * ONE));
+        let mut ticks = 0;
+        while p.dip < ONE {
+            p.step(&c, 0);
+            ticks += 1;
+        }
+        // a forty-fifth rounds down a little, so one tick more
+        assert_eq!(ticks, 46);
     }
 
     #[test]

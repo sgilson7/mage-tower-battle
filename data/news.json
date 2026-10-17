@@ -2,6 +2,14 @@
  "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
  "entries": [
   {
+   "version": "1.7.1",
+   "date": "2026-10-17",
+   "minor": false,
+   "items": [
+    "Walking up to a station is easier to steer: the camera no longer turns to face it, so the keys always point the same way on the screen, and it comes down gently instead of dropping."
+   ]
+  },
+  {
    "version": "1.7.0",
    "date": "2026-10-17",
    "minor": false,

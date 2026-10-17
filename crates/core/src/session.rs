@@ -2588,7 +2588,7 @@ impl Session {
     fn station_labels(&self, p: &prep::Prep) -> Vec<Value> {
         // once the camera has come down behind the archmage, the station
         // in front of them speaks for itself (T35)
-        if crate::room::closeness(p).0 > crate::fx::ONE / 2 {
+        if p.dip > crate::fx::ONE / 2 {
             return vec![];
         }
         let cam = scene::room_camera(p);

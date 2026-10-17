@@ -92,10 +92,19 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R8.6: the numbers for health, speed, raid timing and the journey, in `content.json`, to judge by playing.
 - R8.8: `raid` and `health` are allowed in `data/` with reasons, and four glossary entries are new (Health, Journey, Raider, Temperament); confirm or change.
 - R8.10: round 8's new words, the temperaments and What's new 1.7.0 (listed at the foot of `SECOND-ORDER.md`).
+- R9.3: the camera's new distances and pace near a station, to judge by playing; and What's new 1.7.1.
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
+
+17 October 2026, T46 (the camera near a station):
+
+- `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`.
+- `./scripts/count-tests.sh`: `244 passed, 0 failed, 3 ignored`.
+- `python3 scripts/break_tests.py camera`: 6 of 6, after re-aiming `the camera comes down anywhere in the room` at `near`.
+- `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium`.
+- Screenshots of the same walk before and after, past the library, the map table, the recruitment table, the office and the podium.
 
 17 October 2026, round 8 (TRIAGE T38–T45):
 

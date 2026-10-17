@@ -1256,7 +1256,7 @@
    "arch"
   ],
   "golem_hold_pct": 50,
-  "rehearsal_ticks": 60,
+  "rehearsal_ticks": 20,
   "books": 60,
   "band_px": [
    [

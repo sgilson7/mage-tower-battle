@@ -333,7 +333,8 @@ pub struct Balance {
     /// Percent of a piece's mana it holds when the builder golem raised it
     /// (T61).
     pub golem_hold_pct: i32,
-    /// Ticks of the rehearsal played each frame (T48).
+    /// Ticks of the rehearsal played each drawn frame (T48): 20 plays a
+    /// 90 s battle in about 4.5 s at 60 frames a second.
     pub rehearsal_ticks: i32,
     pub books: i32,
     pub band_px: Vec<[i32; 2]>,

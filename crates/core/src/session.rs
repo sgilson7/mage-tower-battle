@@ -1256,6 +1256,12 @@ impl Session {
         for t in self.clock.frame(now_us, bits) {
             self.step(t);
         }
+        // once a drawn frame, not once a tick: a slow machine that runs
+        // several ticks a frame to catch up must not also rehearse several
+        // times over, or it falls further behind (T48)
+        if self.rehearse {
+            self.rehearse_step();
+        }
         self.build_frame();
     }
 
@@ -1305,9 +1311,6 @@ impl Session {
         let cast = m.step(&self.c, bits);
         let after = m.phase;
         self.send_online(cast, before);
-        if self.rehearse {
-            self.rehearse_step();
-        }
         let Some(m) = self.m.as_mut() else { return };
         // the archmage's notes become toasts and sounds
         let mut notes = Vec::new();

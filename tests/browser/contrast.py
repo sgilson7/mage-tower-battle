@@ -76,6 +76,16 @@ def hold_until(page, keys, station, limit_ms=10000):
         page.keyboard.up(k)
 
 
+def hold_while(page, key, axis, keep, limit_ms=10000):
+    """Holds a key while keep(the archmage's x or z, in decimetres) is true."""
+    page.keyboard.down(key)
+    waited = 0
+    while waited < limit_ms and keep(int(page.get_attribute("body", f"data-{axis}") or 0)):
+        page.wait_for_timeout(40)
+        waited += 40
+    page.keyboard.up(key)
+
+
 def run(p, engine, origin):
     browser = getattr(p, engine).launch()
     for scheme in ("light", "dark"):
@@ -90,20 +100,16 @@ def run(p, engine, origin):
         page.click("button[data-action='glossary.close']")
         page.click("button[data-action='match.start'][data-value='practice']")
         page.wait_for_selector("body[data-phase='prep']", state="attached")
-        hold_until(page, ["KeyD", "KeyW"], "lab")
+        # the room is two columns (T59): the laboratory is right of the start
+        hold_until(page, ["KeyD"], "lab")
         page.locator("button[data-action='lab.add']").first.click()
         page.locator("button[data-action='lab.add']").last.click()
         page.wait_for_timeout(200)
         look(page, "spell laboratory with a draft", scheme)
         # office hours and seating on the map (T32, T33): the most colours
-        # on one screen; the office is at x 0, south of the room
-        page.keyboard.down("KeyA")
-        waited = 0
-        while waited < 10000 and int(page.get_attribute("body", "data-x") or 0) > 4:
-            page.wait_for_timeout(40)
-            waited += 40
-        page.keyboard.up("KeyA")
-        hold_until(page, ["KeyS"], "office")
+        # on one screen; the office is at the top of the left column
+        hold_while(page, "KeyA", "x", lambda x: x > -70)
+        hold_until(page, ["KeyW"], "office")
         page.wait_for_timeout(200)
         if page.get_attribute("body", "data-station") != "office" or page.locator("#station, #layout").count() == 0:
             failures.append(f"{scheme}: never reached the office")
@@ -114,7 +120,9 @@ def run(p, engine, origin):
         if page.locator("#station [class*='bi-node']").count() == 0:
             failures.append(f"{scheme}: the tree was not drawn")
         look(page, "office hours, how they decide", scheme)
-        hold_until(page, ["KeyW"], "map")
+        # down the left column, then across the front to the map table
+        hold_while(page, "KeyS", "z", lambda z: z < 50)
+        hold_until(page, ["KeyD"], "map")
         page.keyboard.press("KeyE")
         page.click("button[data-action='layout.seats'][data-value='on']")
         page.wait_for_timeout(200)
@@ -123,8 +131,9 @@ def run(p, engine, origin):
         look(page, "map table, seating", scheme)
         page.keyboard.press("Escape")
         page.wait_for_timeout(200)
-        # the book pile (T39), the library to the north-west
-        hold_until(page, ["KeyA", "KeyW"], "library")
+        # the book pile (T39), the library at the top of the right column
+        hold_while(page, "KeyD", "x", lambda x: x < 70)
+        hold_until(page, ["KeyW"], "library")
         page.click("button[data-action='library.read']")
         page.wait_for_timeout(300)
         if page.locator("#busy .bi-book").count() == 0:
@@ -132,8 +141,8 @@ def run(p, engine, origin):
         look(page, "the book pile", scheme)
         page.click("button[data-action='prep.cancel']")
         page.wait_for_timeout(200)
-        # the invasion book (T40, T44), north of the library
-        hold_until(page, ["KeyD", "KeyW"], "book")
+        # the invasion book (T40, T44), in the middle of the room
+        hold_until(page, ["KeyA"], "book")
         page.wait_for_timeout(300)
         if page.get_attribute("body", "data-station") != "book":
             failures.append(f"{scheme}: never reached the invasion book")

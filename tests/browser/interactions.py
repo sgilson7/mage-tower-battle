@@ -55,7 +55,10 @@ def run(page, check, engine):
 
     # the map table: place a glass wall, then the map's buttons still work
     # while it rises, and Esc closes the map (TRIAGE T3, T9)
-    hold_until(page, "KeyW", lambda: attr(page, "station") == "map")
+    # the room is two columns (T59): the map table is front right, so right,
+    # then down
+    hold_until(page, "KeyD", lambda: int(attr(page, "x") or 0) >= 50)
+    hold_until(page, "KeyS", lambda: attr(page, "station") == "map")
     page.keyboard.press("KeyE")
     page.wait_for_selector("body[data-overlay='on']", state="attached", timeout=LONG)
     page.click("button[data-action='layout.feature'][data-value='glass_wall']")
@@ -75,14 +78,14 @@ def run(page, check, engine):
     picked = page.locator("#layout li.on", has_text=CONTENT["features"][-1]["name"]).count() == 1
     check(picked, "a map button still works after placing something")
     # seating on the map (T33): drag the first student's disc from seat 0,
-    # at the ring's top (847, 88 of 1280 × 720), a quarter turn on to seat 3
-    # (911, 153)
+    # at the ring's top (825, 91 of 1280 × 720 on the 26-cell field), a
+    # quarter turn on to seat 3 (904, 171)
     page.click("button[data-action='layout.seats'][data-value='on']")
     at = lambda x, y: (box["x"] + box["width"] * x / 1280, box["y"] + box["height"] * y / 720)
-    page.mouse.move(*at(847, 88))
+    page.mouse.move(*at(825, 91))
     page.mouse.down()
-    page.mouse.move(*at(880, 120), steps=4)
-    page.mouse.move(*at(911, 153), steps=4)
+    page.mouse.move(*at(865, 131), steps=4)
+    page.mouse.move(*at(904, 171), steps=4)
     page.mouse.up()
     seat4 = STRINGS["office.seat_tower"].replace("{n}", "4")
     hold_until(page, None, lambda: seat4.lower() in page.inner_text("#layout").lower(), limit_s=5)
@@ -92,8 +95,8 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-overlay='off']", state="attached", timeout=LONG)
     check(True, "Esc closes the map")
 
-    # walk to the library: left, then up
-    hold_until(page, "KeyA", lambda: int(attr(page, "x") or 0) <= -60)
+    # walk to the library, at the top of the same column: up
+    hold_until(page, "KeyD", lambda: int(attr(page, "x") or 0) >= 70)
     hold_until(page, "KeyW", lambda: attr(page, "station") == "library")
     check(attr(page, "station") == "library", "the archmage reached the library on foot")
     # finding a book is a sorting game: shelve each falling book by its
@@ -114,7 +117,8 @@ def run(page, check, engine):
     check(int(attr(page, "known")) >= first + 1, "reading a book taught at least one more piece")
 
     # the laboratory: two Fire Bolts make a spell
-    hold_until(page, "KeyD", lambda: attr(page, "station") == "lab")
+    hold_until(page, "KeyD", lambda: int(attr(page, "x") or 0) >= 80)
+    hold_until(page, "KeyS", lambda: attr(page, "station") == "lab")
     check(attr(page, "station") == "lab", "the archmage reached the laboratory")
     # each click waits for the panel to redraw with the piece added, so the
     # next click does not land on the panel it replaced (SECOND-ORDER R4.11)
@@ -135,7 +139,8 @@ def run(page, check, engine):
     check(page.is_visible("#station"), "the laboratory's panel is visible")
 
     # the podium: teach the class by drawing a stroke across the board
-    hold_until(page, "KeyS", lambda: attr(page, "station") == "podium")
+    # across the middle, past the invasion book, to the students' column
+    hold_until(page, "KeyA", lambda: attr(page, "station") == "podium")
     check(attr(page, "station") == "podium", "the archmage reached the podium")
     page.click("button[data-action='podium.teach'][data-value='all']")
     page.wait_for_selector("body[data-busy='drawing']", state="attached", timeout=LONG)

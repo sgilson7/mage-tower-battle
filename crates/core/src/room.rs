@@ -51,18 +51,21 @@ const ROW_H: Fx = cm(56);
 const WALL_ROWS: i32 = 18;
 const WALL_BLOCKS: i32 = 84;
 pub const WALL_TOP: Fx = ROW_H * WALL_ROWS;
-/// The windows, in thousandths of a turn: two flanking the invasion book
-/// at the back, one east and one west.
-const WINDOWS: [i32; 4] = [433, 567, 262, 738];
+/// The windows, in thousandths of a turn: two at the back and one west;
+/// the laboratory's jars hang where the east one was (T59).
+const WINDOWS: [i32; 3] = [433, 567, 738];
 const WINDOW_HALF: Fx = cm(105);
 const WINDOW_LOW: Fx = cm(320);
 const WINDOW_HIGH: Fx = cm(820);
-/// The library's three cases, either side of its station's bearing.
-const CASES: [i32; 3] = [612, 659, 706];
+/// The library's three cases, either side of its station's bearing: on
+/// the right of the room now, with the archmage's other stations (T59).
+const CASES: [i32; 3] = [298, 345, 392];
 /// Timber posts on the full-height wall, between windows and cases.
-const POSTS: [i32; 5] = [300, 382, 467, 533, 588];
+const POSTS: [i32; 5] = [412, 467, 533, 618, 700];
 /// The laboratory's wall of jars.
-const JARS: i32 = 341;
+const JARS: i32 = 235;
+/// How the laboratory's bench is turned: its long side to the room.
+const LAB_YAW: i32 = fx::TURN / 4;
 
 /// How many rows of the wall stand at angle `a`: all of them at the back,
 /// stepping down toward the camera to two, so the room is seen into from
@@ -158,7 +161,8 @@ fn shadow(b: &mut Batch, look: &Look, at: V3, yaw: i32, rx: Fx, rz: Fx) {
 /// The podium's dais, and the way from it toward the room's middle that
 /// its benches follow.
 pub fn dais() -> (V3, V3) {
-    let d = prep::station_pos(Station::Podium).add(v3(cm(140), 0, cm(120)));
+    let at = prep::station_pos(Station::Podium);
+    let d = at.add(at.flat().with_len(cm(185)));
     (d, v3(-d.x, 0, -d.z).with_len(ONE))
 }
 
@@ -187,7 +191,7 @@ pub fn listener(i: usize) -> (V3, i32, bool) {
 
 /// Which way the applicants queue from the recruitment table.
 fn queue_dir() -> V3 {
-    v3(-ONE * 35 / 100, 0, ONE * 94 / 100)
+    v3(ONE * 35 / 100, 0, ONE * 94 / 100)
 }
 
 /// The room's furniture: (the room, the near wall).
@@ -226,9 +230,9 @@ pub fn room_static(look: &Look) -> (Batch, Batch) {
         }
         x += bw;
     }
-    // the rug under the map table
-    let map = prep::station_pos(Station::Map);
-    let rug = map.add(v3(0, 0, cm(140)));
+    // the rug in the middle, under the invasion book (T59)
+    let mid = prep::station_pos(Station::Book);
+    let rug = mid.add(v3(0, 0, cm(140)));
     for (i, &(rad, role)) in [
         (490, "rug_dark"),
         (462, "rug_trim"),
@@ -419,8 +423,8 @@ pub fn room_static(look: &Look) -> (Batch, Batch) {
             ONE / 5,
         );
     }
-    // a chandelier over the map table
-    let ch = map.add(v3(0, cm(880), cm(100)));
+    // a chandelier over the middle, clear of the book's beam
+    let ch = chandelier();
     b.push(
         Mesh::Cyl,
         Pass::Solid,
@@ -447,6 +451,7 @@ pub fn room_static(look: &Look) -> (Batch, Batch) {
             0,
         );
     }
+    paths(&mut b, look);
     library(&mut b, look, &mut r);
     invasion(&mut b, look);
     lab(&mut b, look, &mut r);
@@ -455,6 +460,49 @@ pub fn room_static(look: &Look) -> (Batch, Batch) {
     recruit(&mut b, look);
     office(&mut b, look, &mut r);
     (b, near)
+}
+
+fn chandelier() -> V3 {
+    prep::station_pos(Station::Book).add(v3(0, cm(880), cm(250)))
+}
+
+/// The ways worn into the floor between stations (T59): down each column
+/// and across the middle through the invasion book, so the room shows the
+/// order of the work.
+pub const PATHS: [(Station, Station); 7] = [
+    (Station::Recruit, Station::Podium),
+    (Station::Podium, Station::Office),
+    (Station::Library, Station::Lab),
+    (Station::Lab, Station::Map),
+    (Station::Podium, Station::Book),
+    (Station::Book, Station::Lab),
+    (Station::Office, Station::Book),
+];
+
+fn paths(b: &mut Batch, look: &Look) {
+    for (k, (from, to)) in PATHS.iter().enumerate() {
+        let (a, z) = (prep::station_pos(*from), prep::station_pos(*to));
+        let d = z.sub(a).flat();
+        let gap = prep::PROP + cm(40);
+        let len = d.flat_len() - 2 * gap;
+        if len <= 0 {
+            continue;
+        }
+        let u = d.with_len(ONE);
+        let yaw = crate::geom::yaw_of(d.x, d.z);
+        // flagstones along the way, a little apart
+        let n = (len / cm(70)).max(1);
+        for i in 0..n {
+            let at = a.add(u.scale(gap + cm(35) + i * len / n));
+            let w = cm(100) + (i * 37 + k as i32 * 11) % 3 * cm(8);
+            b.solid(
+                Mesh::Chunk,
+                v3(at.x, cm(2), at.z),
+                &Frame3::new(yaw + (i % 3 - 1) * per_mille(12), 0, 0, v3(w, cm(3), cm(56))),
+                look.colour("path_stone"),
+            );
+        }
+    }
 }
 
 const BOOKS: [&str; 7] = [
@@ -527,7 +575,7 @@ fn library(b: &mut Batch, look: &Look, r: &mut Rng) {
         shadow(b, look, at, yaw, w * 6 / 10, d);
     }
     // a ladder against the middle case
-    let a = per_mille(CASES[1]) + per_mille(8);
+    let a = per_mille(CASES[1]) - per_mille(8);
     let at = polar(a, WALL_R - cm(165), 0);
     let yaw = a + fx::HALF_TURN;
     let lean = -per_mille(35);
@@ -580,7 +628,7 @@ fn library(b: &mut Batch, look: &Look, r: &mut Rng) {
 }
 
 fn candle_stand() -> V3 {
-    prep::station_pos(Station::Library).add(v3(cm(260), 0, cm(-150)))
+    prep::station_pos(Station::Library).add(v3(cm(-260), 0, cm(-150)))
 }
 
 fn invasion(b: &mut Batch, look: &Look) {
@@ -652,12 +700,12 @@ fn invasion(b: &mut Batch, look: &Look) {
 }
 
 fn cauldron() -> V3 {
-    prep::station_pos(Station::Lab).add(v3(cm(240), 0, cm(250)))
+    prep::station_pos(Station::Lab).add(v3(cm(120), 0, cm(300)))
 }
 
 fn lab(b: &mut Batch, look: &Look, r: &mut Rng) {
     let at = prep::station_pos(Station::Lab);
-    let yaw = -per_mille(70);
+    let yaw = LAB_YAW;
     table(
         b,
         look,
@@ -1192,11 +1240,21 @@ pub fn room_camera(p: &Prep) -> Camera {
         let inside = flat.with_len(WALL_R - 2 * ONE);
         eye = v3(inside.x, eye.y, inside.z);
     }
-    let pull = prep::STATIONS.iter().fold(V3::ZERO, |sum, s| {
-        let to = prep::station_pos(s.0).sub(p.pos).flat();
+    let tos: Vec<V3> = prep::STATIONS
+        .iter()
+        .map(|s| prep::station_pos(s.0).sub(p.pos).flat())
+        .collect();
+    let nears: Vec<Fx> = tos.iter().map(|t| near(t.flat_len())).collect();
+    let pull = tos.iter().enumerate().fold(V3::ZERO, |sum, (i, to)| {
         // over a longer way than the camera comes down, so the look
-        // slides rather than tilts (T46)
-        sum.add(to.scale(ramp(to.flat_len(), 7 * ONE)))
+        // slides rather than tilts (T46); a station you are close to holds
+        // the look, so a neighbour 7 m off does not pull it away (T59)
+        let held = nears
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .fold(ONE, |k, (_, n)| fx::mul(k, ONE - n));
+        sum.add(to.scale(fx::mul(ramp(to.flat_len(), 7 * ONE), held)))
     });
     let close = Camera {
         eye,
@@ -1210,14 +1268,16 @@ pub fn room_camera(p: &Prep) -> Camera {
     }
 }
 
-/// The stations the title's archmage walks between, round the room (T47).
+/// The stations the title's archmage walks between, round the room (T47):
+/// down the right, across the front and up the left; the invasion book
+/// stands under the camera.
 pub const TOUR: [Station; 6] = [
     Station::Library,
-    Station::Book,
     Station::Lab,
+    Station::Map,
+    Station::Recruit,
     Station::Podium,
     Station::Office,
-    Station::Recruit,
 ];
 
 /// Where the archmage stands to use a station: on its side toward the
@@ -1233,14 +1293,15 @@ pub fn stand_at(s: Station) -> V3 {
 }
 
 /// The title's camera: high in the middle of the room, turning slowly so
-/// every station passes, with the map table in front of it (T47). `turn`
-/// runs 0 to a whole turn.
+/// every station passes, with the invasion book in front of it (T47,
+/// T59). `turn` runs 0 to a whole turn.
 pub fn title_camera(turn: i32) -> Camera {
     let dir = v3(fx::sin(turn), 0, -fx::cos(turn));
-    let mid = prep::station_pos(Station::Map);
+    let mid = prep::station_pos(Station::Book);
+    // a step ahead of the book, so its beam stays behind the camera
     Camera {
-        eye: mid.sub(dir.scale(cm(300))).add(v3(0, cm(620), 0)),
-        at: mid.add(dir.scale(cm(850))).add(v3(0, cm(60), 0)),
+        eye: mid.add(dir.scale(cm(150))).add(v3(0, cm(620), 0)),
+        at: mid.add(dir.scale(cm(1000))).add(v3(0, cm(60), 0)),
         focal: ONE * 17 / 10,
     }
 }
@@ -1420,24 +1481,28 @@ pub fn room_dynamic(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32
     for j in &p.jobs {
         let (model, at, yaw) = match &j.work {
             Work::Teach(_) => ("penguin", d.add(v3(0, cm(50), 0)), crate::geom::yaw_of(u.x, u.z)),
-            Work::Recruit => ("wisp_helper", rec.add(v3(cm(90), 0, cm(-100))), 0),
+            Work::Recruit => ("wisp_helper", rec.add(v3(cm(-90), 0, cm(-100))), 0),
             // the librarian golem goes through the pile (T21)
             Work::Search => (
                 "golem",
-                prep::station_pos(Station::Library).add(v3(cm(160), 0, cm(220))),
-                fx::TURN * 3 / 8,
+                prep::station_pos(Station::Library).add(v3(cm(-160), 0, cm(220))),
+                fx::TURN * 5 / 8,
             ),
-            Work::Train => (
-                "trainer",
-                prep::station_pos(Station::Podium).add(v3(cm(-300), 0, cm(100))),
-                fx::TURN / 4,
-            ),
+            Work::Train => {
+                let pod = prep::station_pos(Station::Podium);
+                (
+                    "trainer",
+                    pod.add(V3::ZERO.sub(pod).flat().with_len(cm(300)))
+                        .add(v3(0, 0, cm(-200))),
+                    fx::TURN * 3 / 4,
+                )
+            }
             Work::Raise(_) => continue,
             Work::Build(_) => {
                 let a = (tick * 120) % fx::TURN;
                 (
                     "golem",
-                    prep::station_pos(Station::Map).add(polar(a, cm(330), 0)),
+                    prep::station_pos(Station::Map).add(polar(a, cm(280), 0)),
                     a + fx::QUARTER_TURN,
                 )
             }
@@ -1469,7 +1534,7 @@ pub fn room_dynamic(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32
             );
         }
     }
-    let ch = prep::station_pos(Station::Map).add(v3(0, cm(880), cm(100)));
+    let ch = chandelier();
     for k in 0..8 {
         flame(
             b,
@@ -1546,7 +1611,7 @@ pub fn room_dynamic(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32
         let i = i as i32;
         let p_ = place(
             lab,
-            -per_mille(70),
+            LAB_YAW,
             v3(
                 cm(-115) + i * cm(115),
                 cm(190) + fx::mul(fx::sin(tick * 700 + i * 20000), cm(10)),
@@ -1685,8 +1750,9 @@ mod tests {
         assert_eq!(closeness(&east), (ONE, Station::Library));
         assert_eq!((cam.at.x - cam.eye.x, cam.at.z - cam.eye.z), (0, -cm(640)));
         assert!(cam.eye.y < over.eye.y && near_wall_shown(&cam) && !near_wall_shown(&over));
-        // halfway in, the camera is between the two
-        let mid = prep_at(&c, lib.add(v3(0, 0, ONE * 385 / 100)));
+        // halfway in, the camera is between the two: west of the library,
+        // away from the laboratory south of it (T59)
+        let mid = prep_at(&c, lib.add(v3(-ONE * 385 / 100, 0, 0)));
         let t = closeness(&mid).0;
         assert!(t > ONE / 4 && t < ONE * 3 / 4, "{t}");
     }

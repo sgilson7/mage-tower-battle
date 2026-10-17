@@ -287,6 +287,10 @@ pub struct Balance {
     pub days: i32,
     pub prep_s: i32,
     pub battle_s: i32,
+    /// A battle ends when every enemy has fallen or reached the tower, or
+    /// after this many seconds (T54); `battle_s` is how long the waves take
+    /// to arrive.
+    pub battle_max_s: i32,
     pub practice_prep_s: i32,
     pub ragdoll_cap: i32,
     pub mana_k: i32,
@@ -317,6 +321,20 @@ pub struct Balance {
     pub variance: i32,
     pub applicants: i32,
     pub start_students: i32,
+    /// The most students a college holds (T56).
+    pub max_students: i32,
+    /// Spells a student can hold (T50), as (quality from, slots) pairs.
+    pub spell_slots: Vec<[i32; 2]>,
+    /// A class lesson (T52): each student after the first takes this
+    /// percent off the effectiveness a drawing earns, and adds a stroke from
+    /// `class_strokes` to the drawing.
+    pub class_pct: i32,
+    pub class_strokes: Vec<String>,
+    /// Percent of a piece's mana it holds when the builder golem raised it
+    /// (T61).
+    pub golem_hold_pct: i32,
+    /// Ticks of the rehearsal played each frame (T48).
+    pub rehearsal_ticks: i32,
     pub books: i32,
     pub band_px: Vec<[i32; 2]>,
     pub perfect_ticks: i32,
@@ -530,6 +548,14 @@ impl Content {
             }
             rate[ai][di] = *pct;
         }
+        for s in &file.balance.class_strokes {
+            if !crate::glyph::STROKES.contains(&s.as_str()) {
+                return Err(ContentError::BadGlyph {
+                    piece: "class_strokes".into(),
+                    stroke: s.clone(),
+                });
+            }
+        }
         let mut piece_school = Vec::new();
         for p in &file.pieces {
             piece_school.push(find(&schools, "school", &p.school, &p.id)?);
@@ -581,6 +607,11 @@ impl Content {
             ("days", b.days, 1, 10),
             ("prep_s", b.prep_s, 10, 900),
             ("battle_s", b.battle_s, 10, 600),
+            ("battle_max_s", b.battle_max_s, b.battle_s, 1200),
+            ("max_students", b.max_students, 1, 12),
+            ("class_pct", b.class_pct, 0, 14),
+            ("golem_hold_pct", b.golem_hold_pct, 0, 100),
+            ("rehearsal_ticks", b.rehearsal_ticks, 1, 600),
             ("ragdoll_cap", b.ragdoll_cap, 0, 400),
             ("max_depth", b.max_depth, 1, 4),
             ("max_chain", b.max_chain, 2, 8),

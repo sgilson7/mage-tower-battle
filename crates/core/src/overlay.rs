@@ -14,7 +14,7 @@ use crate::rhythm::{Lane, CAST_LANE};
 /// The layout map's top-left corner and cell size in overlay pixels.
 pub const MAP_X: i32 = 352;
 pub const MAP_Y: i32 = 72;
-pub const MAP_CELL: i32 = 18;
+pub const MAP_CELL: i32 = 22;
 
 /// Pointer CSS pixels on an overlay of CSS size (w, h) to logical pixels.
 pub fn logical(x: i32, y: i32, w: i32, h: i32) -> (i32, i32) {
@@ -467,11 +467,11 @@ mod tests {
         assert_eq!(logical(100, 50, 640, 360), (200, 100));
         assert_eq!(map_cell(MAP_X, MAP_Y), Some((0, 0)));
         assert_eq!(
-            map_cell(MAP_X + MAP_CELL * 31 + 17, MAP_Y + MAP_CELL * 5 + 1),
-            Some((31, 5))
+            map_cell(MAP_X + MAP_CELL * 25 + 17, MAP_Y + MAP_CELL * 5 + 1),
+            Some((25, 5))
         );
         assert_eq!(map_cell(MAP_X - 1, MAP_Y), None);
-        assert_eq!(map_cell(MAP_X + MAP_CELL * 32, MAP_Y), None);
+        assert_eq!(map_cell(MAP_X + MAP_CELL * 26, MAP_Y), None);
     }
 
     #[test]

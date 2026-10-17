@@ -87,6 +87,15 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     return li;
   }
 
+  // a small ? that shows a panel's instructions on hover (T49)
+  function helpOf(text) {
+    const q = make("span", "help", "?");
+    q.title = text;
+    q.tabIndex = 0;
+    q.setAttribute("aria-label", text);
+    return q;
+  }
+
   function fillRow(li, r) {
     if (r.swatch) li.append(make("span", `sw sw-${r.swatch}`));
     const text = make("div", "row-text");
@@ -238,9 +247,14 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     title: (b) => {
       const h = make("h2", "", b.text);
       mark(h);
+      if (b.help) h.append(helpOf(b.help));
       return h;
     },
-    h: (b) => make("h3", "", b.text),
+    h: (b) => {
+      const h = make("h3", "", b.text);
+      if (b.help) h.append(helpOf(b.help));
+      return h;
+    },
     p: (b) => make("p", b.tone || "", b.text),
     note: noteOf,
     rows: (b) => {
@@ -406,11 +420,20 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       for (const it of p.items) {
         const cell = make("div", `hud-item ${it.kind || ""}`);
         cell.append(make("span", "hud-label", it.label), make("span", "hud-value", it.value));
+        if (it.hint) cell.title = it.hint;
+        // the rehearsal's change since the last plan (T48)
+        if (it.note) cell.append(make("span", it.tone ? `hud-note tone-${it.tone}` : "hud-note", it.note));
         if (it.bar) {
           const bar = make("span", "bar");
           const fill = make("i");
           fill.style.width = it.bar;
           bar.append(fill);
+          // the part of the maximum the field holds (T61), at the bar's end
+          if (it.held) {
+            const held = make("b", "held");
+            held.style.width = it.held;
+            bar.append(held);
+          }
           cell.append(bar);
         }
         box.append(cell);
@@ -419,6 +442,8 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     if (p.heading) {
       const h = make("h2", "", p.heading);
       mark(h);
+      // the panel's instructions, on hover rather than on the panel (T49)
+      if (p.help) h.append(helpOf(p.help));
       box.append(h);
     }
     if (p.text) box.append(make("p", "", p.text));
@@ -452,6 +477,15 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       for (const r of p.rows) ul.append(rowOf(r));
       box.append(ul);
     }
+    if (p.lesson) {
+      // what each student got from the last lesson (T48)
+      const card = make("div", "lesson");
+      card.append(make("h3", "", p.lesson.heading));
+      const ul = make("ul", "rows");
+      for (const r of p.lesson.rows) ul.append(rowOf(r));
+      card.append(ul);
+      box.append(card);
+    }
     if (p.tray) box.append(trayOf(p.tray));
     if (p.cards && p.cards.length) {
       const grid = make("div", "cards");
@@ -471,6 +505,18 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     return b && !b.disabled ? b : null;
   };
   let pressed = null;
+  // what you picked up, drawn in your hand under the pointer until you let
+  // go (T53): a copy of the book, tile or student, which takes no clicks
+  let ghost = null;
+  const follow = (e) => {
+    if (!ghost) return;
+    ghost.style.left = `${e.clientX}px`;
+    ghost.style.top = `${e.clientY}px`;
+  };
+  const dropGhost = () => {
+    if (ghost) ghost.remove();
+    ghost = null;
+  };
   panelsEl.addEventListener("pointerdown", (e) => {
     const b = target(e);
     pressed = b ? { action: b.dataset.action, value: b.dataset.value, grab: b.dataset.grabAction } : null;
@@ -478,13 +524,25 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       // the pointer stays free, so letting go over another button is seen there
       if (b.hasPointerCapture && b.hasPointerCapture(e.pointerId)) b.releasePointerCapture(e.pointerId);
       act(b.dataset.grabAction, b.dataset.grabValue);
+      dropGhost();
+      ghost = b.cloneNode(true);
+      ghost.classList.add("in-hand");
+      ghost.removeAttribute("data-action");
+      ghost.style.width = `${b.offsetWidth}px`;
+      ghost.style.height = `${b.offsetHeight}px`;
+      document.body.append(ghost);
+      follow(e);
     }
     document.body.dataset.dragging = b && b.dataset.grabAction ? "on" : "off";
   });
+  window.addEventListener("pointermove", follow);
+  window.addEventListener("pointerup", dropGhost);
+  window.addEventListener("pointercancel", dropGhost);
   panelsEl.addEventListener("pointerup", (e) => {
     const b = target(e);
     if (pressed && b && b.dataset.action === pressed.action && b.dataset.value === pressed.value) act(pressed.action, pressed.value);
     else if (pressed && pressed.grab && b && b.dataset.drop) act(b.dataset.action, b.dataset.value);
+    if (pressed && pressed.grab) act("drag.end", "");
     pressed = null;
     document.body.dataset.dragging = "off";
   });

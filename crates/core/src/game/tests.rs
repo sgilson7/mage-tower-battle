@@ -311,3 +311,22 @@ fn a_student_sent_to_raid_fights_on_that_rivals_field_and_not_on_their_own() {
             .any(|k| k.team == crate::battle::Team::Foe && k.from == 0));
     }
 }
+
+#[test]
+fn a_battle_is_allowed_ten_minutes_whatever_the_waves_take() {
+    let c = shipped();
+    let mut m = versus(&c);
+    // the waves arrive over battle_s 30 s here; the limit is battle_max_s
+    // 600 s (T54)
+    m.local_prep_mut().unwrap().ready = true;
+    for _ in 0..TPS * 30 {
+        m.step(&c, 0);
+        if m.phase == Phase::Battle {
+            break;
+        }
+    }
+    assert_eq!(m.phase, Phase::Battle);
+    for b in m.battles.iter().flatten() {
+        assert_eq!(b.ticks, 600 * TPS);
+    }
+}

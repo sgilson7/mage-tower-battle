@@ -15,6 +15,12 @@ fn session() -> Session {
         "",
         42,
     )
+    .map(|mut s| {
+        // the rehearsal plays a whole battle in the background; the tests
+        // that look at it turn it back on (T48)
+        s.rehearse = false;
+        s
+    })
     .expect("session")
 }
 
@@ -220,7 +226,13 @@ fn a_versus_day_shows_four_towers_and_the_summary() {
     s.act("view.focus", "2").unwrap();
     run(&mut s, 1);
     assert_eq!(s.frame_out().commands.chunks(6).filter(|c| c[0] == 0).count(), 1);
-    run(&mut s, TPS * 35);
+    // the battle lasts until its enemies are gone, ten minutes at most (T54)
+    for _ in 0..600 {
+        if s.ui()["phase"] == "summary" {
+            break;
+        }
+        run(&mut s, TPS);
+    }
     let ui = s.ui();
     assert_eq!(ui["phase"], "summary");
     no_missing(&ui);
@@ -304,6 +316,11 @@ fn online_room(n: usize) -> (Session, Vec<Session>) {
 fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) -> bool {
     let mut raided = false;
     for _ in 0..ticks {
+        // a battle lasts until its enemies are gone (T54): stop at the results
+        let over = |s: &Session| s.m.as_ref().map(|m| m.phase == Phase::Results).unwrap_or(false);
+        if over(host) && js.iter().all(over) {
+            break;
+        }
         for j in js.iter_mut() {
             let c = j.c.clone();
             if let Some(m) = j.m.as_mut() {
@@ -397,7 +414,7 @@ fn every_browser_of_an_online_match_ends_with_the_same_scores() {
     wire(&mut host, &mut js);
     host.act("online.start", "").unwrap();
     wire(&mut host, &mut js);
-    let raided = play_online(&mut host, &mut js, TPS * 200);
+    let raided = play_online(&mut host, &mut js, TPS * 1300);
     assert!(
         raided,
         "a joiner's raider crossed the wire and fought on a field (T40)"
@@ -441,7 +458,7 @@ fn a_joiner_who_leaves_mid_match_does_not_stop_the_others() {
     js.pop();
     host.net_left(2);
     let mut rest = js;
-    play_online(&mut host, &mut rest, TPS * 200);
+    play_online(&mut host, &mut rest, TPS * 1300);
     let hm = host.m.as_ref().unwrap();
     assert_eq!(hm.phase, Phase::Results);
     assert!(hm.seats[2].gone);
@@ -644,13 +661,18 @@ fn each_battle_view_turns_moves_and_zooms_on_its_own() {
 }
 
 #[test]
-fn the_starting_orbits_are_the_old_fixed_cameras() {
-    for close in [false, true] {
+fn the_starting_orbits_look_as_the_old_fixed_cameras_did_from_a_fifth_closer() {
+    // the old eyes were 63.2 m and 40.3 m from what they looked at; the
+    // smaller field starts them at 50 m and 32 m on the same line (T58)
+    for (close, old, new) in [(false, 632, 500), (true, 403, 320)] {
         let a = scene::arena_camera(close);
         let b = scene::Orbit::start(close).camera();
+        let want = |e: i32, at: i32| at + ((e - at) as i64 * new / old) as i32;
         let near = |p: i32, q: i32| (p - q).abs() < crate::fx::ONE / 2;
         assert!(
-            near(a.eye.x, b.eye.x) && near(a.eye.y, b.eye.y) && near(a.eye.z, b.eye.z),
+            near(want(a.eye.x, a.at.x), b.eye.x)
+                && near(want(a.eye.y, a.at.y), b.eye.y)
+                && near(want(a.eye.z, a.at.z), b.eye.z),
             "{close}: {:?} vs {:?}",
             a.eye,
             b.eye
@@ -1031,16 +1053,16 @@ fn on_the_map_a_students_disc_is_dragged_to_another_seat() {
             .map(|x| x.id)
             .collect();
     // nobody seated yet: the first student is given seat 0, at the ring's top.
-    // The tower's middle is cell (27.5, 4.5) and the ring 3.6 cells round
-    // it; a cell is 18 px from (352, 72): seat 0 at (847, 88), seat 3 a
-    // quarter turn on at (911, 153)
-    let err = s.act("pointer.up", "911,153,1280,720").unwrap_err();
+    // The tower's middle is cell (21.5, 4.5) and the ring 3.6 cells round
+    // it; a cell is 22 px from (352, 72): seat 0 at (825, 91), seat 3 a
+    // quarter turn on at (904, 171)
+    let err = s.act("pointer.up", "904,171,1280,720").unwrap_err();
     assert_eq!(
         err, "Pick a student first.",
         "an empty seat needs a student picked"
     );
-    s.act("pointer.down", "847,88,1280,720").unwrap();
-    s.act("pointer.up", "911,153,1280,720").unwrap();
+    s.act("pointer.down", "825,91,1280,720").unwrap();
+    s.act("pointer.up", "904,171,1280,720").unwrap();
     let seats: Vec<i32> =
         s.m.as_ref()
             .unwrap()
@@ -1095,7 +1117,22 @@ fn the_builder_shows_one_kind_of_tile_and_a_dropped_tile_must_fit_its_slot() {
         s.m.as_ref().unwrap().local_prep().unwrap().draft,
         vec![c.piece("fire_bolt").unwrap() as u16]
     );
-    assert!(s.act("lab.drop", "pay").is_err(), "nothing held after a drop");
+    // with nothing in hand, clicking an empty slot opens its tab (T57)
+    s.act("lab.tab", "mod").unwrap();
+    s.act("lab.drop", "trig").unwrap();
+    assert!(
+        kinds(&tray(&s)).iter().all(|k| k == "trig"),
+        "the trigger tab is open"
+    );
+    // a tile clicked, not dragged, is not left in hand for the next slot
+    s.act("lab.hold", "fire_bolt").unwrap();
+    s.act("drag.end", "").unwrap();
+    s.act("lab.drop", "pay").unwrap();
+    assert_eq!(
+        s.m.as_ref().unwrap().local_prep().unwrap().draft.len(),
+        1,
+        "nothing was dropped"
+    );
     no_missing(&s.ui());
 }
 
@@ -1283,4 +1320,53 @@ fn office_hours_draws_a_students_tree_and_the_battle_lights_it_as_it_runs() {
     assert!(lines.iter().any(|l| l["tone"] != ""), "something ran this tick");
     assert!(find_panel(&s, "raiders").is_some());
     no_missing(&s.ui());
+}
+
+#[test]
+fn the_rehearsal_foretells_the_days_battle_and_says_how_a_change_moved_it() {
+    let mut s = session();
+    s.rehearse = true;
+    s.act("match.start", "practice").unwrap();
+    // it plays the battle in the background, rehearsal_ticks a tick
+    for _ in 0..TPS * 60 {
+        if s.rehearsal.result.is_some() {
+            break;
+        }
+        run(&mut s, 1);
+    }
+    let first = s.rehearsal.result.expect("the rehearsal finished");
+    assert!(first > 0, "two weak students do not hold a whole wave");
+    let ui = s.ui();
+    no_missing(&ui);
+    let shown = format!("−{}", strings::number(first));
+    assert!(ui.to_string().contains(&shown), "the HUD shows {shown}");
+    // a wall changes the plan: it plays again and compares
+    s.teleport(Station::Map);
+    s.act("layout.open", "").unwrap();
+    for x in 4..12 {
+        let _ = s.act("layout.place", &format!("glass_wall,{x},12,0"));
+    }
+    s.act("layout.close", "").unwrap();
+    // glass walls rise in raise_ms 500, 30 ticks
+    run(&mut s, 40);
+    assert!(s.rehearsal.battle.is_some(), "played again for the new plan");
+    assert_eq!(s.rehearsal.before, Some(first));
+    // nothing else changes, so the day's battle takes what the last
+    // rehearsal said
+    for _ in 0..TPS * 60 {
+        if s.rehearsal.battle.is_none() {
+            break;
+        }
+        run(&mut s, 1);
+    }
+    let foretold = s.rehearsal.result.unwrap();
+    s.act("day.ready", "").unwrap();
+    for _ in 0..700 {
+        if s.ui()["phase"] == "summary" {
+            break;
+        }
+        run(&mut s, TPS);
+    }
+    let m = s.m.as_ref().unwrap();
+    assert_eq!(m.seats[m.local as usize].taken.last().copied(), Some(foretold));
 }

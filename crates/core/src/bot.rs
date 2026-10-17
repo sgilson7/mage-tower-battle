@@ -42,7 +42,6 @@ impl Style {
 /// Seconds each action costs a bot, walking to the station included.
 const READ_S: i32 = 5;
 const INTERVIEW_S: i32 = 9;
-const GROUP_S: i32 = 11;
 const TEACH_S_PER_GLYPH: i32 = 3;
 const CRAFT_S: i32 = 6;
 const PLACE_S: i32 = 4;
@@ -166,21 +165,21 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
     // recruiting
     let interviews = match style {
         Style::AttackMage => 0,
-        Style::Spellcrafter => 2,
+        Style::Spellcrafter => 1,
         Style::Balanced => 1,
         Style::MassTeacher => 9,
     };
     put(p, Station::Recruit);
+    // one applicant at a time, up to the college's limit (T51, T56)
     for _ in 0..interviews {
-        if p.applicants.is_empty() {
+        if p.applicants.is_empty() || p.class_full(c) {
             break;
         }
-        let group = matches!(style, Style::MassTeacher | Style::Balanced) || p.students.len() < 10;
-        if !spend(if group { GROUP_S } else { INTERVIEW_S }, &mut left) {
+        if !spend(INTERVIEW_S, &mut left) {
             break;
         }
         let score = roll(rng);
-        p.bot_hire(c, score, if group { None } else { Some(0) });
+        p.bot_hire(c, score, Some(0));
     }
     // walls: lengthen the route with whatever walls are known
     put(p, Station::Map);
@@ -193,7 +192,8 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
             if !spend(PLACE_S, &mut left) {
                 break;
             }
-            let (x, z, d) = (rng.between(2, 28), rng.between(6, 26), rng.below(2));
+            let n = crate::arena::SIZE;
+            let (x, z, d) = (rng.between(2, n - 4), rng.between(6, n - 6), rng.below(2));
             // a wall of three cells, laid a cell at a time (T23)
             for k in 0..3 {
                 let (cx, cz) = if d == 1 { (x, z + k) } else { (x + k, z) };
@@ -202,20 +202,47 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
         }
     }
     p.finish_raises(c);
-    // teaching: every spell to everyone, best first, while time lasts
+    // teaching, best spells first, while time lasts. The mass teacher
+    // teaches the class; the others teach each student one-on-one, which
+    // earns far more for the drawing (T52), as their slots allow (T50)
     put(p, Station::Podium);
     let order: Vec<usize> = (0..p.spells.len()).rev().collect();
-    for i in order {
+    'teach: for i in order {
         let glyphs = p.spells[i].len() as i32;
-        if !spend(TEACH_S_PER_GLYPH * glyphs + 2, &mut left) {
-            break;
+        if style == Style::MassTeacher {
+            let audience = p.class_for(c, i as u16, None).len() as i32;
+            if audience == 0 {
+                continue;
+            }
+            // each student after the first adds a stroke (two to a glyph)
+            // and narrows the band: skill falls with the class's size.
+            // Skill reads as a careful player's drawing: skill 65 draws
+            // about 84 alone, since effectiveness climbs steeply near the
+            // top (T26)
+            let strokes = crate::prep::class_glyphs(c, audience).len() as i32;
+            if !spend(TEACH_S_PER_GLYPH * (glyphs + strokes) + 2, &mut left) {
+                break;
+            }
+            let score = (55 + roll(rng) * 45 / 100 - (audience - 1) * 3).clamp(5, 99);
+            p.bot_teach(c, i as u16, score);
+        } else {
+            let ids: Vec<u16> = p
+                .students
+                .iter()
+                .filter(|st| {
+                    !st.known.iter().any(|k| k.0 == i as u16)
+                        && (st.known.len() as i32) < crate::prep::slots(c, st)
+                })
+                .map(|st| st.id)
+                .collect();
+            for id in ids {
+                if !spend(TEACH_S_PER_GLYPH * glyphs + 2, &mut left) {
+                    break 'teach;
+                }
+                let score = (55 + roll(rng) * 45 / 100).clamp(5, 99);
+                p.bot_teach_one(c, i as u16, id, score);
+            }
         }
-        let audience = p.students.len() as i32;
-        // a bigger class means a narrower band: skill falls a little with size.
-        // Skill reads as a careful player's drawing: skill 65 draws about 84,
-        // since effectiveness now climbs steeply near the top (T26)
-        let score = (55 + roll(rng) * 45 / 100 - audience / 3).clamp(5, 99);
-        p.bot_teach(c, i as u16, score);
     }
     // invasions last, so the time left can wait for mana to come back:
     // the attack mage sends many, the leader first, then the others in
@@ -323,9 +350,14 @@ mod tests {
             out.push((style, p.students.len(), p.record.books, invasions));
         }
         let (spell_k, mass, attack) = (out[0], out[1], out[2]);
+        assert_eq!(
+            mass.1,
+            c.balance().max_students as usize,
+            "the mass teacher fills the college: {out:?}"
+        );
         assert!(
-            mass.1 > spell_k.1 + 4,
-            "the mass teacher recruits far more: {out:?}"
+            mass.1 > spell_k.1,
+            "and recruits more than the spellcrafter: {out:?}"
         );
         assert!(spell_k.2 > mass.2, "the spellcrafter reads more: {out:?}");
         assert_eq!(

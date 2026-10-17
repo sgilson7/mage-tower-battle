@@ -50,14 +50,20 @@ pub enum Station {
     Office,
 }
 
+/// The room in two columns joined in the middle (T59): the students'
+/// stations down the left in the order they are used (recruitment, the
+/// podium, office hours), the archmage's and the tower's down the right
+/// (the library, the laboratory, the map table), and the invasion book
+/// between them under the chandelier. Each column's stations stand 6.9 m
+/// apart, on a ring 10.2 m out, so no two reaches overlap.
 pub const STATIONS: [(Station, i32, i32); 7] = [
-    (Station::Library, -850, -550),
-    (Station::Lab, 850, -550),
-    (Station::Book, 0, -950),
-    (Station::Map, 0, -150),
-    (Station::Podium, 800, 500),
-    (Station::Recruit, -800, 500),
-    (Station::Office, 0, 1000),
+    (Station::Library, 843, -573),
+    (Station::Lab, 1015, 96),
+    (Station::Map, 721, 721),
+    (Station::Book, 0, -150),
+    (Station::Office, -843, -573),
+    (Station::Podium, -955, 90),
+    (Station::Recruit, -721, 721),
 ];
 
 pub fn station_pos(s: Station) -> V3 {
@@ -118,6 +124,35 @@ pub struct Applicant {
     pub temper: u8,
 }
 
+/// How many spells a student can hold (T50), by their quality.
+pub fn slots(c: &Content, s: &Student) -> i32 {
+    c.balance()
+        .spell_slots
+        .iter()
+        .filter(|p| s.quality >= p[0])
+        .map(|p| p[1])
+        .next_back()
+        .unwrap_or(1)
+}
+
+/// What one student got from the last lesson (T48): their effectiveness
+/// with the spell before, if they knew it, and after.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Learned {
+    pub id: u16,
+    pub before: Option<i32>,
+    pub after: i32,
+}
+
+/// The last lesson, for the card the podium shows after it (T48).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Lesson {
+    pub spell: u16,
+    pub score: i32,
+    pub class_pct: i32,
+    pub learned: Vec<Learned>,
+}
+
 /// A temperament from a name and a school, so it costs the match's chance
 /// nothing and is the same in every browser (T41).
 pub fn temper_of(c: &Content, name: &str, school: u8) -> u8 {
@@ -160,6 +195,18 @@ pub struct Job {
     pub left: i32,
     pub total: i32,
     pub work: Work,
+    /// A helper that finished and could not pay to start again waits
+    /// here until the mana is there (T55).
+    #[serde(default)]
+    pub waiting: bool,
+}
+
+impl Work {
+    /// A helper's work, which pays and starts again each time it is done
+    /// (T55); a rising wall is done once.
+    pub fn repeats(&self) -> bool {
+        matches!(self, Work::Teach(_) | Work::Recruit | Work::Train | Work::Search)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -268,6 +315,9 @@ pub struct Prep {
     pub discount: i32,
     /// Cells laid on the map today, in order, for undo (T23).
     pub laid: Vec<(i32, i32)>,
+    /// Cells the builder golem raised or is raising: what stands there
+    /// holds only `golem_hold_pct` of its mana (T61).
+    pub golem_cells: Vec<(i32, i32)>,
     /// Spells cast on yourself and the ticks each has left (T24).
     pub boons: Vec<(u16, i32)>,
     pub seat: u8,
@@ -299,6 +349,8 @@ pub struct Prep {
     pub notes: Vec<Note>,
     pub ready: bool,
     pub last_read: Option<Book>,
+    /// The last lesson's results, until the next (T48).
+    pub lesson: Option<Lesson>,
     next_id: u16,
     rng: Rng,
 }
@@ -321,6 +373,18 @@ pub fn units_per_px(n: usize) -> i32 {
 }
 
 /// The overlay pixel where the incantation's glyph-space origin sits.
+/// The strokes a class adds to a lesson's drawing (T52): one for each
+/// student after the first, two to a glyph, after the spell's own.
+pub fn class_glyphs(c: &Content, audience: i32) -> Vec<Vec<String>> {
+    let pool = &c.balance().class_strokes;
+    let extra = (audience - 1).max(0) as usize;
+    if pool.is_empty() || extra == 0 {
+        return Vec::new();
+    }
+    let strokes: Vec<String> = (0..extra).map(|k| pool[k % pool.len()].clone()).collect();
+    strokes.chunks(2).map(|ch| ch.to_vec()).collect()
+}
+
 pub fn draw_origin(n: usize) -> (i32, i32) {
     let u = units_per_px(n);
     let w = glyph::width(n) / u;
@@ -360,6 +424,7 @@ impl Prep {
             held: 0,
             discount: 0,
             laid: Vec::new(),
+            golem_cells: Vec::new(),
             boons: Vec::new(),
             seat,
             pos: v3(0, 0, 3 * ONE),
@@ -385,6 +450,7 @@ impl Prep {
             notes: Vec::new(),
             ready: false,
             last_read: None,
+            lesson: None,
             next_id: 1,
             rng,
         };
@@ -459,8 +525,9 @@ impl Prep {
     pub fn start_day(&mut self, c: &Content, prep_ticks: i32) {
         self.clock = prep_ticks;
         self.day_ticks = prep_ticks;
-        self.mana = c.balance().archmage_mana * 100;
         self.boons.clear();
+        // what stands on the field keeps its mana held (T61)
+        self.mana = self.mana_cap(c);
         self.laid.clear();
         self.applicants = (0..c.balance().applicants).map(|_| self.applicant(c)).collect();
         self.activity = Activity::Idle;
@@ -744,6 +811,11 @@ impl Prep {
         self.note("library.empty", "");
     }
 
+    /// Whether the college has room for another student (T56).
+    pub fn class_full(&self, c: &Content) -> bool {
+        self.students.len() as i32 >= c.balance().max_students
+    }
+
     fn hire(&mut self, c: &Content, score: i32, one: Option<usize>) {
         let who: Vec<usize> = match one {
             Some(i) if i < self.applicants.len() => vec![i],
@@ -753,6 +825,9 @@ impl Prep {
         let v = c.balance().variance;
         let mut joined = 0;
         for &i in who.iter().rev() {
+            if self.class_full(c) {
+                break;
+            }
             let a = self.applicants.remove(i);
             let q = (score + a.base) / 2 + self.rng.between(-v, v);
             // an interview scoring under 20 does not persuade anyone
@@ -762,6 +837,26 @@ impl Prep {
             }
         }
         self.note("recruit.joined", joined.to_string());
+    }
+
+    /// The students a lesson reaches: the one taught, or for a class
+    /// everyone with room for the spell or who knows it already (T50).
+    pub fn class_for(&self, c: &Content, spell: u16, one: Option<u16>) -> Vec<u16> {
+        self.students
+            .iter()
+            .filter(|s| match one {
+                Some(id) => s.id == id,
+                None => s.known.iter().any(|k| k.0 == spell) || (s.known.len() as i32) < slots(c, s),
+            })
+            .map(|s| s.id)
+            .collect()
+    }
+
+    /// Percent of a drawing's effectiveness a lesson to `n` students gives
+    /// each of them (T52): all of it one-on-one, less for every student
+    /// after the first.
+    pub fn class_pct(c: &Content, n: i32) -> i32 {
+        (100 - c.balance().class_pct * (n.max(1) - 1)).max(10)
     }
 
     fn teach(&mut self, c: &Content, spell: u16, one: Option<u16>, score: i32) {
@@ -774,46 +869,112 @@ impl Prep {
             .map(|&p| c.piece_school[p as usize])
             .unwrap_or(0);
         let b = c.balance();
+        let class = self.class_for(c, spell, one);
+        let n = class.len() as i32;
+        let pct = Prep::class_pct(c, n);
         let mut taught = 0;
+        let mut learned = Vec::new();
         for s in self.students.iter_mut() {
-            if one.is_some() && one != Some(s.id) {
+            if !class.contains(&s.id) {
                 continue;
             }
             let roll = self.rng.between(-s.variance, s.variance);
             // the drawing's score through a steep curve (T26); the school
             // and the roll move it a little, and only a flawless drawing
-            // reaches the top
+            // reaches the top. A class gets less of it (T52)
             let base = glyph::effectiveness(score, b.effect_min_pct, b.effect_max_pct);
-            let top = if score >= 100 {
+            let top = if score >= 100 && n == 1 {
                 b.effect_max_pct
             } else {
                 b.effect_max_pct - 1
             };
-            let eff = (base + s.mods[school] + roll).clamp(b.effect_min_pct, top);
+            let eff = ((base + s.mods[school] + roll) * pct / 100).clamp(b.effect_min_pct, top);
+            let before = s.known.iter().find(|k| k.0 == spell).map(|k| k.1);
             match s.known.iter_mut().find(|k| k.0 == spell) {
                 Some(k) => k.1 = k.1.max(eff),
-                None => s.known.push((spell, eff)),
+                None => {
+                    // a full student forgets their weakest spell (T50)
+                    if s.known.len() as i32 >= slots(c, s) {
+                        if let Some(w) = (0..s.known.len()).min_by_key(|&i| (s.known[i].1, i)) {
+                            let gone = s.known.remove(w).0;
+                            s.rotation.retain(|&r| r != gone);
+                        }
+                    }
+                    s.known.push((spell, eff));
+                }
             }
+            learned.push(Learned {
+                id: s.id,
+                before,
+                after: s.known.iter().find(|k| k.0 == spell).map(|k| k.1).unwrap_or(eff),
+            });
             taught += 1;
         }
         self.record.best_teach = self.record.best_teach.max(score);
         self.record.biggest_class = self.record.biggest_class.max(taught);
+        self.lesson = Some(Lesson {
+            spell,
+            score,
+            class_pct: pct,
+            learned,
+        });
         self.note("podium.taught", format!("{taught}"));
     }
 
+    /// A helper pays its mana to start its work again (T55), or waits.
+    fn again(&mut self, c: &Content, mut j: Job) {
+        let fee = c.file.helpers[j.helper as usize].mana;
+        if self.spend(fee).is_ok() {
+            j.left = j.total;
+            j.waiting = false;
+        } else {
+            j.left = 0;
+            j.waiting = true;
+        }
+        self.jobs.push(j);
+    }
+
+    /// Whether a helper still has work to do: books to find, applicants and
+    /// room for them, students with room for the spell.
+    fn has_work(&self, c: &Content, w: &Work) -> bool {
+        match w {
+            Work::Teach(spell) => {
+                (*spell as usize) < self.spells.len() && !self.class_for(c, *spell, None).is_empty()
+            }
+            Work::Recruit => !self.applicants.is_empty() && !self.class_full(c),
+            Work::Train => !self.students.is_empty(),
+            Work::Search => self
+                .pile
+                .iter()
+                .any(|bk| !matches!(bk, Book::Piece(p) if self.known[*p as usize])),
+            Work::Raise(_) | Work::Build(_) => false,
+        }
+    }
+
     fn work_jobs(&mut self, c: &Content) {
+        // helpers waiting for mana try again each tick
+        let waiting: Vec<Job> = self.jobs.iter().filter(|j| j.waiting).cloned().collect();
+        self.jobs.retain(|j| !j.waiting);
+        for j in waiting {
+            self.again(c, j);
+        }
         let mut done: Vec<Job> = Vec::new();
         for j in self.jobs.iter_mut() {
+            if j.waiting {
+                continue;
+            }
             j.left -= 1;
             if j.left <= 0 {
                 done.push(j.clone());
             }
         }
-        self.jobs.retain(|j| j.left > 0);
+        self.jobs.retain(|j| j.waiting || j.left > 0);
         for j in done {
+            let next = j.clone();
             match j.work {
                 Work::Teach(spell) => self.teach(c, spell, None, j.score),
-                Work::Recruit => self.hire(c, j.score * 4 / 5, None),
+                // one applicant each time, like an interview of your own (T51)
+                Work::Recruit => self.hire(c, j.score * 4 / 5, Some(0)),
                 Work::Train => {
                     let trained = self.students.iter_mut().min_by_key(|s| s.mana_max).map(|s| {
                         s.mana_max += s.mana_max * j.score / 400;
@@ -824,19 +985,7 @@ impl Prep {
                         self.note("helper.trained", name);
                     }
                 }
-                Work::Search => {
-                    let before = self.record.books;
-                    self.read_book(c, true);
-                    // it goes on looking while there are books to find
-                    let left = self
-                        .pile
-                        .iter()
-                        .any(|bk| !matches!(bk, Book::Piece(p) if self.known[*p as usize]));
-                    if left && self.record.books > before {
-                        let total = j.total;
-                        self.jobs.push(Job { left: total, ..j });
-                    }
-                }
+                Work::Search => self.read_book(c, true),
                 Work::Raise(p) => {
                     if self.can_place(c, &p).is_ok() {
                         let name = c.file.features[p.feature as usize].name.clone();
@@ -844,6 +993,8 @@ impl Prep {
                         self.record.placed += 1;
                         self.note("layout.raised", name);
                     } else {
+                        // it never stood, so its mana comes back
+                        self.release(c, &p);
                         self.note("layout.closes_path", "");
                     }
                 }
@@ -854,11 +1005,28 @@ impl Prep {
                         self.record.golem_built = true;
                         self.note("helper.built", "");
                     } else {
+                        self.release(c, &p);
                         self.note("layout.closes_path", "");
                     }
                 }
             }
+            // a helper pays again and starts over while it has work (T55)
+            if next.work.repeats() {
+                if self.has_work(c, &next.work) {
+                    self.again(c, next);
+                } else {
+                    let name = c.file.helpers[next.helper as usize].name.clone();
+                    self.note("helper.no_work", name);
+                }
+            }
         }
+    }
+
+    /// A piece that never rose gives back the mana it held.
+    fn release(&mut self, c: &Content, p: &Placed) {
+        let back = self.hold_of(c, p);
+        self.golem_cells.retain(|q| !p.cells.contains(q));
+        self.mana = (self.mana + back * 100).min(self.mana_cap(c));
     }
 
     fn can_save(&self, c: &Content) -> Result<(), &'static str> {
@@ -898,26 +1066,48 @@ impl Prep {
         Ok(())
     }
 
-    /// Takes away what stands or rises in a cell, giving its mana back.
+    /// The mana a piece holds while it stands or rises (T61): all of it,
+    /// or the golem's share of it.
+    pub fn hold_of(&self, c: &Content, p: &Placed) -> i32 {
+        let m = c.file.features[p.feature as usize].mana;
+        if p.cells.iter().any(|q| self.golem_cells.contains(q)) {
+            m * c.balance().golem_hold_pct / 100
+        } else {
+            m
+        }
+    }
+
+    /// Mana held by everything standing or rising on the field (T61).
+    pub fn held(&self, c: &Content) -> i32 {
+        self.placed
+            .iter()
+            .chain(self.rising())
+            .map(|p| self.hold_of(c, p))
+            .sum()
+    }
+
+    /// Takes away what stands or rises in a cell, giving its held mana back.
     fn erase(&mut self, c: &Content, cell: (i32, i32)) {
-        let before = self.jobs.len();
         let mut refund = 0;
-        self.jobs.retain(|j| match &j.work {
-            Work::Raise(p) if p.cells.contains(&cell) => {
-                refund += c.file.features[p.feature as usize].mana;
-                false
-            }
-            _ => true,
-        });
-        if self.jobs.len() == before {
-            if let Some(i) = self.placed.iter().position(|p| p.cells.contains(&cell)) {
-                refund += c.file.features[self.placed[i].feature as usize].mana;
-                self.placed.remove(i);
+        let mut found = false;
+        for j in &self.jobs {
+            if let Work::Raise(p) | Work::Build(p) = &j.work {
+                if p.cells.contains(&cell) {
+                    refund += self.hold_of(c, p);
+                    found = true;
+                }
             }
         }
+        if found {
+            self.jobs
+                .retain(|j| !matches!(&j.work, Work::Raise(p) | Work::Build(p) if p.cells.contains(&cell)));
+        } else if let Some(i) = self.placed.iter().position(|p| p.cells.contains(&cell)) {
+            refund += self.hold_of(c, &self.placed[i]);
+            self.placed.remove(i);
+        }
         self.laid.retain(|&l| l != cell);
-        let cap = c.balance().archmage_mana * 100;
-        self.mana = (self.mana + refund * 100).min(cap);
+        self.golem_cells.retain(|&l| l != cell);
+        self.mana = (self.mana + refund * 100).min(self.mana_cap(c));
     }
 
     /// Walls and towers placed with mana that have not risen yet.
@@ -1039,20 +1229,38 @@ impl Prep {
         out
     }
 
-    /// How much mana you can hold now.
+    /// How much mana you can hold now: your maximum, less what the field
+    /// holds (T61).
     pub fn mana_cap(&self, c: &Content) -> i32 {
+        (self.mana_max(c) - self.held(c) * 100).max(0)
+    }
+
+    /// Your maximum before anything on the field holds a part of it.
+    pub fn mana_max(&self, c: &Content) -> i32 {
         c.balance().archmage_mana * 100 * (100 + self.boon_pcts(c).1) / 100
+    }
+
+    /// Puts `hold` mana into a piece: it leaves what you have now and stays
+    /// out of your maximum while the piece stands (T61). No discount: what
+    /// is held is what was paid.
+    fn hold(&mut self, hold: i32) -> Result<(), &'static str> {
+        if self.mana < hold * 100 {
+            return Err("prep.no_mana");
+        }
+        self.mana -= hold * 100;
+        Ok(())
     }
 
     /// Starts drawing a spell's or a helper's glyphs at the podium.
     fn begin_drawing(&mut self, c: &Content, why: Draw, audience: i32) {
-        let glyphs: Vec<Vec<String>> = match &why {
+        let mut glyphs: Vec<Vec<String>> = match &why {
             Draw::Teach { spell, .. } => self.spells[*spell as usize]
                 .iter()
                 .map(|&p| c.file.pieces[p as usize].glyph.clone())
                 .collect(),
             Draw::Summon { piece, .. } => vec![c.file.pieces[*piece as usize].glyph.clone()],
         };
+        glyphs.extend(class_glyphs(c, audience));
         let guide = glyph::incantation(&glyphs);
         let band = glyph::band(&c.balance().band_px, audience, units_per_px(glyphs.len()));
         self.activity = Activity::Drawing {
@@ -1217,6 +1425,7 @@ impl Prep {
                     helper: h as u16,
                     score: 100,
                     left: total,
+                    waiting: false,
                     total,
                     work: Work::Search,
                 });
@@ -1260,7 +1469,8 @@ impl Prep {
                     self.chosen = i;
                 }
             }
-            "recruit.one" | "recruit.group" => {
+            // one applicant at a time: the group interview is gone (T51)
+            "recruit.one" => {
                 self.at(Station::Recruit)?;
                 if self.busy() {
                     return Err("prep.busy");
@@ -1268,13 +1478,11 @@ impl Prep {
                 if self.applicants.is_empty() {
                     return Err("recruit.none");
                 }
-                let group = name == "recruit.group";
-                let one = if group {
-                    None
-                } else {
-                    Some(value.parse::<usize>().unwrap_or(0).min(self.applicants.len() - 1))
-                };
-                let lane = Lane::new(&mut self.rng, group, b.perfect_ticks, b.good_ticks);
+                if self.class_full(c) {
+                    return Err("recruit.full");
+                }
+                let one = Some(value.parse::<usize>().unwrap_or(0).min(self.applicants.len() - 1));
+                let lane = Lane::new(&mut self.rng, false, b.perfect_ticks, b.good_ticks);
                 self.activity = Activity::Interview {
                     lane,
                     one,
@@ -1296,13 +1504,18 @@ impl Prep {
                 let one: Option<u16> = if value.is_empty() || value == "all" {
                     None
                 } else {
-                    value.parse().ok()
+                    Some(value.parse().map_err(|_| "podium.bad")?)
                 };
-                let audience = if one.is_some() {
-                    1
-                } else {
-                    self.students.len() as i32
-                };
+                // a class is everyone with room for the spell (T50); the
+                // more of them, the longer and tighter the drawing (T52)
+                let audience = self.class_for(c, spell, one).len() as i32;
+                if audience == 0 {
+                    return Err(if one.is_some() {
+                        "podium.bad"
+                    } else {
+                        "podium.class_full"
+                    });
+                }
                 self.begin_drawing(c, Draw::Teach { spell, one }, audience);
             }
             "podium.summon" => {
@@ -1374,6 +1587,7 @@ impl Prep {
                             helper,
                             score,
                             left: total,
+                            waiting: false,
                             total,
                             work,
                         });
@@ -1391,14 +1605,15 @@ impl Prep {
                 let p = self.placement(c, value)?;
                 self.can_place(c, &p)?;
                 let f = &c.file.features[p.feature as usize];
-                self.spend(f.mana)?;
-                self.laid.push(p.cells[0]);
                 let total = content::ticks(f.raise_ms.max(0)).max(1);
+                self.hold(f.mana)?;
+                self.laid.push(p.cells[0]);
                 let golem = c.helper("builder_golem").unwrap_or(0) as u16;
                 self.jobs.push(Job {
                     helper: golem,
                     score: 100,
                     left: total,
+                    waiting: false,
                     total,
                     work: Work::Raise(p),
                 });
@@ -1416,10 +1631,13 @@ impl Prep {
                 self.can_place(c, &p)?;
                 let golem = c.helper("builder_golem").unwrap_or(0) as u16;
                 let total = content::ticks(f.golem_s * 1000);
+                self.hold(f.mana * b.golem_hold_pct / 100)?;
+                self.golem_cells.extend(p.cells.iter().copied());
                 self.jobs.push(Job {
                     helper: golem,
                     score: 100,
                     left: total,
+                    waiting: false,
                     total,
                     work: Work::Build(p),
                 });
@@ -1427,8 +1645,8 @@ impl Prep {
             "layout.remove" => {
                 self.at(Station::Map)?;
                 let i: usize = value.parse().map_err(|_| "layout.bad")?;
-                if i < self.placed.len() {
-                    self.placed.remove(i);
+                if let Some(&cell) = self.placed.get(i).and_then(|p| p.cells.first()) {
+                    self.erase(c, cell);
                 }
             }
             "layout.erase" => {
@@ -1534,6 +1752,15 @@ impl Prep {
                 self.sent.push((n[1] as u8, n[0]));
                 self.record.invasions += 1;
             }
+            "helper.dismiss" => {
+                // value: the job's place in the list; a helper goes away (T55)
+                let i: usize = value.parse().map_err(|_| "helper.bad")?;
+                if !self.jobs.get(i).map(|j| j.work.repeats()).unwrap_or(false) {
+                    return Err("helper.bad");
+                }
+                let j = self.jobs.remove(i);
+                self.note("helper.dismissed", c.file.helpers[j.helper as usize].name.clone());
+            }
             "day.ready" => self.ready = true,
             "prep.cancel" => {
                 if self.busy() {
@@ -1567,6 +1794,11 @@ impl Prep {
         if !self.students.is_empty() {
             self.teach(c, spell, None, score);
         }
+    }
+
+    /// A bot's lesson to one student, at a score its skill drew.
+    pub fn bot_teach_one(&mut self, c: &Content, spell: u16, id: u16, score: i32) {
+        self.teach(c, spell, Some(id), score);
     }
 
     /// What this archmage brings to the battle.

@@ -2,6 +2,21 @@
  "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
  "entries": [
   {
+   "version": "1.8.0",
+   "date": "2026-10-17",
+   "minor": false,
+   "items": [
+    "While you prepare, the HUD shows what today's battle would take off your score if it began now, and how your last change moved it.",
+    "Teaching one student alone is far better than teaching a class: each student more adds a stroke, narrows the line and gives everyone less. A student holds two to four spells, and a new one replaces their weakest.",
+    "Interviews are one applicant at a time, and the college holds seven students.",
+    "Walls, pools and sub-towers hold their mana for as long as they stand, so building more leaves less for everything else. Lava Pool burns far less and holds far more.",
+    "Helpers take their mana again each time they finish, and go on until you send them away.",
+    "A battle lasts until every enemy has fallen or reached the tower, ten minutes at most.",
+    "The tower is laid out in two columns: the students' stations on the left, yours on the right, the invasion book between them, with paths worn across the floor. The field is smaller and the battle cameras closer.",
+    "Fewer words on each panel: how to use it is behind the ? by its title. A book you drag follows the pointer, and clicking an empty slot in the laboratory opens its tab."
+   ]
+  },
+  {
    "version": "1.7.2",
    "date": "2026-10-17",
    "minor": false,

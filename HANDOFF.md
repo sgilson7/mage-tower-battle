@@ -94,10 +94,17 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R8.10: round 8's new words, the temperaments and What's new 1.7.0 (listed at the foot of `SECOND-ORDER.md`).
 - R9.3: the camera's new distances and pace near a station, to judge by playing; and What's new 1.7.1.
 - R9.6: the title's camera height, turn speed and the order of stations; and What's new 1.7.2.
+- R10.15: round 10's numbers (class penalty and bands, spell slots, 7 students, Lava Pool, the golem's half, the 10-minute limit, the 26-cell field and cameras, the stations' places), the new words and What's new 1.8.0.
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
+
+17 October 2026, round 10 (TRIAGE T48–T61), pushed early for a playtest:
+
+- `cargo fmt --check`, clippy, `cargo test --workspace`: 219 core tests and the boundary, copy, storage and online-fence suites passed.
+- `tests/browser/check.py` in Chromium: `BROWSER CHECK PASSED in chromium`; `tests/browser/online.py chromium`: `ONLINE CHECK PASSED in chromium`.
+- Not yet run this round: break rows for the new tests (`scripts/break_tests.py`), the contrast check (its routes still walk the old room), the balance probe, Firefox and WebKit locally.
 
 17 October 2026, T47 (the title inside the tower):
 

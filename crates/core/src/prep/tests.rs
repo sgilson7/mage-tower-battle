@@ -46,8 +46,9 @@ fn the_room_wall_and_the_furniture_stop_the_archmage() {
     assert!(p.pos.flat_len() <= ROOM_RADIUS - BODY);
     let mut q = prep(&c);
     q.pos = v3(0, 0, ONE * 2);
-    // walking straight at the map table (z −1.5 m): never inside its furniture
-    let map = station_pos(Station::Map);
+    // walking straight at the invasion book (z −1.5 m): never inside its
+    // furniture
+    let map = station_pos(Station::Book);
     for _ in 0..TPS * 3 {
         q.step(&c, UP);
         assert!(
@@ -56,7 +57,7 @@ fn the_room_wall_and_the_furniture_stop_the_archmage() {
             q.pos
         );
     }
-    assert!(q.pos.z > map.z, "stopped on the near side of the table");
+    assert!(q.pos.z > map.z, "stopped on the near side of the book");
 }
 
 #[test]
@@ -245,13 +246,35 @@ fn an_interview_that_scores_under_twenty_persuades_nobody() {
     let c = shipped();
     let mut p = prep(&c);
     go(&mut p, Station::Recruit);
-    let n = p.students.len();
-    p.act(&c, "recruit.group", "").unwrap();
+    let (n, waiting) = (p.students.len(), p.applicants.len());
+    p.act(&c, "recruit.one", "0").unwrap();
     while p.busy() {
         p.step(&c, 0);
     }
     assert_eq!(p.students.len(), n);
-    assert!(p.applicants.is_empty(), "the applicants left");
+    assert_eq!(p.applicants.len(), waiting - 1, "the applicant left");
+}
+
+#[test]
+fn applicants_are_interviewed_one_at_a_time_and_a_college_holds_seven() {
+    let c = shipped();
+    let mut p = prep(&c);
+    go(&mut p, Station::Recruit);
+    assert_eq!(
+        p.act(&c, "recruit.group", ""),
+        Err("prep.unknown"),
+        "no group interview (T51)"
+    );
+    // max_students 7: two left behind and five more
+    for _ in 0..5 {
+        let a = p.applicant(&c);
+        p.enrol(&c, &a, 50);
+    }
+    assert_eq!(p.students.len(), 7);
+    assert_eq!(p.act(&c, "recruit.one", "0"), Err("recruit.full"));
+    // nor can a helper's interview hire past it
+    p.hire(&c, 100, Some(0));
+    assert_eq!(p.students.len(), 7);
 }
 
 /// Draws the guide back through the overlay's CSS pixels at 1280 × 720.
@@ -281,15 +304,85 @@ fn teaching_a_class_by_drawing_the_guide_gives_each_student_near_full_effectiven
         panic!()
     };
     assert_eq!(*audience, 2, "the two students the last archmage left");
-    // a band for 2 students: 48 + (22 − 48) × 1 / 11 = 46 px
-    assert_eq!(*band, 46 * units_per_px(1));
+    // band_px [1,48],[2,36]: 36 px for two, at Fire Bolt's one glyph and the
+    // class's one more (a glyph of one stroke): units_per_px(2)
+    assert_eq!(*band, 36 * units_per_px(2));
     draw_guide(&mut p, &c);
     assert!(p.record.best_teach >= 95, "score {}", p.record.best_teach);
     for s in &p.students {
         let fb = s.known.iter().find(|k| k.0 == 0).unwrap().1;
-        // score + school modifier (−20 to +20) ± variance 10, capped at 100
-        assert!(fb >= p.record.best_teach - 30 && fb <= 100, "{fb}");
+        // (score's effectiveness + school modifier −20..+20 ± variance 10)
+        // × 92% for a class of two (class_pct 8), capped below 100
+        assert!(fb >= (p.record.best_teach - 30) * 92 / 100 && fb <= 99, "{fb}");
     }
+    let l = p.lesson.as_ref().unwrap();
+    assert_eq!((l.class_pct, l.learned.len()), (92, 2), "the lesson's card");
+}
+
+#[test]
+fn each_student_in_a_class_adds_a_stroke_and_narrows_the_band_and_takes_effectiveness() {
+    let c = shipped();
+    let mut p = prep(&c);
+    for _ in 0..4 {
+        let a = p.applicant(&c);
+        p.enrol(&c, &a, 50);
+    }
+    // six students, none full for Fire Bolt: the two left behind know it
+    go(&mut p, Station::Podium);
+    p.act(&c, "podium.teach", "all").unwrap();
+    let Activity::Drawing {
+        audience,
+        band,
+        glyphs,
+        ..
+    } = p.activity.clone()
+    else {
+        panic!()
+    };
+    // five strokes more, two to a glyph: three glyphs after Fire Bolt's one
+    assert_eq!((audience, glyphs), (6, 4));
+    // 36 + (16 − 36) × (6 − 2) / (7 − 2) = 20 px
+    assert_eq!(band, 20 * units_per_px(4));
+    assert_eq!(Prep::class_pct(&c, 6), 60, "100 − 8 × 5");
+    assert_eq!(Prep::class_pct(&c, 2), 92);
+    assert_eq!(Prep::class_pct(&c, 1), 100);
+    // one-on-one: Fire Bolt alone in a 48 px band
+    p.activity = Activity::Idle;
+    let id = p.students[2].id.to_string();
+    p.act(&c, "podium.teach", &id).unwrap();
+    let Activity::Drawing {
+        audience,
+        band,
+        glyphs,
+        ..
+    } = p.activity.clone()
+    else {
+        panic!()
+    };
+    assert_eq!((audience, glyphs, band), (1, 1, 48 * units_per_px(1)));
+}
+
+#[test]
+fn a_full_student_forgets_their_weakest_spell_alone_and_a_class_passes_them_over() {
+    let c = shipped();
+    let mut p = prep(&c);
+    let ice = c.piece("ice_shard").unwrap() as u16;
+    p.spells.push(vec![ice]);
+    p.spells.push(vec![c.piece("fire_bolt").unwrap() as u16, ice]);
+    // spell_slots [0,2],[40,3],[80,4]: quality 10..30 holds two
+    let s0 = p.students[0].clone();
+    assert!(s0.quality < 40);
+    assert_eq!(slots(&c, &s0), 2);
+    p.students[0].known = vec![(0, 70), (1, 30)];
+    p.students[0].rotation = vec![1, 0];
+    // a class lesson of spell 2 reaches only the student with room
+    assert_eq!(p.class_for(&c, 2, None), vec![p.students[1].id]);
+    // alone, the full student forgets spell 1 (30%, the weakest)
+    let id = p.students[0].id;
+    p.teach(&c, 2, Some(id), 90);
+    let k: Vec<u16> = p.students[0].known.iter().map(|k| k.0).collect();
+    assert_eq!(k, vec![0, 2]);
+    assert_eq!(p.students[0].rotation, vec![0], "and it leaves the rotation");
 }
 
 #[test]
@@ -432,7 +525,8 @@ fn a_golem_builds_after_its_delay_and_not_before() {
     go(&mut p, Station::Map);
     let before = p.mana;
     p.act(&c, "layout.golem", "glass_wall,10,20,0").unwrap();
-    assert_eq!(p.mana, before, "a golem costs no mana");
+    // a glass wall cell holds 2 mana; the golem's holds golem_hold_pct 50%: 1
+    assert_eq!(before - p.mana, 100, "a golem's piece holds half its mana");
     assert_eq!(
         p.act(&c, "layout.golem", "glass_wall,10,22,0"),
         Err("layout.golem_busy")
@@ -608,14 +702,20 @@ fn spells_on_yourself_speed_mana_hold_more_and_cost_less() {
     p.mana = 10_000;
     p.act(&c, "self.cast", "").unwrap();
     assert_eq!(p.mana_cap(&c), b.archmage_mana * 100 * 150 / 100);
-    // Quiet Mind (15 mana, 30% off for 30 s): a glass wall cell's 2 mana costs 1.4
+    // Quiet Mind (15 mana, 30% off for 30 s): the librarian golem's 30 mana
+    // costs 21
     p.mana = 10_000;
     p.act(&c, "self.cast", "quiet_mind").unwrap();
     p.step(&c, 0);
+    go(&mut p, Station::Library);
+    let before = p.mana;
+    p.act(&c, "library.golem", "").unwrap();
+    assert_eq!(before - p.mana, 2100);
+    // a piece on the field holds its whole mana, with no discount (T61)
     go(&mut p, Station::Map);
     let before = p.mana;
     p.act(&c, "layout.place", "glass_wall,3,3,0").unwrap();
-    assert_eq!(before - p.mana, 140);
+    assert_eq!(before - p.mana, 200);
     // Rising Tide runs out after 60 s (3,600 ticks)
     for _ in 0..3600 {
         p.step(&c, 0);
@@ -782,4 +882,69 @@ fn a_temperament_comes_from_the_name_and_school_and_follows_an_applicant_hired()
     for st in &p.students {
         assert_eq!(st.temper, temper_of(&c, &st.name, st.school));
     }
+}
+
+#[test]
+fn a_piece_on_the_field_holds_its_mana_out_of_your_maximum_until_it_is_rubbed_out() {
+    let c = shipped();
+    let mut p = prep(&c);
+    learn(&mut p, &c, &["lava_pool"]);
+    go(&mut p, Station::Map);
+    // archmage_mana 200; a Lava Pool cell holds 20, a Glass Wall cell 2
+    assert_eq!(p.mana, 20_000);
+    p.act(&c, "layout.place", "lava_pool,5,5,0").unwrap();
+    p.act(&c, "layout.place", "glass_wall,8,8,0").unwrap();
+    assert_eq!((p.mana, p.held(&c), p.mana_cap(&c)), (17_800, 22, 17_800));
+    // rising or standing, it holds; regeneration stops at what is left
+    for _ in 0..TPS * 2 {
+        p.step(&c, 0);
+    }
+    assert_eq!(p.placed.len(), 2);
+    assert_eq!(p.mana, 17_800, "full already: 200 − 22");
+    // the next day refills to the maximum less what stands
+    p.mana = 0;
+    p.start_day(&c, TPS * 240);
+    assert_eq!(p.mana, 17_800);
+    // rubbing the pool out gives back its 20 and lifts the maximum
+    go(&mut p, Station::Map);
+    p.act(&c, "layout.erase", "5,5").unwrap();
+    assert_eq!((p.mana, p.mana_cap(&c)), (19_800, 19_800));
+    // with too little left to hold, nothing is placed
+    p.mana = 1_900;
+    assert_eq!(p.act(&c, "layout.place", "lava_pool,6,6,0"), Err("prep.no_mana"));
+}
+
+#[test]
+fn a_helper_pays_again_each_time_it_finishes_waits_without_mana_and_can_be_sent_away() {
+    let c = shipped();
+    let mut p = prep(&c);
+    learn(&mut p, &c, &["mana_trainer"]);
+    go(&mut p, Station::Podium);
+    // Mana Trainer: 35 mana to summon, job_s 25 (1500 ticks)
+    p.act(&c, "podium.summon", "mana_trainer").unwrap();
+    draw_guide(&mut p, &c);
+    assert_eq!(p.mana, 20_000 - 3500);
+    for _ in 0..1500 {
+        p.step(&c, 0);
+    }
+    // it trained someone, paid 35 again and started over; regen 2 a second
+    // brought back 3 a tick for the 1500 ticks: 4500, less the fee
+    assert_eq!(p.jobs.len(), 1);
+    assert!(!p.jobs[0].waiting);
+    assert_eq!(p.jobs[0].left, 1500);
+    // 20,000 − 3,500 + 4,500 is past the 20,000 maximum: full, then the fee
+    assert_eq!(p.mana, 20_000 - 3500);
+    // with no mana it waits at the end of its work
+    p.mana = 0;
+    p.jobs[0].left = 1;
+    p.discount = 0;
+    p.step(&c, 0);
+    assert!(p.jobs[0].waiting, "waiting for its fee");
+    // and starts once it can pay: 35 mana is 3500 hundredths, 3 a tick
+    p.mana = 3497;
+    p.step(&c, 0);
+    assert!(!p.jobs[0].waiting);
+    assert_eq!(p.mana, 0);
+    p.act(&c, "helper.dismiss", "0").unwrap();
+    assert!(p.jobs.is_empty(), "sent away");
 }

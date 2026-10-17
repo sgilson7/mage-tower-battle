@@ -562,26 +562,27 @@ pub const PITCH_MAX: i32 = fx::TURN * 85 / 360;
 pub const DIST_MIN: Fx = 8 * ONE;
 pub const DIST_MAX: Fx = 120 * ONE;
 /// How far from the field's middle the point a view circles may move.
-pub const PAN_MAX: Fx = 30 * ONE;
+pub const PAN_MAX: Fx = 24 * ONE;
 
 impl Orbit {
     /// The two fixed views the game had before (`arena_camera`), as orbits:
-    /// eye (-4, 46, 44) round (1, 0, 1) is 63.2 m away, 46.7° up, turned
-    /// 6.6° left; eye (-20, 26, 26) round (-2, 0, 1) is 40.3 m, 40.2° up,
-    /// turned 35.8° left.
+    /// eye (-4, 46, 44) round (1, 0, 1) was 63.2 m away, 46.7° up, turned
+    /// 6.6° left; eye (-20, 26, 26) round (-2, 0, 1) was 40.3 m, 40.2° up,
+    /// turned 35.8° left. On the smaller field they start a fifth closer,
+    /// at 50 m and 32 m (T58).
     pub fn start(close: bool) -> Orbit {
         if close {
             Orbit {
                 yaw: -(fx::TURN * 358 / 3600),
                 pitch: fx::TURN * 402 / 3600,
-                dist: ONE * 403 / 10,
+                dist: ONE * 320 / 10,
                 at: v3(-2 * ONE, 0, ONE),
             }
         } else {
             Orbit {
                 yaw: -(fx::TURN * 66 / 3600),
                 pitch: fx::TURN * 467 / 3600,
-                dist: ONE * 632 / 10,
+                dist: ONE * 500 / 10,
                 at: v3(ONE, 0, ONE),
             }
         }

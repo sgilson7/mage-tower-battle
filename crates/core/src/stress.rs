@@ -33,7 +33,9 @@ pub struct Stress {
 
 fn maze(a: &mut Arena, k: i32) {
     // three staggered walls with gaps, different in each arena
-    for (row, gap) in [(8, 4 + k), (16, 26 - k), (24, 6 + 2 * k)] {
+    // at a quarter, a half and three quarters of the field (T58)
+    let n = arena::SIZE;
+    for (row, gap) in [(n / 4, 4 + k), (n / 2, n - 6 - k), (n * 3 / 4, 6 + 2 * k)] {
         let cells: Vec<(i32, i32)> = (0..arena::SIZE)
             .filter(|x| (x - gap).abs() > 1)
             .map(|x| (x, row))

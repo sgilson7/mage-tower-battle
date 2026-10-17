@@ -463,7 +463,8 @@ pub fn ground_pos(tower: V3, i: usize) -> V3 {
 pub fn field(seed: u64) -> Arena {
     let mut arena = Arena::new();
     let mut rng = Rng::new(seed);
-    for _ in 0..18 {
+    // rocks in proportion to the field: 18 on 32 × 32, 12 on 26 × 26 (T58)
+    for _ in 0..18 * arena::SIZE * arena::SIZE / (32 * 32) {
         let (x, z) = (rng.between(0, arena::SIZE - 1), rng.between(0, arena::SIZE - 1));
         let near_ends = (x - arena.entry.0).abs() + (z - arena.entry.1).abs() < 5
             || (x - arena.tower.0).abs() + (z - arena.tower.1).abs() < 6;
@@ -685,12 +686,18 @@ impl Battle {
         tower_centre(&self.arena)
     }
 
+    /// Over when every enemy has fallen or reached the tower, or at the
+    /// time limit (T54). A rival's raider still standing then goes home: it
+    /// does not hold the battle open, but one still on the way does.
     pub fn done(&self) -> bool {
         self.tick >= self.ticks
             || (self.tick > TPS * 5
                 && self.queue.is_empty()
                 && !self.units.iter().any(|u| u.team == Team::Foe)
-                && !self.casters.iter().any(|k| k.team == Team::Foe && k.fell == 0))
+                && !self
+                    .casters
+                    .iter()
+                    .any(|k| k.team == Team::Foe && k.fell == 0 && self.tick < k.arrive))
     }
 
     #[allow(clippy::too_many_arguments)]

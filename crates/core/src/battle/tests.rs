@@ -639,7 +639,15 @@ fn raided(c: &Content, defenders: Vec<StudentPlan>, raider: StudentPlan) -> Batt
         students: defenders,
         placed: vec![],
     };
-    let mut b = Battle::new(c, 0, &plan, &[], &[], 1, 1, TPS * 90, 24);
+    // one enemy late in the day, so the battle is not over before the
+    // raider has done its work (T54)
+    let late = [Wild {
+        enemy: 0,
+        count: 1,
+        at_tick: TPS * 85,
+        strength: 100,
+    }];
+    let mut b = Battle::new(c, 0, &plan, &[], &late, 1, 1, TPS * 90, 24);
     b.add_raider(
         c,
         &Raider {
@@ -787,4 +795,57 @@ fn a_fallen_mage_casts_no_more_and_a_raiders_bolt_hurts_a_student() {
     assert!(casts(false) > 0, "standing, the student casts at the skeleton");
     assert_eq!(casts(true), 0, "fallen, never");
     let _ = raider;
+}
+
+#[test]
+fn a_battle_lasts_until_its_enemies_are_gone_and_a_raider_alone_does_not_hold_it_open() {
+    let c = shipped();
+    // one slow walker that takes longer than battle_s to reach the tower,
+    // in a battle allowed 600 s (T54)
+    let wild = [Wild {
+        enemy: 0,
+        count: 1,
+        at_tick: TPS,
+        strength: 100,
+    }];
+    let mut b = Battle::new(&c, 0, &Plan::default(), &[], &wild, 1, 1, TPS * 600, 24);
+    let mut t = 0;
+    while !b.done() && t < TPS * 600 {
+        b.step(&c);
+        t += 1;
+    }
+    assert!(b.done());
+    assert!(
+        b.tally.damage_taken > 0,
+        "it ended because the enemy reached the tower"
+    );
+    assert!(t < TPS * 600, "not at the time limit");
+    // a rival's raider still standing once the enemies are gone goes home
+    let r = bolt_student(&c, "steadfast", 100);
+    let mut b = raided(&c, vec![], r);
+    let k = b.casters.len() - 1;
+    for _ in 0..TPS * 7 {
+        b.step(&c);
+    }
+    // raid_arrive_s 4: arrived; the late enemy at 85 s is still to come
+    assert!(b.standing_mage(k) && !b.done());
+    b.queue.clear();
+    assert!(b.done(), "the raider alone does not keep it going");
+}
+
+#[test]
+fn a_battle_stops_at_its_time_limit() {
+    let c = shipped();
+    let wild = [Wild {
+        enemy: 0,
+        count: 1,
+        at_tick: TPS * 30,
+        strength: 100,
+    }];
+    let mut b = Battle::new(&c, 0, &Plan::default(), &[], &wild, 1, 1, TPS * 10, 24);
+    for _ in 0..TPS * 11 {
+        b.step(&c);
+    }
+    assert_eq!(b.tick, TPS * 10, "ten seconds and no more, enemy or not");
+    assert!(b.done());
 }

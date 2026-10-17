@@ -9,7 +9,7 @@
  "elf_robe": "#5fae4f", "elf_skin": "#e8d0a8", "leaf_hat": "#3c8a3a", "ember": "#ff7a3a", "horn": "#3a2a2a",
  "frost_fur": "#dfefff", "frost_skin": "#8fb8d8", "slime": "#8cd65a", "boar": "#7a5a48", "snout": "#e8a8a0",
  "ghost": "#d6ecff", "lava_rock": "#4a3a36", "lava_glow": "#ff8a2a", "whelp": "#d9604a", "wing": "#f29e6a",
- "floor": "#a86d40", "floor_line": "#9a6a42", "rug": "#6a2f7c", "rug_trim": "#e0a03a", "rug_dark": "#4d2357", "rug_light": "#7d3c91", "wall": "#655b78", "wall_light": "#766a82", "pillar": "#6e5f8f",
+ "floor": "#a86d40", "floor_line": "#9a6a42", "path_stone": "#8f7f73", "rug": "#6a2f7c", "rug_trim": "#e0a03a", "rug_dark": "#4d2357", "rug_light": "#7d3c91", "wall": "#655b78", "wall_light": "#766a82", "pillar": "#6e5f8f",
  "window": "#9fd0ff", "shelf": "#8a5a35", "shelf_back": "#3a2a22", "lab_table": "#7a5a8a", "cauldron": "#2f2b3a", "brew": "#7cf06b",
  "book_red": "#d9604a", "book_blue": "#4f7fd9", "book_green": "#3fae8c", "book_purple": "#8b5cd6", "book_gold": "#e8b23a", "book_pink": "#c94f8a", "book_grey": "#6f8a9a",
  "page": "#faf3e0", "invasion_book": "#c23b3b", "map_green": "#8fbf6a",

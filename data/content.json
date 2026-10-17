@@ -1092,10 +1092,10 @@
    "length": 2,
    "blocks": false,
    "health": 0,
-   "mana": 6,
+   "mana": 20,
    "golem_s": 0,
    "cast_life": 6000,
-   "dps": 30,
+   "dps": 10,
    "damage_type": "fire",
    "raise_ms": 1000
   },
@@ -1191,6 +1191,7 @@
   "days": 4,
   "prep_s": 150,
   "battle_s": 90,
+  "battle_max_s": 600,
   "practice_prep_s": 60,
   "ragdoll_cap": 24,
   "mana_k": 40,
@@ -1229,6 +1230,33 @@
   "variance": 10,
   "applicants": 8,
   "start_students": 2,
+  "max_students": 7,
+  "spell_slots": [
+   [
+    0,
+    2
+   ],
+   [
+    40,
+    3
+   ],
+   [
+    80,
+    4
+   ]
+  ],
+  "class_pct": 8,
+  "class_strokes": [
+   "loop",
+   "zig",
+   "ripple",
+   "eight",
+   "tri",
+   "spiral",
+   "arch"
+  ],
+  "golem_hold_pct": 50,
+  "rehearsal_ticks": 60,
   "books": 60,
   "band_px": [
    [
@@ -1236,12 +1264,12 @@
     48
    ],
    [
-    12,
-    22
+    2,
+    36
    ],
    [
-    25,
-    12
+    7,
+    16
    ]
   ],
   "perfect_ticks": 4,

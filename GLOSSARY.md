@@ -12,7 +12,7 @@ Not: dean, headmaster, wizard
 
 ### Battle
 
-The part of each day when every tower is attacked at once and the players watch. It lasts until {battle.length_s} seconds pass or the enemies are gone.
+The part of each day when every tower is attacked at once and the players watch. The enemies arrive over the first {battle.length_s} seconds, and the battle lasts until every one has fallen or reached the tower, or {battle.max_min} minutes at most.
 
 Not: round, wave
 
@@ -28,7 +28,7 @@ A piece that starts a spell's second row. When the trigger before it fires, the 
 
 ### Builder golem
 
-A stone helper that builds a sub-tower or a wall for you without a spell. It is slow, and costs no mana.
+A stone helper that builds a sub-tower or a wall for you without a spell. It is slow, and what it builds holds only {golem.hold_pct}% of its mana.
 
 Not: worker, construct
 
@@ -84,7 +84,7 @@ The short run a raider makes to reach a rival's towers: a few jumps over gaps. A
 
 ### Librarian golem
 
-A stone helper woken at the library for mana. It searches the pile on its own and brings you an unread book every so often, slower than sorting it yourself.
+A stone helper woken at the library for mana. It searches the pile on its own and brings you an unread book every so often, slower than sorting it yourself. It takes its mana again for each book, until you send it away.
 
 ### Library
 
@@ -92,7 +92,7 @@ The corner of the tower where the books lie scattered on the floor.
 
 ### Mana
 
-What a spell costs to cast. Each student has a mana pool that refills at their mana regen.
+What a spell costs to cast. Each student has a mana pool that refills at their mana regen. Your own mana also pays for helpers, and what stands on the field holds part of it for as long as it stands.
 
 Not: energy
 
@@ -112,7 +112,7 @@ Not: projectile
 
 ### Podium
 
-Where you teach a spell to the students on the benches, by drawing its glyphs.
+Where you teach a spell to the students on the benches, by drawing its glyphs. Teaching one student alone gives them the drawing's whole effectiveness; a class makes the drawing longer and its band narrower, and gives each student less.
 
 Not: lectern, stage
 
@@ -128,7 +128,13 @@ A student you send to a rival's battle. They walk in with that battle's enemies,
 
 ### Recruitment table
 
-Where you interview applicants who want to study at the college.
+Where you interview applicants who want to study at the college, one at a time. The college holds {students.max} students at most.
+
+### Rehearsal
+
+Today's battle played in the background against your plan as it stands, so you see what it would take off your score before the battle begins.
+
+Not: forecast, prediction, simulation
 
 ### Rival
 
@@ -176,7 +182,7 @@ Not: rune, component
 
 ### Student
 
-A mage who studies at your college. Students stand on your tower in the battle and cast the spells you taught them.
+A mage who studies at your college. Students stand on your tower in the battle and cast the spells you taught them. A student holds two to four spells, more the better their interview went; a new one replaces their weakest.
 
 Not: apprentice, pupil
 
@@ -186,7 +192,7 @@ A small tower placed nearer the path, with room for one student.
 
 ### Teaching elemental
 
-A summoned penguin that teaches at the podium for you, as well as you drew its summoning glyphs.
+A summoned penguin that teaches the class at the podium for you, as well as you drew its summoning glyphs. It takes its mana again for each lesson, until you send it away.
 
 ### Temperament
 

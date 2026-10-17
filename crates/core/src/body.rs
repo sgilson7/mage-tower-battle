@@ -194,6 +194,9 @@ pub fn keep_out(b: &mut Body, a: &Arena) {
             }
         }
     }
+    // a push out of a wall beside the edge stays on the grid (T58)
+    b.pos.x = b.pos.x.clamp(-lim, lim);
+    b.pos.z = b.pos.z.clamp(-lim, lim);
 }
 
 /// A uniform grid of body indices, rebuilt each tick (Galactic Survivors'
@@ -300,6 +303,20 @@ mod tests {
             b.step(want, ONE / 100);
         }
         assert_eq!(b.vel.x, ONE / 20);
+    }
+
+    #[test]
+    fn a_body_pushed_out_of_a_wall_on_the_edge_stays_on_the_grid() {
+        // a wall in the field's last row; a body in the outer half of its
+        // cell is pushed out the short way, which is off the grid (T58)
+        let mut a = Arena::new();
+        a.block(&[(5, arena::SIZE - 1)], 0).unwrap();
+        let c = arena::centre(5, arena::SIZE - 1);
+        let r = ONE * 2 / 5;
+        let mut b = Body::new(v3(c.x, r, c.z + arena::CELL * 3 / 10), r, 100);
+        keep_out(&mut b, &a);
+        let half = arena::SIZE * arena::CELL / 2;
+        assert!(b.pos.z <= half - r, "{} past {}", b.pos.z, half - r);
     }
 
     #[test]

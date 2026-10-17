@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use crate::fx::{Fx, ONE};
 use crate::geom::{v3, V3};
 
-pub const SIZE: i32 = 32;
+/// Cells across the field, each way: 26 × 1.5 m is 39 m (T58, was 32).
+pub const SIZE: i32 = 26;
 /// Cell edge, 1.5 m.
 pub const CELL: Fx = ONE * 3 / 2;
 pub const UNREACHABLE: u16 = u16::MAX;
@@ -254,8 +255,8 @@ mod tests {
     fn an_open_field_reaches_the_tower_by_diagonal_steps() {
         let a = Arena::new();
         assert!(a.reachable());
-        // entry (2,29) to the footprint's edge (26,5): max(24,24) = 24 diagonal steps
-        assert_eq!(a.dist[idx(2, 29)], 24);
+        // entry (2,23) to the footprint's edge (20,5): max(18,18) = 18 diagonal steps
+        assert_eq!(a.dist[idx(2, 23)], 18);
     }
 
     #[test]
@@ -265,7 +266,7 @@ mod tests {
         let wall: Vec<(i32, i32)> = (1..SIZE).map(|x| (x, 16)).collect();
         assert_eq!(a.block(&wall, 0), Ok(()));
         assert!(a.reachable());
-        assert!(a.dist[idx(2, 29)] > 24, "the gap at x = 0 makes the route longer");
+        assert!(a.dist[idx(2, 23)] > 18, "the gap at x = 0 makes the route longer");
         // closing the last gap would cut the entry off: refused, nothing changes
         let before = a.clone();
         assert_eq!(a.block(&[(0, 16)], 1), Err(BlockError::ClosesPath));
@@ -308,7 +309,7 @@ mod tests {
         assert_eq!(r[0], a.entry);
         let last = *r.last().unwrap();
         assert_eq!(a.dist[idx(last.0, last.1)], 0, "ends on the tower's footprint");
-        // distances 24 down to 0, one cell each
-        assert_eq!(r.len(), 25);
+        // distances 18 down to 0, one cell each
+        assert_eq!(r.len(), 19);
     }
 }

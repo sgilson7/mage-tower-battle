@@ -224,7 +224,9 @@ impl Match {
         let count = |e: u16, base: i32| {
             let hp = c.file.enemies[e as usize].health.max(1);
             // about base × 300 health a group, more for later days
-            (base * 300 / hp).clamp(1, 60) * ramp / 100
+            // at least one: a group of none showed in the book as "0 Hill
+            // Giant" (SECOND-ORDER R10.13)
+            ((base * 300 / hp).clamp(1, 60) * ramp / 100).max(1)
         };
         let mut out = vec![Wild {
             enemy: main,
@@ -444,6 +446,33 @@ impl Match {
         }
     }
 
+    /// The local seat's battle as it would begin now (T48): its plan as it
+    /// stands, the day's enemies and the invasions already in its book, on
+    /// the same field and seed the day's battle will use. Rivals' raiders
+    /// and their students' invasions are not known before the battle, so
+    /// they are left out. Building it changes nothing in the match.
+    pub fn rehearsal(&self, c: &Content) -> Option<Battle> {
+        let i = self.local as usize;
+        let p = self.seats.get(i)?.prep.as_ref()?;
+        let mut incoming: Vec<(Incoming, i32)> = self.seats[i].incoming.clone();
+        incoming.retain(|(_, at)| *at <= self.prep_tick);
+        incoming.sort_by_key(|(inv, _)| inv.from);
+        let incoming: Vec<Incoming> = incoming.into_iter().map(|(inv, _)| inv).collect();
+        let ticks = c.balance().battle_max_s.max(self.settings.battle_s) * TPS;
+        let seed = self.seed ^ (self.day as u64 * 7919) ^ (i as u64 * 104_729);
+        Some(Battle::new(
+            c,
+            i as u8,
+            &p.plan(),
+            &incoming,
+            &self.wild,
+            seed,
+            field_seed(self.seed, i as u8),
+            ticks,
+            self.settings.ragdoll_cap.max(0) as usize,
+        ))
+    }
+
     pub fn begin_battle(&mut self, c: &Content) {
         // students' invasions, to every rival (T29)
         for i in 0..self.seats.len() {
@@ -476,7 +505,9 @@ impl Match {
                 self.deliver_all(inv, at, c);
             }
         }
-        let ticks = self.settings.battle_s * TPS;
+        // the waves arrive over `battle_s`; the battle runs until they are
+        // all gone, or at most `battle_max_s` (T54)
+        let ticks = c.balance().battle_max_s.max(self.settings.battle_s) * TPS;
         let cap = self.settings.ragdoll_cap.max(0) as usize;
         // every seat's plan, for the raiders each one sends (T40)
         let plans: Vec<Plan> = (0..self.seats.len()).map(|i| self.plan_of(i)).collect();

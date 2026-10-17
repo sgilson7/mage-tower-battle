@@ -1163,6 +1163,15 @@
  ],
  "balance": {
   "score_start": 10000,
+  "mage_hp": 40,
+  "mage_hp_per_100": 20,
+  "mage_speed_cms": 200,
+  "mage_speed_per_100_cms": 40,
+  "hurt_pct": 40,
+  "near_tower_cm": 800,
+  "raid_arrive_s": 4,
+  "journey_late_s": 2,
+  "raid_tower_pct": 15,
   "start_pieces": [
    "fire_bolt",
    "ice_shard",
@@ -1174,10 +1183,7 @@
   "summons_per_student": 4,
   "summon_life_s": 12,
   "summon_mana_pct": 150,
-  "sort_books": 10,
-  "sort_fall_ms": 1600,
-  "sort_faster_pct": 85,
-  "sort_min_ms": 600,
+  "sort_books": 12,
   "dud_books": 8,
   "card_s": 3,
   "demo_turn_s": 90,
@@ -1498,6 +1504,281 @@
    "id": "gold_trials",
    "name": "Honours",
    "text": "Earn gold or better in every trial."
+  }
+ ],
+ "temperaments": [
+  {
+   "id": "steadfast",
+   "name": "Steadfast",
+   "text": "Stays on the seat and casts at whatever comes in reach.",
+   "tree": {
+    "k": "first",
+    "c": [
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "foe_in_range"
+       },
+       {
+        "k": "do",
+        "do": "cast_nearest"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "raiding"
+       },
+       {
+        "k": "do",
+        "do": "advance"
+       }
+      ]
+     },
+     {
+      "k": "do",
+      "do": "hold"
+     }
+    ]
+   }
+  },
+  {
+   "id": "hunter",
+   "name": "Hunter",
+   "text": "Leaves the tower to go after enemy mages, and falls back when hurt.",
+   "tree": {
+    "k": "first",
+    "c": [
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "hurt"
+       },
+       {
+        "k": "do",
+        "do": "fall_back"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "foe_mage"
+       },
+       {
+        "k": "do",
+        "do": "leave_tower"
+       },
+       {
+        "k": "do",
+        "do": "approach_mage"
+       },
+       {
+        "k": "do",
+        "do": "cast_mage"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "foe_in_range"
+       },
+       {
+        "k": "do",
+        "do": "cast_nearest"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "raiding"
+       },
+       {
+        "k": "do",
+        "do": "advance"
+       }
+      ]
+     },
+     {
+      "k": "do",
+      "do": "hold"
+     }
+    ]
+   }
+  },
+  {
+   "id": "guardian",
+   "name": "Guardian",
+   "text": "Casts first at whatever is nearest the tower.",
+   "tree": {
+    "k": "first",
+    "c": [
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "foe_near_tower"
+       },
+       {
+        "k": "do",
+        "do": "cast_near_tower"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "foe_in_range"
+       },
+       {
+        "k": "do",
+        "do": "cast_nearest"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "raiding"
+       },
+       {
+        "k": "do",
+        "do": "advance"
+       }
+      ]
+     },
+     {
+      "k": "do",
+      "do": "hold"
+     }
+    ]
+   }
+  },
+  {
+   "id": "reckless",
+   "name": "Reckless",
+   "text": "On a raid, makes straight for the tower and casts at it.",
+   "tree": {
+    "k": "first",
+    "c": [
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "raiding"
+       },
+       {
+        "k": "do",
+        "do": "cast_tower"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "raiding"
+       },
+       {
+        "k": "do",
+        "do": "advance"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "foe_in_range"
+       },
+       {
+        "k": "do",
+        "do": "cast_nearest"
+       }
+      ]
+     },
+     {
+      "k": "do",
+      "do": "hold"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cautious",
+   "name": "Cautious",
+   "text": "Casts at what comes in reach, and falls back when hurt.",
+   "tree": {
+    "k": "first",
+    "c": [
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "hurt"
+       },
+       {
+        "k": "do",
+        "do": "fall_back"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "foe_in_range"
+       },
+       {
+        "k": "do",
+        "do": "cast_nearest"
+       }
+      ]
+     },
+     {
+      "k": "seq",
+      "c": [
+       {
+        "k": "if",
+        "cond": "raiding"
+       },
+       {
+        "k": "do",
+        "do": "advance"
+       }
+      ]
+     },
+     {
+      "k": "do",
+      "do": "hold"
+     }
+    ]
+   }
   }
  ]
 }

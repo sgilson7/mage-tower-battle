@@ -478,6 +478,8 @@ impl Match {
         }
         let ticks = self.settings.battle_s * TPS;
         let cap = self.settings.ragdoll_cap.max(0) as usize;
+        // every seat's plan, for the raiders each one sends (T40)
+        let plans: Vec<Plan> = (0..self.seats.len()).map(|i| self.plan_of(i)).collect();
         for i in 0..self.seats.len() {
             if !self.seats[i].active() {
                 continue;
@@ -504,6 +506,24 @@ impl Match {
                 ticks,
                 cap,
             ));
+            // the rivals' students sent here, by sender, in each sender's order
+            if let Some(bt) = self.battles[i].as_mut() {
+                for (from, pl) in plans.iter().enumerate() {
+                    if from == i || !self.seats[from].active() {
+                        continue;
+                    }
+                    for st in pl.students.iter().filter(|st| st.raid as usize == i) {
+                        bt.add_raider(
+                            c,
+                            &crate::battle::Raider {
+                                from: from as u8,
+                                plan: st.clone(),
+                                spells: pl.spells.clone(),
+                            },
+                        );
+                    }
+                }
+            }
         }
         self.phase = Phase::Battle;
     }

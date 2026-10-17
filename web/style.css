@@ -406,3 +406,73 @@ body[data-screen="play"] .hud-item .bar { border: 1px solid var(--glass-line); b
 body[data-screen="play"] .hud-item .bar i { background: linear-gradient(90deg, #6ad7ff, #a98bff); }
 .label3d.station, .label3d.seat { background: var(--glass-bg); color: var(--glass-gold); border: 1px solid var(--glass-line); border-radius: 999px; padding: 3px 12px 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
 body[data-phase="prep"][data-busy=""] .panel-bottom, body[data-screen="play"] .panel-hint { background: var(--glass-bg); color: var(--glass-ink); border: 1px solid var(--glass-line); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); backdrop-filter: blur(3px); }
+
+/* every tile says what it does (T38) */
+.slot-facts { font: 700 11px/1.2 var(--font); color: var(--muted); }
+.tile { width: 176px; min-height: 120px; align-items: flex-start; text-align: left; padding: 8px 10px; }
+.tile .slot-does { -webkit-line-clamp: 2; }
+.slot { width: 150px; }
+.slot.pay { width: 170px; }
+.slot.trig { width: 150px; }
+.steps-list { margin: 4px 0 8px; padding-left: 20px; font-size: 13.5px; }
+.steps-list li { margin-bottom: 4px; }
+
+/* the book pile (T39): books on the floor to drag to their shelves */
+.panel-sort .col-pile { width: 56%; }
+.panel-sort .col-pile .board { background: radial-gradient(ellipse at 50% 60%, #c48a55, #a86d40 70%); }
+.bi-book.act { border-radius: 8px; color: #fff; font: 800 13px var(--font); box-shadow: 0 4px 0 rgba(43, 33, 64, 0.35); cursor: grab; }
+.bi-book.act.on { box-shadow: 0 0 0 4px var(--gold), 0 10px 14px rgba(0, 0, 0, 0.3); color: #fff; }
+.bi-book.school-destruction { background: color-mix(in srgb, var(--destruction) 85%, #000); }
+.bi-book.school-alteration { background: color-mix(in srgb, var(--alteration) 75%, #000); }
+.bi-book.school-conjuration { background: color-mix(in srgb, var(--conjuration) 85%, #000); }
+.bi-book.school-illusion { background: color-mix(in srgb, var(--illusion) 70%, #000); }
+.bi-book.school-restoration { background: color-mix(in srgb, var(--restoration) 62%, #000); }
+body[data-dragging="on"] .act.shelf { box-shadow: 0 0 0 4px var(--gold), 0 4px 0 var(--ink); }
+
+/* the journey (T45): the overlay draws the run inside the panel's box */
+body[data-busy="journey"] #overlay { z-index: 2; pointer-events: none; }
+body[data-busy="journey"] .panel-jobs, body[data-busy="journey"] .panel-self { display: none; }
+body[data-screen="play"] .panel-journey { position: absolute; background: linear-gradient(#ffb37a, #ffe2b0); box-shadow: 0 5px 0 rgba(43, 33, 64, 0.4), 0 0 0 200vmax var(--shade); color: #2b2140; }
+.panel-journey h2 { font-size: 24px; margin: 0; }
+.panel-journey p { margin: 2px 0 6px; color: #4a3d5c; }
+.panel-journey kbd { color: #2b2140; }
+
+/* the invasion book (T40, T44): your students, the road to each rival */
+body[data-screen="play"] .panel-raid { position: absolute; left: 12px; right: 12px; top: 84px; bottom: 70px; display: grid; grid-template-columns: 30% minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "list road road" "list home spells"; grid-template-rows: auto minmax(0, 1fr); gap: 12px 14px; }
+.panel-raid .col { min-height: 0; overflow: auto; }
+.panel-raid .col-list { grid-area: list; }
+.panel-raid .col-road { grid-area: road; }
+.panel-raid .col-home { grid-area: home; border: var(--line) solid var(--ink); border-radius: 14px; background: var(--card-bg); padding: 10px 12px; }
+.panel-raid .col-spells { grid-area: spells; border: var(--line) solid var(--ink); border-radius: 14px; background: var(--card-bg); padding: 10px 12px; }
+.panel-raid .col-road .board { background: linear-gradient(#bfe3ff, #e4f2ff 55%, #9cc874 55%, #86b862); }
+.bi-rival.act { border-radius: 12px; background: var(--paper); color: #2b2140; font: 700 13px/1.25 var(--font); text-align: left; padding: 6px 10px; justify-content: flex-start; }
+.bi-rival.act.on { box-shadow: 0 0 0 4px var(--gold); }
+.bi-rival.act:hover { transform: none; }
+.bi-walker { border: 3px solid var(--ink); border-radius: 50%; color: #fff; font: 800 12px var(--font); display: flex; align-items: center; justify-content: center; }
+.bi-walker.school-destruction { background: var(--destruction); } .bi-walker.school-alteration { background: var(--alteration); } .bi-walker.school-conjuration { background: var(--conjuration); } .bi-walker.school-illusion { background: var(--illusion); } .bi-walker.school-restoration { background: #a67e22; }
+.panel-raid .col-road .bi-tower { color: #fff; font: 800 13px var(--font); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; }
+
+/* office hours' tree (T41), after Vagrancy's BT lab */
+.col-deploy .board { background: #fbf6ee; }
+.bi[class*="bi-node"] { border: 2.5px solid var(--ink); border-radius: 5px; background: #fff; color: #2b2140; font: 700 11.5px/1.15 var(--font); display: flex; align-items: center; padding: 2px 6px; overflow: hidden; }
+.bi-node-first { background: #fff1c9; } .bi-node-seq { background: #e9e0ff; } .bi-node-ask { border-radius: 999px; background: #eef3ff; }
+.bi.ran { box-shadow: 0 0 0 3px var(--good); } .bi.running { box-shadow: 0 0 0 3px var(--gold); } .bi.failed { box-shadow: 0 0 0 3px var(--bad); }
+.bi-edge { background: var(--ink); }
+
+/* the battle's raiders and the tree being watched (T41, T44) */
+body[data-screen="play"] .panel-raiders { position: absolute; left: 12px; top: 196px; width: min(300px, 26%); max-height: 46%; overflow: auto; background: var(--glass-bg); color: var(--glass-ink); border: 1px solid var(--glass-line); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); padding: 8px 12px; font-size: 13px; }
+body[data-screen="play"] .panel-mind { position: absolute; right: 12px; top: 84px; width: min(320px, 28%); max-height: 56%; overflow: auto; background: var(--glass-bg); color: var(--glass-ink); border: 1px solid var(--glass-line); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); padding: 8px 12px; font-size: 13px; }
+.panel-raiders h3, .panel-mind h3 { color: var(--glass-muted); margin: 4px 0; }
+.panel-raiders .row { background: rgba(255, 255, 255, 0.06); border-color: var(--glass-line); color: var(--glass-ink); }
+.panel-raiders .row-detail, .panel-mind p { color: var(--glass-muted); }
+.panel-raiders .row.school-foe { border-left-color: #ff6f6f; }
+.tree-line { font: 700 13px/1.5 var(--font); color: var(--glass-muted); }
+.tree-mark { display: inline-block; width: 1.2em; }
+.tree-line.ran { color: #9fe39a; } .tree-line.running { color: var(--glass-gold); } .tree-line.failed { color: #ff9a8a; }
+.label3d.foe { background: var(--glass-bg); color: #ff9a8a; border: 1px solid rgba(255, 120, 110, 0.5); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+body[data-view="all"] .panel-mind { display: none; }
+.bi-note { background: var(--paper); border: 2px dashed var(--ink); border-radius: 10px; color: #2b2140; font: 700 14px var(--font); display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; }
+.bi-dot { background: #d8bb8c; border: 2px solid rgba(43, 33, 64, 0.35); border-radius: 50%; }
+.bi-roof { background: var(--cell_tower); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+/* a gold chip keeps dark words in either theme (R8.13) */
+.chip.tone-gold { color: #2b2140; }

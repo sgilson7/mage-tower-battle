@@ -95,6 +95,13 @@ pub struct Student {
     pub seat: i32,
     pub mode: u8,
     pub rotation: Vec<u16>,
+    /// Their temperament (T41), an index into the content's.
+    #[serde(default)]
+    pub temper: u8,
+    /// The rival seat they raid at the next battle and how many ticks late
+    /// their journey made them (T40, T45), or none.
+    #[serde(default)]
+    pub raid: Option<(u8, i32)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,7 +111,33 @@ pub struct Applicant {
     pub weak: u8,
     /// Aptitude the interview is averaged with.
     pub base: i32,
+    /// Their temperament (T41), shown before you hire them.
+    #[serde(default)]
+    pub temper: u8,
 }
+
+/// A temperament from a name and a school, so it costs the match's chance
+/// nothing and is the same in every browser (T41).
+pub fn temper_of(c: &Content, name: &str, school: u8) -> u8 {
+    let n = c.file.temperaments.len().max(1) as u32;
+    let h = name.bytes().fold(school as u32 * 31 + 7, |h, b| {
+        h.wrapping_mul(131).wrapping_add(b as u32)
+    });
+    (h % n) as u8
+}
+
+/// The journey's ground (T45): ledges as (start, end, height) in cm, and
+/// where the run ends.
+pub const LEDGES: [(i32, i32, i32); 4] = [(0, 420, 0), (600, 900, 40), (1080, 1380, -20), (1560, 2200, 60)];
+pub const JOURNEY_END_CM: i32 = 1900;
+/// The run's pace, the jump and its fall, in cm/s and cm/s².
+pub const RUN_CMS: i32 = 450;
+pub const JUMP_CMS: i32 = 800;
+pub const FALL_CMS2: i32 = 2200;
+/// Below its ledge by this much, a runner has fallen.
+pub const FELL_CM: i32 = 120;
+/// Falls past this many make a raider no later (T45).
+pub const LATE_FALLS: i32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Work {
@@ -167,19 +200,27 @@ pub enum Activity {
         rings: Vec<i32>,
         at: usize,
     },
-    /// Sorting the pile to find a book (T20): the falling book's school,
-    /// how far it has fallen of `fall` ticks, and how many are shelved.
+    /// Sorting the pile (T39): the schools of the books still on the
+    /// floor, the one picked up, how many went on each school's shelf, and
+    /// the books put on a wrong shelf. Nothing falls; a sort with no
+    /// mistake teaches two pieces.
     Sorting {
-        book: u8,
-        y: i32,
-        fall: i32,
-        shelved: i32,
-        /// Right in a row, and how many went on each school's shelf, for
-        /// the picture (T32).
-        #[serde(default)]
-        streak: i32,
-        #[serde(default)]
+        books: Vec<u8>,
+        held: Option<usize>,
         per: Vec<u8>,
+        misses: i32,
+    },
+    /// A raider's journey to a rival (T45): the student, the rival, where
+    /// they run (Q16 metres across and up, and up-speed a tick), the ledge
+    /// they last stood on, and how often they fell.
+    Journey {
+        student: u16,
+        target: u8,
+        x: Fx,
+        y: Fx,
+        vy: Fx,
+        ledge: usize,
+        falls: i32,
     },
 }
 
@@ -368,11 +409,14 @@ impl Prep {
         let k = c.file.schools.len() as u32;
         let school = self.rng.below(k) as u8;
         let weak = ((school as u32 + 1 + self.rng.below(k - 1)) % k) as u8;
+        let name = self.name(c);
+        let temper = temper_of(c, &name, school);
         Applicant {
-            name: self.name(c),
+            name,
             school,
             weak,
             base: self.rng.between(25, 85),
+            temper,
         }
     }
 
@@ -398,6 +442,8 @@ impl Prep {
             seat: crate::battle::AUTO_SEAT,
             mode: 0,
             rotation: Vec::new(),
+            temper: a.temper,
+            raid: None,
         });
         self.record.recruited += 1;
     }
@@ -412,6 +458,10 @@ impl Prep {
         self.applicants = (0..c.balance().applicants).map(|_| self.applicant(c)).collect();
         self.activity = Activity::Idle;
         self.sent.clear();
+        // a raid lasts one battle (T40)
+        for s in self.students.iter_mut() {
+            s.raid = None;
+        }
         self.ready = false;
         self.pos = v3(0, 0, 3 * ONE);
         self.prev = self.pos;
@@ -459,6 +509,7 @@ impl Prep {
         self.work_jobs(c);
         self.prev = self.pos;
         let mut finished_reading = false;
+        let mut finished_journey = false;
         let mut sealed = false;
         let mut finished_lane: Option<(i32, Option<usize>, bool)> = None;
         match &mut self.activity {
@@ -466,22 +517,57 @@ impl Prep {
                 *left -= 1;
                 finished_reading = *left <= 0;
             }
-            Activity::Sorting {
-                book,
+            Activity::Journey {
+                x,
                 y,
-                fall,
-                streak,
+                vy,
+                ledge,
+                falls,
                 ..
             } => {
-                *y += 1;
-                if *y >= *fall {
-                    *streak = 0;
-                    // it landed: back on the pile, and the next falls faster
-                    *fall = (*fall * b.sort_faster_pct / 100)
-                        .max(content::ticks(b.sort_min_ms))
-                        .max(1);
-                    *y = 0;
-                    *book = self.rng.below(c.file.schools.len() as u32) as u8;
+                // the run moves by itself; Space, E or W jumps from a ledge
+                let ground = |x: Fx| {
+                    LEDGES
+                        .iter()
+                        .position(|l| x >= content::cm(l.0) && x <= content::cm(l.1))
+                };
+                let under = ground(*x);
+                let standing = under.map(|i| *y == content::cm(LEDGES[i].2)).unwrap_or(false) && *vy == 0;
+                if standing && down & (NOTE[3] | USE | UP) != 0 {
+                    *vy = content::cms(JUMP_CMS);
+                }
+                *x += content::cms(RUN_CMS);
+                if !standing || *vy != 0 {
+                    *y += *vy;
+                    *vy -= content::cms(FALL_CMS2) / TPS;
+                }
+                match ground(*x) {
+                    Some(i)
+                        if *vy <= 0
+                            && *y <= content::cm(LEDGES[i].2)
+                            && *y > content::cm(LEDGES[i].2 - FELL_CM / 2) =>
+                    {
+                        *y = content::cm(LEDGES[i].2);
+                        *vy = 0;
+                        *ledge = i;
+                    }
+                    Some(i) if *vy == 0 && *y > content::cm(LEDGES[i].2) => {
+                        // stepped down onto a lower ledge
+                        *vy = -1;
+                    }
+                    None if *vy == 0 => *vy = -1,
+                    _ => {}
+                }
+                let floor = LEDGES.iter().map(|l| l.2).min().unwrap_or(0);
+                if *y < content::cm(floor - FELL_CM) {
+                    // fell: back on the last ledge, a little later
+                    *falls += 1;
+                    *x = content::cm(LEDGES[*ledge].0 + 20);
+                    *y = content::cm(LEDGES[*ledge].2);
+                    *vy = 0;
+                }
+                if *x >= content::cm(JOURNEY_END_CM) {
+                    finished_journey = true;
                 }
             }
             Activity::Sealing { rings, at } => {
@@ -525,6 +611,23 @@ impl Prep {
         if finished_reading {
             self.activity = Activity::Idle;
             self.read_book(c, true);
+        }
+        if finished_journey {
+            if let Activity::Journey {
+                student,
+                target,
+                falls,
+                ..
+            } = self.activity.clone()
+            {
+                let late = falls.min(LATE_FALLS) * c.balance().journey_late_s * TPS;
+                if let Some(st) = self.students.iter_mut().find(|st| st.id == student) {
+                    st.raid = Some((target, late));
+                    let name = st.name.clone();
+                    self.note("raid.arrived", name);
+                }
+            }
+            self.activity = Activity::Idle;
         }
         if let Some((score, one, _)) = finished_lane {
             self.activity = Activity::Idle;
@@ -966,51 +1069,101 @@ impl Prep {
                 {
                     return Err("library.empty");
                 }
-                // finding a book takes sorting the pile (T20)
-                let fall = content::ticks(b.sort_fall_ms).max(1);
-                let book = self.rng.below(c.file.schools.len() as u32) as u8;
+                // finding a book takes sorting a pile onto the shelves (T39)
+                let k = c.file.schools.len() as u32;
+                let books = (0..b.sort_books.max(1))
+                    .map(|_| self.rng.below(k) as u8)
+                    .collect();
                 self.activity = Activity::Sorting {
-                    book,
-                    y: 0,
-                    fall,
-                    shelved: 0,
-                    streak: 0,
+                    books,
+                    held: None,
                     per: vec![0; c.file.schools.len()],
+                    misses: 0,
                 };
             }
+            "sort.hold" => {
+                // value: the book picked up off the floor
+                let i: usize = value.parse().map_err(|_| "sort.bad")?;
+                let Activity::Sorting { books, held, .. } = &mut self.activity else {
+                    return Err("sort.none");
+                };
+                if i >= books.len() {
+                    return Err("sort.bad");
+                }
+                *held = Some(i);
+            }
             "sort.shelf" => {
-                // value: the shelf, by school index
+                // value: the shelf, by school index; the book is the one
+                // picked up, or the first on the floor (keys 1 to 5)
                 let shelf: u8 = value.parse().map_err(|_| "sort.bad")?;
                 let Activity::Sorting {
-                    book,
-                    y,
-                    fall,
-                    shelved,
-                    streak,
+                    books,
+                    held,
                     per,
+                    misses,
                 } = &mut self.activity
                 else {
                     return Err("sort.none");
                 };
-                if shelf == *book {
-                    *shelved += 1;
-                    *streak += 1;
+                let i = held.take().unwrap_or(0);
+                let Some(&school) = books.get(i) else {
+                    return Err("sort.bad");
+                };
+                if shelf == school {
+                    books.remove(i);
                     if let Some(n) = per.get_mut(shelf as usize) {
                         *n += 1;
                     }
                 } else {
-                    *streak = 0;
-                    // back on the pile, and the next falls faster
-                    *fall = (*fall * b.sort_faster_pct / 100)
-                        .max(content::ticks(b.sort_min_ms))
-                        .max(1);
+                    // a wrong shelf: back to the floor, and the second piece is lost
+                    *misses += 1;
                 }
-                *y = 0;
-                *book = self.rng.below(c.file.schools.len() as u32) as u8;
-                if *shelved >= b.sort_books {
+                if books.is_empty() {
+                    let perfect = *misses == 0;
                     self.activity = Activity::Idle;
                     self.read_book(c, false);
+                    if perfect
+                        && self
+                            .pile
+                            .iter()
+                            .any(|bk| !matches!(bk, Book::Piece(p) if self.known[*p as usize]))
+                    {
+                        // a perfect sort finds a second new book (T39)
+                        self.read_book(c, true);
+                        self.note("library.perfect", "");
+                    }
                 }
+            }
+            "raid.send" => {
+                // value: "student id:rival seat"; the journey starts (T40, T45)
+                self.at(Station::Book)?;
+                if self.busy() {
+                    return Err("prep.busy");
+                }
+                let (id, target) = value.split_once(':').ok_or("raid.bad")?;
+                let id: u16 = id.parse().map_err(|_| "raid.bad")?;
+                let target: u8 = target.parse().map_err(|_| "raid.bad")?;
+                if target >= 4 || target == self.seat {
+                    return Err("raid.bad_rival");
+                }
+                let st = self.students.iter().find(|s| s.id == id).ok_or("raid.bad")?;
+                if st.raid.is_some() {
+                    return Err("raid.already");
+                }
+                self.activity = Activity::Journey {
+                    student: id,
+                    target,
+                    x: content::cm(LEDGES[0].0 + 40),
+                    y: content::cm(LEDGES[0].2),
+                    vy: 0,
+                    ledge: 0,
+                    falls: 0,
+                };
+            }
+            "raid.recall" => {
+                let id: u16 = value.parse().map_err(|_| "raid.bad")?;
+                let st = self.students.iter_mut().find(|s| s.id == id).ok_or("raid.bad")?;
+                st.raid = None;
             }
             "self.cast" => {
                 // value: the piece; empty (Q) casts the first known one not
@@ -1420,6 +1573,10 @@ impl Prep {
                     regen: s.regen,
                     spells: s.known.clone(),
                     school: s.school,
+                    temper: s.temper,
+                    raid: s.raid.map(|r| r.0).unwrap_or(crate::battle::NO_RAID),
+                    late: s.raid.map(|r| r.1).unwrap_or(0),
+                    name: s.name.clone(),
                 })
                 .collect(),
             placed: self.placed.clone(),

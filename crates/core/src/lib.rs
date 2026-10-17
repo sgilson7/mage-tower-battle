@@ -21,6 +21,7 @@ pub mod glossary;
 pub mod glyph;
 pub mod look;
 pub mod mesh;
+pub mod mind;
 pub mod online;
 pub mod overlay;
 pub mod prep;

@@ -85,3 +85,16 @@ Devices, browsers and conditions no measurement here covers.
 
 - Online play between two real networks, behind strict NATs, or with four people at once.
 - Any phone or tablet; any computer but the author's Mac.
+
+## Round 8: raids (SECOND-ORDER R8.12)
+
+`cargo test --release -p tool_core --test balance_probe -- --ignored --nocapture`, 40 matches for each style, 17 October 2026.
+
+| Build | Spellcrafter | Mass Teacher | Attack Mage | Balanced | Worst match |
+| --- | --- | --- | --- | --- | --- |
+| Round 7 (42c0ec2) | 4,095 | 3,932 | 3,748 | 1,788 | 7,602 |
+| Every rival raids | 5,075 | 4,902 | 4,954 | 3,266 | 8,366 |
+| Only the attack mage raids (shipped) | 4,213 | 4,224 | 3,881 | 2,200 | 7,749 |
+
+Mean damage taken a match; the start is 10,000.
+

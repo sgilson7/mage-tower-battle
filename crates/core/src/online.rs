@@ -211,6 +211,12 @@ pub fn sane_plan(c: &Content, plan: &Plan, students: &[(Vec<u16>, i32)]) -> bool
                 && s.rotation.iter().all(|&k| (k as usize) < n)
                 && (0..=1_000_000).contains(&s.mana_max)
                 && (0..=1_000_000).contains(&s.regen)
+                // a raid names a seat, or none; the journey's lateness is
+                // a minute at most; a temperament names one (T40, T41)
+                && (s.raid == crate::battle::NO_RAID || (s.raid as usize) < SEATS)
+                && (0..=crate::geom::TPS * 60).contains(&s.late)
+                && (s.temper as usize) < c.file.temperaments.len()
+                && s.name.chars().count() <= 64
         })
         && plan.placed.len() <= 1024
         && plan.placed.iter().all(|p| {
@@ -824,11 +830,27 @@ mod tests {
             regen: 1,
             spells: vec![(9, 50)],
             school: 0,
+            ..Default::default()
         });
         assert!(
             !sane_plan(&c, &bad, &[]),
             "a student knows a spell the plan does not hold"
         );
+        // a raid at a seat there is not, or a journey a day long (T40)
+        for (raid, late) in [(9u8, 0), (1, crate::geom::TPS * 61)] {
+            let mut bad = good.clone();
+            if let Some(st) = bad.students.first_mut() {
+                st.raid = raid;
+                st.late = late;
+            }
+            assert!(!sane_plan(&c, &bad, &[]), "raid {raid}, late {late}");
+        }
+        let mut ok = good.clone();
+        if let Some(st) = ok.students.first_mut() {
+            st.raid = 1;
+            st.late = crate::geom::TPS * 6;
+        }
+        assert!(sane_plan(&c, &ok, &[]), "a raid at a seat, a few seconds late");
         let mut bad = good.clone();
         bad.placed.push(crate::battle::Placed {
             feature: 999,

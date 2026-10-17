@@ -279,6 +279,7 @@ fn students_beyond_the_seats_stand_on_the_ground_with_less_range() {
         regen: 10,
         spells: vec![(0, 100)],
         school: 0,
+        ..Default::default()
     };
     let plan = Plan {
         spells: vec![fire],
@@ -307,6 +308,7 @@ fn a_placed_wall_bends_the_route_and_a_sub_tower_adds_a_seat() {
         regen: 10,
         spells: vec![(0, 100)],
         school: 0,
+        ..Default::default()
     };
     let plan = Plan {
         spells: vec![fire],
@@ -343,6 +345,7 @@ fn a_battle_replays_to_the_same_hash_and_a_different_seed_differs() {
         regen: 12,
         spells: vec![(0, 90), (1, 70)],
         school: 0,
+        ..Default::default()
     };
     let plan = Plan {
         spells: vec![fire, halo],
@@ -432,6 +435,7 @@ fn office_hours_seats_students_where_they_were_put_and_others_fill_in() {
         regen: 10,
         spells: vec![(0, 100)],
         school: 0,
+        ..Default::default()
     };
     let tower = |b: &Battle| b.tower();
     let mut on_ground = a.clone();
@@ -473,6 +477,7 @@ fn a_rotation_casts_its_spells_in_order() {
         regen: 0,
         spells: vec![(0, 100), (1, 100)],
         school: 0,
+        ..Default::default()
     };
     let plan = Plan {
         spells: vec![fire.clone(), ice.clone()],
@@ -551,6 +556,7 @@ fn a_student_put_on_a_sub_tower_stands_on_it_not_on_a_tower_seat() {
         regen: 10,
         spells: vec![(0, 100)],
         school: 0,
+        ..Default::default()
     };
     let plan = Plan {
         spells: vec![ids(&c, &["fire_bolt"])],
@@ -566,4 +572,219 @@ fn a_student_put_on_a_sub_tower_stands_on_it_not_on_a_tower_seat() {
         (b.casters[0].pos.x, b.casters[0].pos.y, b.casters[0].pos.z),
         (at.x, ONE * 33 / 10, at.z)
     );
+}
+
+// ---- round 8: mages who fight, and raiders (T40-T43) ----
+
+fn temper(c: &Content, id: &str) -> u8 {
+    c.file.temperaments.iter().position(|t| t.id == id).unwrap() as u8
+}
+
+/// A student who knows Fire Bolt at `eff` percent, with a full well of mana.
+fn bolt_student(c: &Content, t: &str, eff: i32) -> StudentPlan {
+    StudentPlan {
+        mana_max: 10_000,
+        regen: 10_000,
+        spells: vec![(0, eff)],
+        temper: temper(c, t),
+        name: format!("{t} student"),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_mages_health_and_speed_come_from_effectiveness_summed_over_their_spells() {
+    let c = shipped();
+    // five spells at 100%: 500% summed. Health 40 + 20 × 5 = 140; speed
+    // 200 + 40 × 5 = 400 cm/s, 4 m/s: 400 / 100 / 60 metres a tick
+    let five = StudentPlan {
+        spells: vec![(0, 100); 5],
+        ..Default::default()
+    };
+    let (hp, speed) = mage_stats(&c, &five);
+    assert_eq!(hp, 140);
+    assert_eq!(speed, content::cms(400));
+    // none known: the base, 40 and 2 m/s
+    assert_eq!(mage_stats(&c, &StudentPlan::default()), (40, content::cms(200)));
+    // half of one spell: 40 + 20 × 0.5 = 50
+    let half = StudentPlan {
+        spells: vec![(0, 50)],
+        ..Default::default()
+    };
+    assert_eq!(mage_stats(&c, &half).0, 50);
+}
+
+#[test]
+fn a_student_away_raiding_is_not_on_their_own_tower() {
+    let c = shipped();
+    let fire = ids(&c, &["fire_bolt"]);
+    let away = StudentPlan {
+        raid: 2,
+        ..bolt_student(&c, "steadfast", 100)
+    };
+    let plan = Plan {
+        spells: vec![fire],
+        students: vec![bolt_student(&c, "steadfast", 100), away],
+        placed: vec![],
+    };
+    let b = Battle::new(&c, 0, &plan, &[], &[], 1, 1, TPS * 90, 24);
+    assert_eq!(b.casters.len(), 1, "one at home, one away");
+    assert_eq!(b.casters[0].team, Team::Ally);
+}
+
+fn raided(c: &Content, defenders: Vec<StudentPlan>, raider: StudentPlan) -> Battle {
+    let fire = ids(c, &["fire_bolt"]);
+    let plan = Plan {
+        spells: vec![fire.clone()],
+        students: defenders,
+        placed: vec![],
+    };
+    let mut b = Battle::new(c, 0, &plan, &[], &[], 1, 1, TPS * 90, 24);
+    b.add_raider(
+        c,
+        &Raider {
+            from: 2,
+            plan: raider,
+            spells: vec![fire],
+        },
+    );
+    b
+}
+
+#[test]
+fn a_raider_walks_in_late_and_a_reckless_one_strikes_the_tower_for_its_sender() {
+    let c = shipped();
+    // a raider a fall late: raid_arrive_s 4 s + 2 s = 6 s, 360 ticks
+    let r = StudentPlan {
+        late: 2 * TPS,
+        ..bolt_student(&c, "reckless", 100)
+    };
+    let mut b = raided(&c, vec![], r);
+    let k = b.casters.len() - 1;
+    assert_eq!(
+        (b.casters[k].team, b.casters[k].arrive, b.casters[k].from),
+        (Team::Foe, 6 * TPS, 2)
+    );
+    let start = b.casters[k].pos;
+    for _ in 0..6 * TPS - 1 {
+        b.step(&c);
+    }
+    assert!(!b.standing_mage(k), "not on the field before it arrives");
+    assert_eq!(b.casters[k].pos, start, "nor moving");
+    assert!(!b.done(), "a raider still to come keeps the battle going");
+    for _ in 0..TPS * 60 {
+        b.step(&c);
+        if b.tally.damage_taken > 0 {
+            break;
+        }
+    }
+    assert!(b.tally.damage_taken > 0, "it reached the tower and cast at it");
+    assert_eq!(
+        b.tally.taken_from[2], b.tally.damage_taken,
+        "every point counted against its sender"
+    );
+    assert!(
+        b.casters[k].pos.sub(b.tower()).flat_len() < start.sub(b.tower()).flat_len(),
+        "it walked toward the tower"
+    );
+}
+
+#[test]
+fn a_hunter_leaves_the_tower_for_a_raider_and_climbs_back_once_it_falls() {
+    let c = shipped();
+    let hunter = StudentPlan {
+        seat: 0,
+        ..bolt_student(&c, "hunter", 100)
+    };
+    let steady = StudentPlan {
+        seat: 1,
+        ..bolt_student(&c, "steadfast", 100)
+    };
+    let mut b = raided(&c, vec![hunter, steady], bolt_student(&c, "steadfast", 100));
+    assert!(
+        b.casters[0].on_tower && b.casters[1].on_tower,
+        "both start on their seats"
+    );
+    for _ in 0..4 * TPS + 2 {
+        b.step(&c);
+    }
+    assert!(
+        !b.casters[0].on_tower,
+        "the hunter left the tower once a raider was on the field"
+    );
+    assert!(b.casters[1].on_tower, "the steadfast student stays on the seat");
+    // the raider falls: the hunter goes back up
+    let raider = b.casters.len() - 1;
+    b.hurt_mage(raider, 10_000, 0);
+    assert!(b.casters[raider].fell > 0 && !b.standing_mage(raider));
+    for _ in 0..TPS * 20 {
+        b.step(&c);
+        if b.casters[0].on_tower {
+            break;
+        }
+    }
+    assert!(b.casters[0].on_tower, "back on the seat with no raider left");
+    assert_eq!(b.casters[0].pos, b.casters[0].home);
+}
+
+#[test]
+fn a_fallen_mage_casts_no_more_and_a_raiders_bolt_hurts_a_student() {
+    let c = shipped();
+    let steady = StudentPlan {
+        seat: 0,
+        ..bolt_student(&c, "steadfast", 100)
+    };
+    let mut b = raided(&c, vec![steady], bolt_student(&c, "steadfast", 100));
+    let raider = b.casters.len() - 1;
+    // a raider's bolt that reaches the student's seat: hurt, and the
+    // shot is spent
+    let at = b.casters[0].pos.add(v3(0, HAND, 0));
+    b.shots.push(Shot {
+        pos: at.sub(v3(0, 0, ONE / 10)),
+        prev: at,
+        vel: v3(0, 0, ONE / 20),
+        life: 10,
+        damage: 30,
+        dtype: 0,
+        radius: ONE / 4,
+        pierce: 0,
+        knock: 0,
+        hit: vec![],
+        team: Team::Foe,
+        carry: None,
+        done: false,
+        from: 2,
+    });
+    let before = b.casters[0].hp;
+    b.fly_shots(&c);
+    assert_eq!(b.casters[0].hp, before - 30);
+    assert!(b.shots.is_empty());
+    // a skeleton beside the tower: a standing student casts at it, a
+    // fallen one does not
+    let casts = |fallen: bool| {
+        let mut b = raided(
+            &c,
+            vec![StudentPlan {
+                seat: 0,
+                ..bolt_student(&c, "steadfast", 100)
+            }],
+            bolt_student(&c, "steadfast", 100),
+        );
+        if fallen {
+            b.hurt_mage(0, 10_000, 0);
+        }
+        let near = b.tower().add(v3(ONE * 5, 0, 0));
+        put(&mut b, &c, "skeleton", near, Team::Foe);
+        let mut n = 0;
+        for _ in 0..TPS * 3 {
+            b.step(&c);
+            if b.casters[0].casting > 0 {
+                n += 1;
+            }
+        }
+        n
+    };
+    assert!(casts(false) > 0, "standing, the student casts at the skeleton");
+    assert_eq!(casts(true), 0, "fallen, never");
+    let _ = raider;
 }

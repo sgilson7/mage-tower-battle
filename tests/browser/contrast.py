@@ -108,6 +108,12 @@ def run(p, engine, origin):
         if page.get_attribute("body", "data-station") != "office" or page.locator("#station, #layout").count() == 0:
             failures.append(f"{scheme}: never reached the office")
         look(page, "office hours", scheme)
+        # how a student decides (T41): the tree's boxes on the card
+        page.click("button[data-action='office.tab'][data-value='mind']")
+        page.wait_for_timeout(200)
+        if page.locator("#station [class*='bi-node']").count() == 0:
+            failures.append(f"{scheme}: the tree was not drawn")
+        look(page, "office hours, how they decide", scheme)
         hold_until(page, ["KeyW"], "map")
         page.keyboard.press("KeyE")
         page.click("button[data-action='layout.seats'][data-value='on']")
@@ -115,6 +121,23 @@ def run(p, engine, origin):
         if page.get_attribute("body", "data-station") != "map" or page.locator("#station, #layout").count() == 0:
             failures.append(f"{scheme}: never reached the map")
         look(page, "map table, seating", scheme)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(200)
+        # the book pile (T39), the library to the north-west
+        hold_until(page, ["KeyA", "KeyW"], "library")
+        page.click("button[data-action='library.read']")
+        page.wait_for_timeout(300)
+        if page.locator("#busy .bi-book").count() == 0:
+            failures.append(f"{scheme}: never reached the book pile")
+        look(page, "the book pile", scheme)
+        page.click("button[data-action='prep.cancel']")
+        page.wait_for_timeout(200)
+        # the invasion book (T40, T44), north of the library
+        hold_until(page, ["KeyD", "KeyW"], "book")
+        page.wait_for_timeout(300)
+        if page.get_attribute("body", "data-station") != "book":
+            failures.append(f"{scheme}: never reached the invasion book")
+        look(page, "the invasion book", scheme)
         page.close()
     browser.close()
 

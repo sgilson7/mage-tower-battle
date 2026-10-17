@@ -129,6 +129,20 @@ One row per assumption, surprise or open item. **Kind** is *divergence* (what wa
 | R7.12 | finding | Online still works with the new look (T37). | The drawing reads nothing an online match shares. | `ONLINE CHECK PASSED in chromium, firefox, webkit`. | `tests/browser/online.py` | done |
 | R7.13 | divergence | Presentation numbers live in `data/*.json` (`CLAUDE.md` rule 4). | The haze's distances, the sun's direction and the light weights are constants in `room.rs`, `scene.rs` and `web.rs`, following the light uniforms already in `web.rs`. | To move to `data/display.json` in a later round. | | open |
 | R7.14 | finding | The browser check's waits poll until their limit. | One wait read the route panel with Playwright's `inner_text`, which itself waits 30 s for the element and throws; one WebKit run in four ended there, the other three passed. | The wait reads the panel only if it is there now and keeps polling to its own limit. | `tests/browser/interactions.py` `text_now` | done |
+| R8.1 | finding | Tiles named their pieces well enough (T38). | A playtester could not tell what a spell did; the pieces' own sentences and numbers lived only in the glossary's cards. | Each tile carries its sentence and the card's line of numbers; the spell's box reads the draft out in order. | `every_tile_says_what_it_does_and_the_spell_reads_out_in_order` | done |
+| R8.2 | divergence | The sorting game stays a falling-book game (T20, T39). | It was too fast. | A pile on the floor is dragged to the shelves, untimed. A perfect sort reads a second book, skipping known ones, so it teaches something new while one is left. Keys 1 to 5 still shelve the first book, which keeps the browser check playing. | `a_book_put_on_a_wrong_shelf_goes_back_to_the_pile_and_a_perfect_sort_teaches_two` | done |
+| R8.3 | divergence | A raid reaches every rival, like T29's invasions. | A student cannot be on three fields at once. | A raider goes to the one rival you pick at the invasion book; they come home the next day. The attack mage sends its Reckless and Hunter students at the leader from the second day (R8.12). | `a_student_sent_to_raid_fights_on_that_rivals_field_and_not_on_their_own`, `a_rival_sends_its_reckless_students_to_raid_the_leader_but_not_on_the_quiet_first_day` | done |
+| R8.4 | finding | Raiders could break online matches. | A battle is run in every browser from the plans. Who raids where, how late, and their temperament and name travel in each student's plan, and a remote plan is checked for them. The online equality test now sends a raider from each joiner. | `ONLINE CHECK` and the equality test with raids. | `every_browser_of_an_online_match_ends_with_the_same_scores`, `online::sane_plan` | done |
+| R8.5 | divergence | Students' trees would run only for raiders. | Every mage on a field ticks their temperament's tree, at home too. A student's temperament comes from a hash of their name and school, so it costs the match's chance nothing; the trees are data in `content.json`. A Steadfast student behaves as before, but casts a ward or a mana spring only once something is in reach. | Trees for every mage, at home and raiding. | `mind.rs`, `content.json` temperaments | done |
+| R8.6 | worklist | The numbers for health and speed. | Health 40 plus 20 for every 100% summed; speed 2 m/s plus 0.4 m/s for every 100%. Raiders join 4 s into a battle, 2 s later for each fall, up to three falls. Mine, in `content.json`. | For the person to judge by playing. | | person |
+| R8.7 | finding | A journey could fail a send. | Holding to the brief: it never fails, it only delays arrival. My first run cost 14 s for seven falls, so the jump was lengthened and only three falls count. | `prep::LATE_FALLS` | `a_raider_sent_from_the_invasion_book_jumps_three_gaps_and_a_fall_makes_them_later` | done |
+| R8.8 | divergence | Glossary words stay out of every string. | `raid` is ruled out for Invasion and `health` for Score, and both are now right for something else: a raid sends a student (T40), a mage has health (T42). Following `copy.rs`'s own rule, the glossary keeps its Not lines and `copy.rs` allows the two words in `data/` with the reasons. New entries: Health, Journey, Raider, Temperament. Battle's `wave` is avoided. | For the person to confirm. | `crates/core/tests/copy.rs` ALLOWED | person |
+| R8.9 | finding | My first test of a fallen mage could fail. | It checked a fallen student's mana stayed put, but nothing was in reach and a full well stays full, so it passed with the rule broken; `break_tests.py` found it. It now compares a fallen student with a standing one who has a skeleton in reach. | | `a_fallen_mage_casts_no_more_and_a_raiders_bolt_hurts_a_student` | done |
+| R8.10 | worklist | The new words are mine. | Temperament names and what they do, the tree's labels, the raid, journey and sorting texts, and What's new 1.7.0 (listed at the foot). | For the person to read. | | person |
+| R8.11 | divergence | Wild enemies fight every mage. | They strike a student on the ground within reach; ground fields and lingering zones still hurt only units, not mages. | Left for a later round. | | open |
+| R8.12 | finding | Raids would leave the game about as hard as round 7. | The balance probe, 40 matches each: round 7 took 1,788 to 4,095 a match (worst 7,602). With every computer rival raiding, 3,266 to 5,075 (worst 8,366). A raider's hits on the tower barely mattered (they fall fast); raiding by all four rivals made the difference, with about a thousand more points off every tower a match. | Only the attack mage raids; a raider's hits reach the tower at 15% (`raid_tower_pct`) and its summons are held like a student's. Result: 2,200 to 4,224 (worst 7,749): a little harder, and 0 stays out of reach. On the way I also found that a student had stopped casting more than one ready spell a tick, which I had changed by accident; it casts every ready spell that reaches again, as before. | `tests/balance_probe.rs`, MEASUREMENTS.md | done |
+| R8.13 | finding | The new screens kept their contrast. | Measured for the first time, office hours' gold chips (a temperament, "still running") drew the dark theme's pale words on gold, 1.7:1. | A gold chip keeps dark words; the contrast check now also measures the tree, the book pile and the invasion book. | `tests/browser/contrast.py` | done |
+| R8.14 | finding | The old break rows still pointed at real code. | The full run caught 171 of 177. Four rows broke the falling-book game, whose tests went with it, and so could not fail any more (one still "passed" by running no test). Two rows' lines had moved. | The four were taken out, since the pile's rows (`a wrong shelf takes the book`, `a perfect sort teaches one`) cover what replaced them; the two were re-aimed and are caught. | `tests/breaks.json` | done |
 
 ## Strings written by the agent
 
@@ -473,3 +487,86 @@ Every string in `data/strings.json` (263). The names in `data/content.json` are 
 | `news 1.6.0` | Stand at a station and the camera comes down behind you, the way Ape Race follows its ape. Walk away and it rises again. |
 | `news 1.6.0` | The battlefield has the same light: faceted grass, flowers and stones, and a haze far off. |
 | `news 1.6.0` | The black outlines are gone, and the HUD is dark and see-through, so the scene shows behind it. |
+| `sort.text` | Drag each book onto its school's shelf, or press its shelf's number. Take your time: nothing falls. Shelve the pile and you learn a book; shelve it with no mistake and you learn two. |
+| `sort.explain` | A book on a wrong shelf goes back to the floor and costs the second book. Each spine shows its school's name. |
+| `sort.shelving` | Shelving |
+| `sort.perfect_yet` | No mistakes yet: two books |
+| `sort.missed` | {n} on a wrong shelf: one book |
+| `library.perfect` | A perfect sort: a second book. |
+| `journey.title` | {name} sets out for {rival} |
+| `journey.text` | Jump the gaps to reach their towers. The run moves by itself; a fall puts them back on the last ledge, and they arrive later. |
+| `journey.jumps` | Gap {n} of {of} |
+| `journey.falls` | Falls {n} · {s} s late |
+| `journey.keys` |  jump |
+| `raid.lead` | Send students to raid a rival. They walk in with that rival's enemies, cast their own spells, and attack the tower and its students. A student you send is not on your towers that battle. |
+| `raid.students` | Your students |
+| `raid.away` | Raiding {rival} |
+| `raid.stats` | Health {hp} · {speed} m/s · spells known: {n} |
+| `raid.recall` | Call back |
+| `raid.how` | Drag a student onto a rival, or click a student and then a rival. Each journey is a short run of jumps. |
+| `raid.you` | You |
+| `raid.rival_none` | {rival} · {score}. No raiders of yours yet. |
+| `raid.rival` | {rival} · {score}. Your raiders: {names}. |
+| `raid.home_heading` | On your towers this battle |
+| `raid.home` | {n} of {of} students. |
+| `raid.spells_heading` | Invasion spells |
+| `raid.label` | Raider · {name}, {rival}'s |
+| `raid.fell` | Fell |
+| `raid.coming` | On the way |
+| `raid.raider_row` | {name}, {rival}'s |
+| `raid.away_row` | {name}, at {rival} |
+| `raid.on_field` | Raiders on your field |
+| `raid.none_here` | None yet. |
+| `raid.yours_away` | Yours away |
+| `raid.arrived` | {value} reached the rival's field and will raid in the next battle. |
+| `raid.pick_first` | Pick up a student first, then drop them on a rival. |
+| `raid.bad` | That student is not here to send. |
+| `raid.bad_rival` | Pick a rival's tower, not your own. |
+| `raid.already` | That student is already raiding. |
+| `bt.first` | First that works |
+| `bt.seq` | In order |
+| `bt.if.hurt` | Hurt? |
+| `bt.if.foe_mage` | An enemy mage on this field? |
+| `bt.if.foe_in_range` | An enemy in reach? |
+| `bt.if.raiding` | Raiding? |
+| `bt.if.foe_near_tower` | An enemy near the tower? |
+| `bt.if.on_tower` | On a seat? |
+| `bt.do.fall_back` | Fall back to the tower |
+| `bt.do.leave_tower` | Leave the tower |
+| `bt.do.approach_mage` | Close to casting reach |
+| `bt.do.cast_mage` | Cast at that mage |
+| `bt.do.cast_nearest` | Cast at the nearest |
+| `bt.do.cast_near_tower` | Cast at the one nearest the tower |
+| `bt.do.cast_tower` | Cast at the tower |
+| `bt.do.advance` | Walk on toward the tower |
+| `bt.do.hold` | Hold the seat |
+| `bt.legend_ran` | ran last |
+| `bt.legend_running` | still running |
+| `bt.legend_failed` | checked, not true |
+| `bt.read` | Read it from the top: a choice tries its options from left to right and stops at the first that works; a sequence does its steps in turn and stops at the first that does not. |
+| `bt.mark_ran` | ✓ |
+| `bt.mark_running` | ▶ |
+| `bt.mark_failed` | ✗ |
+| `bt.watching` | Watching {name} · {temper} |
+| `bt.prev` | ‹ |
+| `bt.next` | › |
+| `bt.watch_stats` | Health {hp} of {of} |
+| `office.summed` | Summed effectiveness {n}% |
+| `office.health` | Health |
+| `office.speed` | Speed |
+| `office.speed_value` | {v} m/s |
+| `office.summed_explain` | Each spell they learn adds its effectiveness to the sum. Health is {hp} plus {per} for every 100%; speed is {speed} m/s plus {per_speed} for every 100%. |
+| `office.tab_seats` | Seats and casting |
+| `office.tab_mind` | How they decide |
+| `builder.in_order` | What it does, in order |
+| `raid.no_rivals` | No rivals in practice: raids are for a match against others. |
+| `temperament steadfast` | Steadfast: Stays on the seat and casts at whatever comes in reach. |
+| `temperament hunter` | Hunter: Leaves the tower to go after enemy mages, and falls back when hurt. |
+| `temperament guardian` | Guardian: Casts first at whatever is nearest the tower. |
+| `temperament reckless` | Reckless: On a raid, makes straight for the tower and casts at it. |
+| `temperament cautious` | Cautious: Casts at what comes in reach, and falls back when hurt. |
+| `news 1.7.0` | Every tile in the laboratory says what its piece does, with its numbers, and the spell's box reads the whole spell out in order. |
+| `news 1.7.0` | Finding a book is a pile on the floor: drag each to its school's shelf, with no timer. Sort the pile with no mistake and you learn two books. |
+| `news 1.7.0` | Send students to raid a rival from the invasion book. After a short run of jumps they join that rival's next battle, cast their own spells and attack the tower and its students. They are off your own towers while they are away. |
+| `news 1.7.0` | Each student has a temperament, such as Hunter or Steadfast. Office hours draws how they decide as a tree, and in a battle you can watch it light up. |
+| `news 1.7.0` | A student's health and speed grow with the spells they know: add up their effectiveness over every spell. |

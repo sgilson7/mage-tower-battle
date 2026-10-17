@@ -695,8 +695,8 @@
   {
     "name": "a rotation casts whatever is ready",
     "file": "crates/core/src/battle.rs",
-    "find": "                if wanted.map(|w| w != si).unwrap_or(false) {",
-    "replace": "                if false {",
+    "find": "            if wanted.map(|w| w != si).unwrap_or(false) {",
+    "replace": "            if false {",
     "test": "a_rotation_casts_its_spells_in_order"
   },
   {
@@ -719,13 +719,6 @@
     "find": "                        if *r == 0 {",
     "replace": "                        if true {",
     "test": "a_seal_takes_longer_when_locked_off_the_mark_and_never_changes_the_spell"
-  },
-  {
-    "name": "any shelf takes any book",
-    "file": "crates/core/src/prep.rs",
-    "find": "                if shelf == *book {",
-    "replace": "                if true {",
-    "test": "a_book_is_found_by_shelving_ten_and_a_miss_makes_the_next_fall_faster"
   },
   {
     "name": "the golem stops after one book",
@@ -782,13 +775,6 @@
     "find": "                if let Some(k) = tower.iter().position(|t| !t) {",
     "replace": "                if let Some(k) = Some(0) {",
     "test": "students_beyond_the_seats_stand_on_the_ground_with_less_range"
-  },
-  {
-    "name": "one shelved book finds a book",
-    "file": "crates/core/src/prep.rs",
-    "find": "                if *shelved >= b.sort_books {",
-    "replace": "                if *shelved >= 1 {",
-    "test": "a_book_is_found_by_shelving_ten_and_a_miss_makes_the_next_fall_faster"
   },
   {
     "name": "the lab skips the chain rules",
@@ -866,20 +852,6 @@
     "find": "                        s.rotation.remove(v as usize);",
     "replace": "                        let _ = v;",
     "test": "a_step_of_a_rotation_can_be_taken_out"
-  },
-  {
-    "name": "a streak counts double",
-    "file": "crates/core/src/prep.rs",
-    "find": "                    *streak += 1;",
-    "replace": "                    *streak += 2;",
-    "test": "sorting_counts_a_streak_and_the_books_on_each_shelf"
-  },
-  {
-    "name": "every book goes on the first shelf",
-    "file": "crates/core/src/prep.rs",
-    "find": "                    if let Some(n) = per.get_mut(shelf as usize) {",
-    "replace": "                    if let Some(n) = per.get_mut(0) {",
-    "test": "sorting_counts_a_streak_and_the_books_on_each_shelf"
   },
   {
     "name": "pressing a disc on the map picks no one",
@@ -1041,5 +1013,201 @@
     "find": "    for (i, s) in p.students.iter().enumerate().take(60) {",
     "replace": "    for (i, s) in p.students.iter().cycle().enumerate().take(6000) {",
     "test": "the_room_draws_its_furniture_once_and_its_people_each_frame"
+  },
+  {
+    "name": "a choice tries every option",
+    "file": "crates/core/src/mind.rs",
+    "find": "                    if s != Status::Failed {",
+    "replace": "                    if false {",
+    "test": "a_choice_takes_its_first_option_that_does_not_fail_and_a_running_step_stops_it"
+  },
+  {
+    "name": "a sequence runs past a failed step",
+    "file": "crates/core/src/mind.rs",
+    "find": "                    if s != Status::Done {",
+    "replace": "                    if false {",
+    "test": "a_choice_takes_its_first_option_that_does_not_fail_and_a_running_step_stops_it"
+  },
+  {
+    "name": "a sequence spreads its steps across",
+    "file": "crates/core/src/mind.rs",
+    "find": "        if *kind == Kind::First {",
+    "replace": "        if true {",
+    "test": "a_choice_spreads_its_options_across_and_a_sequence_stacks_its_steps"
+  },
+  {
+    "name": "a node with the wrong parts is taken",
+    "file": "crates/core/src/mind.rs",
+    "find": "        if leaf != raw.c.is_empty() {",
+    "replace": "        if false {",
+    "test": "a_node_that_names_the_wrong_thing_is_refused"
+  },
+  {
+    "name": "health ignores what a mage knows",
+    "file": "crates/core/src/battle.rs",
+    "find": "    let sum: i32 = plan.spells.iter().map(|s| s.1.max(0)).sum();",
+    "replace": "    let sum: i32 = 0;",
+    "test": "a_mages_health_and_speed_come_from_effectiveness_summed_over_their_spells"
+  },
+  {
+    "name": "a raiding student stays home too",
+    "file": "crates/core/src/battle.rs",
+    "find": "                .filter(|s| s.raid == NO_RAID)",
+    "replace": "                .filter(|_| true)",
+    "test": "a_student_away_raiding_is_not_on_their_own_tower"
+  },
+  {
+    "name": "a raider arrives at once",
+    "file": "crates/core/src/battle.rs",
+    "find": "        k.arrive = c.balance().raid_arrive_s * TPS + r.plan.late.clamp(0, TPS * 60);",
+    "replace": "        k.arrive = 0;",
+    "test": "a_raider_walks_in_late_and_a_reckless_one_strikes_the_tower_for_its_sender"
+  },
+  {
+    "name": "a raider's hit on the tower is nobody's",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    let (dmg, from) = (self.shots[s].damage, self.shots[s].from);",
+    "replace": "                    let (dmg, from) = (self.shots[s].damage, 255);",
+    "test": "a_raider_walks_in_late_and_a_reckless_one_strikes_the_tower_for_its_sender"
+  },
+  {
+    "name": "a raider's bolt passes the tower",
+    "file": "crates/core/src/battle.rs",
+    "find": "                if pos.sub(t).flat_len() <= ONE * 26 / 10 && pos.y < ONE * 9 {",
+    "replace": "                if false && pos.sub(t).flat_len() <= ONE * 26 / 10 && pos.y < ONE * 9 {",
+    "test": "a_raider_walks_in_late_and_a_reckless_one_strikes_the_tower_for_its_sender"
+  },
+  {
+    "name": "a hunter stays on the seat",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    k.on_tower = false;",
+    "replace": "                    k.on_tower = true;",
+    "test": "a_hunter_leaves_the_tower_for_a_raider_and_climbs_back_once_it_falls"
+  },
+  {
+    "name": "a student off the tower never climbs back",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    k.on_tower = k.home.y > ONE;",
+    "replace": "                    k.on_tower = false;",
+    "test": "a_hunter_leaves_the_tower_for_a_raider_and_climbs_back_once_it_falls"
+  },
+  {
+    "name": "a bolt passes through mages",
+    "file": "crates/core/src/battle.rs",
+    "find": "                    if k.team == team || !self.standing_mage(ci) || self.shots[s].hit.contains(&tag) {",
+    "replace": "                    if true || k.team == team || !self.standing_mage(ci) || self.shots[s].hit.contains(&tag) {",
+    "test": "a_fallen_mage_casts_no_more_and_a_raiders_bolt_hurts_a_student"
+  },
+  {
+    "name": "a fallen mage still casts",
+    "file": "crates/core/src/battle.rs",
+    "find": "            if !self.standing_mage(ci) {",
+    "replace": "            if false {",
+    "test": "a_fallen_mage_casts_no_more_and_a_raiders_bolt_hurts_a_student"
+  },
+  {
+    "name": "the journey never jumps",
+    "file": "crates/core/src/prep.rs",
+    "find": "                if standing && down & (NOTE[3] | USE | UP) != 0 {",
+    "replace": "                if false && standing && down & (NOTE[3] | USE | UP) != 0 {",
+    "test": "a_raider_sent_from_the_invasion_book_jumps_three_gaps_and_a_fall_makes_them_later"
+  },
+  {
+    "name": "a fall costs no time",
+    "file": "crates/core/src/prep.rs",
+    "find": "                let late = falls.min(LATE_FALLS) * c.balance().journey_late_s * TPS;",
+    "replace": "                let late = 0;",
+    "test": "a_raider_sent_from_the_invasion_book_jumps_three_gaps_and_a_fall_makes_them_later"
+  },
+  {
+    "name": "a raid outlasts its battle",
+    "file": "crates/core/src/prep.rs",
+    "find": "            s.raid = None;",
+    "replace": "            let _ = &s.raid;",
+    "test": "a_raider_sent_from_the_invasion_book_jumps_three_gaps_and_a_fall_makes_them_later"
+  },
+  {
+    "name": "a student may raid their own tower",
+    "file": "crates/core/src/prep.rs",
+    "find": "                if target >= 4 || target == self.seat {",
+    "replace": "                if target >= 4 {",
+    "test": "a_raider_sent_from_the_invasion_book_jumps_three_gaps_and_a_fall_makes_them_later"
+  },
+  {
+    "name": "every student has the first temperament",
+    "file": "crates/core/src/prep.rs",
+    "find": "    (h % n) as u8",
+    "replace": "    (h % 1) as u8",
+    "test": "a_temperament_comes_from_the_name_and_school_and_follows_an_applicant_hired"
+  },
+  {
+    "name": "the plan leaves out the raid",
+    "file": "crates/core/src/prep.rs",
+    "find": "                    raid: s.raid.map(|r| r.0).unwrap_or(crate::battle::NO_RAID),",
+    "replace": "                    raid: crate::battle::NO_RAID,",
+    "test": "a_raider_sent_from_the_invasion_book_jumps_three_gaps_and_a_fall_makes_them_later"
+  },
+  {
+    "name": "a wrong shelf takes the book",
+    "file": "crates/core/src/prep.rs",
+    "find": "                if shelf == school {",
+    "replace": "                if true {",
+    "test": "a_book_put_on_a_wrong_shelf_goes_back_to_the_pile_and_a_perfect_sort_teaches_two"
+  },
+  {
+    "name": "a perfect sort teaches one",
+    "file": "crates/core/src/prep.rs",
+    "find": "                    if perfect",
+    "replace": "                    if false && perfect",
+    "test": "a_book_put_on_a_wrong_shelf_goes_back_to_the_pile_and_a_perfect_sort_teaches_two"
+  },
+  {
+    "name": "raiders never reach the rival",
+    "file": "crates/core/src/game.rs",
+    "find": "                    for st in pl.students.iter().filter(|st| st.raid as usize == i) {",
+    "replace": "                    for st in pl.students.iter().filter(|st| st.raid as usize == 99) {",
+    "test": "a_student_sent_to_raid_fights_on_that_rivals_field_and_not_on_their_own"
+  },
+  {
+    "name": "any raid crosses the wire",
+    "file": "crates/core/src/online.rs",
+    "find": "                && (s.raid == crate::battle::NO_RAID || (s.raid as usize) < SEATS)",
+    "replace": "                && true",
+    "test": "a_plan_from_another_browser_is_refused_when_an_index_is_out_of_range"
+  },
+  {
+    "name": "rivals never raid",
+    "file": "crates/core/src/bot.rs",
+    "find": "            if goes && !st.known.is_empty() {",
+    "replace": "            if false && goes && !st.known.is_empty() {",
+    "test": "a_rival_sends_its_reckless_students_to_raid_the_leader_but_not_on_the_quiet_first_day"
+  },
+  {
+    "name": "a tile keeps its words to itself",
+    "file": "crates/core/src/session.rs",
+    "find": "        json!({\"id\": piece.id, \"name\": piece.name, \"icon\": d, \"view\": view, \"school\": c.file.schools[c.piece_school[k as usize]].id, \"kind\": kind, \"text\": piece.text, \"facts\": facts})",
+    "replace": "        json!({\"id\": piece.id, \"name\": piece.name, \"icon\": d, \"view\": view, \"school\": c.file.schools[c.piece_school[k as usize]].id, \"kind\": kind, \"text\": \"\", \"facts\": facts})",
+    "test": "every_tile_says_what_it_does_and_the_spell_reads_out_in_order"
+  },
+  {
+    "name": "the tree's boxes are not nodes",
+    "file": "crates/core/src/session.rs",
+    "find": "                Kind::First => \"node-first\",",
+    "replace": "                Kind::First => \"box-first\",",
+    "test": "office_hours_draws_a_students_tree_and_the_battle_lights_it_as_it_runs"
+  },
+  {
+    "name": "a dropped student goes nowhere",
+    "file": "crates/core/src/session.rs",
+    "find": "                self.forward(\"raid.send\", &format!(\"{id}:{value}\"))?;",
+    "replace": "                self.forward(\"raid.send\", &format!(\"{value}:{id}\"))?;",
+    "test": "the_invasion_book_sends_a_student_down_the_road_to_a_rival_after_a_journey"
+  },
+  {
+    "name": "the battle hides the tree",
+    "file": "crates/core/src/session.rs",
+    "find": "            if let Some(mind) = self.ui_mind(b) {",
+    "replace": "            if let Some(mind) = None::<Value> {",
+    "test": "office_hours_draws_a_students_tree_and_the_battle_lights_it_as_it_runs"
   }
 ]

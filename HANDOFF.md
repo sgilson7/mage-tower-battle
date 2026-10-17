@@ -28,6 +28,7 @@ Mage Tower Battle is a browser game for one to four players. Each player is an a
 | `game.rs` | a match: days, scores, invasions, trials and medals |
 | `online.rs` | the room protocol: hello, lobby, start, invasions, plans, checksums |
 | `session.rs` | screens, the `act` door, the `ui` view model, the frame |
+| `mind.rs` | behaviour trees: temperaments, how a mage on the field decides |
 | `mesh.rs`, `render.rs`, `look.rs`, `scene.rs`, `room.rs`, `overlay.rs`, `sound.rs` | what is drawn and heard, as numbers the page uploads; `room.rs` is the tower's room and its camera |
 | `crates/shim` | wasm-bindgen exports only |
 | `web/` | `app.js` (frame loop), `gl.js`, `ui.js`, `keys.js`, `sound.js`, `store.js`, `online.js`, `net/` (transport, vendored Trystero) |
@@ -60,6 +61,7 @@ Publishing: a push to `main` on GitHub runs `.github/workflows/deploy.yml` (chec
 - A change to `content.json` or the rule code makes the spell log stale; re-run the logbook and commit `tests/spell-log/`.
 - Round 5 answered TRIAGE T15–T31 (rows R5.1–R5.13). Reading is a sorting game and saving a seal, so tests use the `sort` and `seal` helpers in `prep/tests.rs` and `session/tests.rs`; computer rivals use `read_now` and `save_now`.
 - Round 6 answered TRIAGE T32–T33 (rows R6.1–R6.9). Panels with a mockup are built from `blocks` the core lays out (`web/ui.js` `blocks`), each naming its column; a button may carry `grab` (acts on press) and `drop` (acts when a grab is let go over it). Who sits where is `battle::seating`, shared by the battle and both pictures of the field. Compare a changed screen with its mockup's picture before handing it over (`CLAUDE.md` rule 13).
+- Round 8 answered TRIAGE T38–T45 (rows R8.1–R8.11), a playtester's points. Every mage on a field ticks a behaviour tree (`mind.rs`; the trees are `temperaments` in `content.json`); a caster has health, a team, and may be a rival's raider (`battle::Raider`, `Battle::add_raider`). Raids travel in the plan (`StudentPlan.raid`, `late`), so online stays equal. The book pile is `Activity::Sorting { books, held, per, misses }`; the journey is `Activity::Journey`.
 - Round 7 answered TRIAGE T34–T37 (rows R7.1–R7.13): the Ape Race look. Each viewport carries its mood (`render::Mood`: haze, sky and ground light, sun) and the page sets it as uniforms; there is no ink pass. Arms are nodes turned about a shoulder pivot (`q` in `models.json`), hand-held parts are `grip_r`. The room is `room.rs`: its static scene has two parts, the room and the near wall (drawn when `room::near_wall_shown`). The camera comes down at a station by `room::closeness`.
 - Round 4 answered TRIAGE T1–T13 (rows R4.1–R4.18 and R4.20–R4.22). The game's version is the first entry of `data/news.json`: add an entry there with every update.
 
@@ -87,19 +89,25 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R6.9: round 6's new words for office hours, seating on the map, the seal, the sorting game and the builder (listed at the foot of `SECOND-ORDER.md`).
 - R7.3: whether to rebuild the enemies and helpers with arms like the mages, or keep them round.
 - R7.11: the new look's colours, the haze's distances, the HUD's dark glass and the close camera's distance, to judge by playing; and the What's new text for 1.6.0, listed at the foot of `SECOND-ORDER.md`.
+- R8.6: the numbers for health, speed, raid timing and the journey, in `content.json`, to judge by playing.
+- R8.8: `raid` and `health` are allowed in `data/` with reasons, and four glossary entries are new (Health, Journey, Raider, Temperament); confirm or change.
+- R8.10: round 8's new words, the temperaments and What's new 1.7.0 (listed at the foot of `SECOND-ORDER.md`).
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
 
-17 October 2026, round 7 (TRIAGE T34–T37), on the commit that last changed this section:
+17 October 2026, round 8 (TRIAGE T38–T45):
 
-- `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`. One earlier WebKit run stopped at a wait that threw instead of polling (R7.14); fixed, then passed three times.
-- `./scripts/count-tests.sh`: `228 passed, 0 failed, 3 ignored`.
-- `python3 scripts/break_tests.py`: 149 of 149 caught, 18 of them new this round.
-- `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium, firefox, webkit` (T37).
-- `tests/browser/contrast.py`: passed in chromium, firefox and webkit, both themes, with the dark HUD.
-- The new look compared with its mockups side by side: journal entry 8, part 5.
+- `./scripts/check.sh`: `BROWSER CHECK PASSED in chromium, firefox, webkit` and `BUILDER CHECK PASSED`.
+- `./scripts/count-tests.sh`: `242 passed, 0 failed, 3 ignored`.
+- `python3 scripts/break_tests.py`: 171 of 177; four rows of the removed falling-book game taken out and two re-aimed (R8.14), then 2 of 2. 173 rows now.
+- `tests/browser/online.py`: `ONLINE CHECK PASSED in chromium, firefox, webkit`; the equality test sends a raider from each browser (R8.4).
+- `tests/browser/contrast.py`: passed in chromium, firefox and webkit, both themes, now also on the tree, the book pile and the invasion book (R8.13).
+- `tests/balance_probe.rs`: mean damage a match 2,200 to 4,224, worst 7,749 (R8.12, MEASUREMENTS.md).
+- The spell-space logbook re-run (`tests/spell-log/`).
+- Each new screen compared with its mockup side by side: journal entry 9, part 4.
+- After the full run, one variable in `Battle::mage` was renamed to re-aim a break row; `cargo test`, clippy and that row were re-run, and CI runs the whole check on the commit.
 
 ## The next action
 

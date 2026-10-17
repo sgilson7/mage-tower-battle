@@ -265,6 +265,28 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     shelves: (b) => shelvesOf(b.shelves),
     lane: (b) => laneOf(b.lane),
     tray: (b) => trayOf(b.tray),
+    // a numbered list, each item led by a bold name (T38)
+    ol: (b) => {
+      const ol = make("ol", "steps-list");
+      for (const it of b.items) {
+        const li = make("li");
+        li.append(make("b", "", it.lead), document.createTextNode(" "), document.createTextNode(it.text));
+        ol.append(li);
+      }
+      return ol;
+    },
+    // a tree read top to bottom (T41): each line indented as the core
+    // says, with what it answered
+    lines: (b) => {
+      const box = make("div", "tree-lines");
+      for (const l of b.lines) {
+        const line = make("div", l.tone ? `tree-line ${l.tone}` : "tree-line");
+        line.style.paddingLeft = l.pad;
+        line.append(make("span", "tree-mark", l.mark), make("span", "", l.text));
+        box.append(line);
+      }
+      return box;
+    },
   };
 
   // a panel's blocks, gathered into the columns they name, in the order
@@ -311,7 +333,9 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     b.append(make("small", "", caption));
     if (kind !== "mod") b.append(iconOf(t.icon, t.view, "slot-icon"));
     b.append(make("span", "slot-name", t.name));
-    if (t.does) b.append(make("span", "slot-does", t.does));
+    // what the piece does, in its words and its numbers (T38)
+    if (t.text) b.append(make("span", "slot-does", t.text));
+    if (t.facts) b.append(make("span", "slot-facts", t.facts));
     if (t.mana) b.append(manaOf(t.mana));
     return b;
   }
@@ -356,6 +380,8 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       b.className = `act tile ${t.kind} school-${t.school}`;
       b.append(iconOf(t.icon, t.view, "slot-icon"), make("span", "slot-name", t.name));
       if (t.mana) b.append(manaOf(t.mana));
+      if (t.text) b.append(make("span", "slot-does", t.text));
+      if (t.facts) b.append(make("span", "slot-facts", t.facts));
       tiles.append(b);
     }
     if (tray.unread_label) tiles.append(make("div", `tile ${tray.kind} unread`, tray.unread_label));

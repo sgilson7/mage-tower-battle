@@ -99,15 +99,17 @@ fn seal(s: &mut Session) {
     }
 }
 
-/// Plays the library's sorting game through the session (T20).
+/// Plays the library's book pile through the session (T39).
 fn sort(s: &mut Session) {
     let mut guard = 0;
-    while let Some(Activity::Sorting { book, .. }) =
+    while let Some(Activity::Sorting { books, .. }) =
         s.m.as_ref()
             .and_then(|m| m.local_prep())
             .map(|p| p.activity.clone())
     {
-        s.act("sort.shelf", &book.to_string()).unwrap();
+        // pick up the first book and let it go over its shelf (T39)
+        s.act("sort.hold", "0").unwrap();
+        s.act("sort.shelf", &books[0].to_string()).unwrap();
         guard += 1;
         assert!(guard < 100, "the sort ends");
     }
@@ -141,7 +143,22 @@ fn a_practice_day_runs_from_the_title_to_its_results() {
     run(&mut s, 2);
     no_missing(&s.ui());
     s.act("library.read", "").unwrap();
-    assert!(!s.overlay().is_empty(), "the sorting game is drawn");
+    // the pile is the page's board now: a book button for each on the floor (T39)
+    let ui = s.ui();
+    let busy = ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "busy")
+        .cloned()
+        .unwrap();
+    assert_eq!(busy["kind"], "sort");
+    let floor = blocks(&busy, "board");
+    assert_eq!(
+        floor[0]["items"].as_array().unwrap().len(),
+        12,
+        "the floor's twelve books"
+    );
     no_missing(&s.ui());
     sort(&mut s);
     run(&mut s, 2);
@@ -281,8 +298,11 @@ fn online_room(n: usize) -> (Session, Vec<Session>) {
 }
 
 /// Runs every session a tick at a time, wired, with the joiners' archmages
-/// played by the Attack Mage bot so invasions cross the wire.
-fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) {
+/// played by the Attack Mage bot so invasions cross the wire, and each
+/// joiner's first student sent to raid (T40). Says whether a joiner's
+/// raider was ever on one of the host's fields.
+fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) -> bool {
+    let mut raided = false;
     for _ in 0..ticks {
         for j in js.iter_mut() {
             let c = j.c.clone();
@@ -300,6 +320,9 @@ fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) {
                                 p.known[k] = true;
                             }
                             crate::bot::day(&c, p, Style::AttackMage, 80, target, true, &mut rng);
+                            if let Some(st) = p.students.iter_mut().find(|st| !st.known.is_empty()) {
+                                st.raid = Some((target, TPS));
+                            }
                             p.ready = true;
                         }
                     }
@@ -312,6 +335,13 @@ fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) {
             run(j, 1);
         }
         wire(host, js);
+        if let Some(m) = host.m.as_ref() {
+            raided |= m.battles.iter().flatten().any(|b| {
+                b.casters.iter().any(|k| {
+                    k.team == crate::battle::Team::Foe && (k.from == 1 || k.from == 2) && b.tick >= k.arrive
+                })
+            });
+        }
         let summary = |s: &Session| s.m.as_ref().map(|m| m.phase == Phase::Summary).unwrap_or(false);
         if summary(host) && js.iter().all(summary) {
             host.act("day.next", "").unwrap();
@@ -320,6 +350,7 @@ fn play_online(host: &mut Session, js: &mut [Session], ticks: i32) {
             }
         }
     }
+    raided
 }
 
 #[test]
@@ -366,7 +397,11 @@ fn every_browser_of_an_online_match_ends_with_the_same_scores() {
     wire(&mut host, &mut js);
     host.act("online.start", "").unwrap();
     wire(&mut host, &mut js);
-    play_online(&mut host, &mut js, TPS * 200);
+    let raided = play_online(&mut host, &mut js, TPS * 200);
+    assert!(
+        raided,
+        "a joiner's raider crossed the wire and fought on a field (T40)"
+    );
     let scores = |s: &Session| -> Vec<i32> { s.m.as_ref().unwrap().seats.iter().map(|x| x.score).collect() };
     let hm = host.m.as_ref().unwrap();
     assert_eq!(hm.phase, Phase::Results, "two days ran to the results");
@@ -926,8 +961,8 @@ fn office_hours_shows_a_student_and_sets_their_seat_and_rotation() {
     assert_eq!(office["kind"], "office", "one panel, after the mockup");
     assert_eq!(
         blocks(office, "meters").len(),
-        2,
-        "the student's stats and their leanings"
+        3,
+        "the student's stats, their health and speed (T42), and their leanings"
     );
     let seat_buttons = buttons_in(office)
         .iter()
@@ -1110,4 +1145,123 @@ fn office_hours_draws_the_seats_and_a_held_seat_can_be_picked_up() {
         seats.iter().all(|i| i["action"]["drop"] == true),
         "each seat takes a drop"
     );
+}
+
+#[test]
+fn every_tile_says_what_it_does_and_the_spell_reads_out_in_order() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Lab);
+    run(&mut s, 2);
+    s.act("lab.add", "fire_bolt").unwrap();
+    let lab = find_panel(&s, "station").unwrap();
+    let tray = &blocks(&lab, "tray")[0]["tray"];
+    let fire = tray["tiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == "fire_bolt")
+        .cloned()
+        .unwrap();
+    let c = &s.c;
+    let piece = &c.file.pieces[c.piece("fire_bolt").unwrap()];
+    assert_eq!(fire["text"], piece.text.as_str(), "the piece's own words (T38)");
+    assert!(!fire["facts"].as_str().unwrap().is_empty(), "and its numbers");
+    let ol = blocks(&lab, "ol");
+    assert_eq!(ol.len(), 1);
+    assert_eq!(
+        ol[0]["items"].as_array().unwrap().len(),
+        1,
+        "one step for the one piece"
+    );
+    assert_eq!(ol[0]["items"][0]["lead"], "Fire Bolt");
+    no_missing(&s.ui());
+}
+
+#[test]
+fn the_invasion_book_sends_a_student_down_the_road_to_a_rival_after_a_journey() {
+    let mut s = session();
+    s.act("screen.show", "setup").unwrap();
+    s.act("match.start", "versus").unwrap();
+    s.teleport(Station::Book);
+    run(&mut s, 2);
+    let book = find_panel(&s, "station").unwrap();
+    assert_eq!(book["kind"], "raid");
+    let road = &blocks(&book, "board")[0]["items"];
+    let rivals: Vec<&Value> = road
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["kind"] == "rival")
+        .collect();
+    assert_eq!(rivals.len(), 3, "a card for each rival");
+    no_missing(&s.ui());
+    // drop without picking anyone: refused
+    assert!(s.act("raid.drop", "1").is_err());
+    let id = s.m.as_ref().unwrap().local_prep().unwrap().students[0].id;
+    s.act("raid.hold", &id.to_string()).unwrap();
+    s.act("raid.drop", "2").unwrap();
+    let busy = find_panel(&s, "busy").unwrap();
+    assert_eq!(busy["kind"], "journey");
+    assert!(!s.overlay().is_empty(), "the run is drawn");
+    no_missing(&s.ui());
+    // run it out by jumping at every ledge's end
+    let mut guard = 0;
+    while let Some(Activity::Journey { x, .. }) =
+        s.m.as_ref()
+            .and_then(|m| m.local_prep())
+            .map(|p| p.activity.clone())
+    {
+        let cm = x * 100 / crate::fx::ONE;
+        let near = prep::LEDGES.iter().any(|l| cm >= l.1 - 60 && cm <= l.1);
+        let now = s.tick as i64 * 16_667 + 16_667;
+        s.frame(now, if near { crate::prep::NOTE[3] } else { 0 });
+        guard += 1;
+        assert!(guard < 3000, "the journey ends");
+    }
+    let st = &s.m.as_ref().unwrap().local_prep().unwrap().students[0];
+    assert_eq!(st.raid.map(|r| r.0), Some(2));
+    let book = find_panel(&s, "station").unwrap();
+    let road = &blocks(&book, "board")[0]["items"];
+    assert!(
+        road.as_array().unwrap().iter().any(|i| i["kind"] == "walker"),
+        "they are on the road"
+    );
+}
+
+#[test]
+fn office_hours_draws_a_students_tree_and_the_battle_lights_it_as_it_runs() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Office);
+    run(&mut s, 2);
+    s.act("office.tab", "mind").unwrap();
+    let office = find_panel(&s, "station").unwrap();
+    let p = s.m.as_ref().unwrap().local_prep().unwrap();
+    let st = &p.students[0];
+    let tree = &s.c.minds[st.temper as usize];
+    let items = blocks(&office, "board")[0]["items"].as_array().unwrap().clone();
+    let nodes = items
+        .iter()
+        .filter(|i| i["kind"].as_str().unwrap_or("").starts_with("node"))
+        .count();
+    assert_eq!(
+        nodes,
+        tree.nodes.len(),
+        "a box for every node of their temperament's tree"
+    );
+    assert!(
+        items.iter().any(|i| i["kind"] == "edge"),
+        "and the lines between them"
+    );
+    no_missing(&s.ui());
+    // in the battle, one student's tree read top to bottom, lit
+    s.act("day.ready", "").unwrap();
+    run(&mut s, TPS * 6);
+    let mind = find_panel(&s, "mind").expect("the battle shows a student's tree");
+    let lines = blocks(&mind, "lines")[0]["lines"].as_array().unwrap().clone();
+    assert!(lines.len() >= 5);
+    assert!(lines.iter().any(|l| l["tone"] != ""), "something ran this tick");
+    assert!(find_panel(&s, "raiders").is_some());
+    no_missing(&s.ui());
 }

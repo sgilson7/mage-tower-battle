@@ -334,22 +334,73 @@ fn enemy_model(c: &Content, kind: u16) -> &str {
 pub fn arena_dynamic(b: &mut Batch, look: &Look, c: &Content, bt: &Battle, far: bool) {
     let t = bt.tower();
     for (i, k) in bt.casters.iter().enumerate() {
+        // a raider before it arrives is not on the field yet (T40)
+        if bt.tick < k.arrive || (far && i >= 12 && k.team == Team::Ally) {
+            continue;
+        }
         let robe = school_colour(look, c, k.plan.school as usize);
-        let face = k.aim.sub(k.pos);
+        let foe = k.team == Team::Foe;
+        let face = if k.moving {
+            k.pos.sub(k.home).flat()
+        } else {
+            k.aim.sub(k.pos)
+        };
+        let fallen = k.fell > 0;
         let pose = Pose {
             yaw: crate::geom::yaw_of(face.x, face.z),
-            cast: if k.casting > 0 { ONE } else { 0 },
+            cast: if k.casting > 0 && !fallen { ONE } else { 0 },
+            walk: if k.moving {
+                bt.tick * 900 + i as i32 * 5000
+            } else {
+                0
+            },
+            stride: cm(30),
+            // a fallen mage lies on their back for the rest of the battle (T43)
+            lean: if fallen {
+                (-fx::QUARTER_TURN * 9 / 10, 0)
+            } else {
+                (0, 0)
+            },
+            breath: bt.tick * 300 + i as i32 * 9000,
             ..Default::default()
         };
         let base = v3(
             k.pos.x,
-            k.pos.y - if k.pos.y > ONE { 0 } else { ONE / 2 },
+            k.pos.y - if k.pos.y > ONE { 0 } else { ONE / 2 } + if fallen { cm(30) } else { 0 },
             k.pos.z,
         );
-        if far && i >= 12 {
-            continue;
+        // a raider wears a red trim and stands in a red ring
+        let trim = if foe {
+            look.colour("raider")
+        } else {
+            look.colour("trim")
+        };
+        look.draw(
+            b,
+            "student",
+            base,
+            &pose,
+            &[("robe", robe), ("hat", robe), ("trim", trim)],
+            far,
+        );
+        if foe && !fallen {
+            b.push(
+                Mesh::Cyl,
+                Pass::Glow,
+                base.add(v3(0, cm(4), 0)),
+                &sz(cm(160), cm(4), cm(160)),
+                look.colour("raider"),
+                ONE / 2,
+            );
+            b.push(
+                Mesh::Cyl,
+                Pass::Glow,
+                base.add(v3(0, cm(180), 0)),
+                &sz(cm(8), cm(360), cm(8)),
+                look.colour("raider"),
+                ONE / 3,
+            );
         }
-        look.draw(b, "student", base, &pose, &[("robe", robe), ("hat", robe)], far);
     }
     for u in &bt.units {
         let e = &c.file.enemies[u.kind as usize];
@@ -615,6 +666,7 @@ mod tests {
             regen: 20,
             spells: vec![(0, 100)],
             school: 0,
+            ..Default::default()
         };
         let plan = Plan {
             spells: vec![fire],

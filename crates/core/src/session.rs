@@ -109,6 +109,11 @@ pub struct Session {
     /// The builder's open tab, and the tile being dragged (T32).
     lab_tab: String,
     held: Option<usize>,
+    /// The student picked up at the invasion book (T40), office hours'
+    /// open tab (T41), and which of your students the battle's tree shows.
+    raid_held: Option<u16>,
+    office_tab: String,
+    watch: usize,
     /// The difficulty chosen for each trial (T30).
     trial_diff: Vec<i32>,
     /// The card for the book just read, and the ticks it stays (T10).
@@ -280,6 +285,9 @@ impl Session {
             office_pick: None,
             lab_tab: "pay".into(),
             held: None,
+            raid_held: None,
+            office_tab: "seats".into(),
+            watch: 0,
             cams: [scene::Orbit::start(false); 4],
             drag: None,
             build,
@@ -441,6 +449,21 @@ impl Session {
                 self.lab_tab = value.to_string();
             }
             "lab.hold" => self.held = self.c.piece(value),
+            "raid.hold" => self.raid_held = value.parse().ok(),
+            "raid.drop" => {
+                // a student let go over a rival, or a rival clicked with a
+                // student picked: the journey starts (T40, T45)
+                let id = self.raid_held.take().ok_or_else(|| self.err("raid.pick_first"))?;
+                self.forward("raid.send", &format!("{id}:{value}"))?;
+            }
+            "office.tab" => {
+                if !["seats", "mind"].contains(&value) {
+                    return Err(self.err("error.bad"));
+                }
+                self.office_tab = value.to_string();
+            }
+            "watch.next" => self.watch = self.watch.wrapping_add(1),
+            "watch.prev" => self.watch = self.watch.wrapping_add(usize::MAX),
             "lab.drop" => {
                 // a tile let go over an open slot: added if the slot takes its kind
                 let k = self.held.take().ok_or_else(|| self.err("builder.wrong_slot"))?;
@@ -1613,7 +1636,22 @@ impl Session {
                     &format!("{}%", lane.score()),
                 )
             }
-            Activity::Sorting { book, y, fall, .. } => overlay::sorting(*book, *y * 1000 / (*fall).max(1)),
+            Activity::Journey {
+                x, y, falls, student, ..
+            } => {
+                let school = p
+                    .students
+                    .iter()
+                    .find(|st| st.id == *student)
+                    .map(|st| st.school)
+                    .unwrap_or(0);
+                overlay::journey(
+                    *x * 100 / crate::fx::ONE,
+                    *y * 100 / crate::fx::ONE,
+                    *falls,
+                    school,
+                )
+            }
             Activity::Sealing { rings, at } => overlay::seal(&self.c, &p.draft, rings, *at),
             _ if self.layout.open => {
                 let a = p.field(&self.c);
@@ -2102,7 +2140,12 @@ impl Session {
             PieceKind::Branch => "branch",
             _ => "mod",
         };
-        json!({"id": piece.id, "name": piece.name, "icon": d, "view": view, "school": c.file.schools[c.piece_school[k as usize]].id, "kind": kind})
+        // what the piece does, in its own words and its numbers (T38)
+        let facts = self.piece_card(k as usize, String::new())["facts"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        json!({"id": piece.id, "name": piece.name, "icon": d, "view": view, "school": c.file.schools[c.piece_school[k as usize]].id, "kind": kind, "text": piece.text, "facts": facts})
     }
 
     /// The draft as the builder shows it (T17): rows of sets, each an
@@ -2434,6 +2477,7 @@ impl Session {
             Activity::Drawing { .. } => Some("drawing"),
             Activity::Sealing { .. } => Some("sealing"),
             Activity::Sorting { .. } => Some("sorting"),
+            Activity::Journey { .. } => Some("journey"),
         };
         if let Some(b) = busy {
             let text = match b {
@@ -2445,9 +2489,12 @@ impl Session {
             };
             match &p.activity {
                 Activity::Sealing { rings, at } => panels.push(self.ui_seal(p, rings, *at)),
-                Activity::Sorting { shelved, streak, per, book, .. } => {
-                    panels.push(self.ui_sort(*shelved, *streak, per, *book));
+                Activity::Sorting { books, held, per, misses } => {
+                    panels.push(self.ui_sort(books, *held, per, *misses));
                     panels.push(self.ui_golem_card(p));
+                }
+                Activity::Journey { student, target, ledge, falls, .. } => {
+                    panels.push(self.ui_journey(m, p, *student, *target, *ledge, *falls));
                 }
                 _ => panels.push(json!({"id": "busy", "kind": "bottom", "text": text, "actions": [act_json("prep.cancel", "", s.t("busy.cancel"), true)]})),
             }
@@ -2524,7 +2571,10 @@ impl Session {
         // the sorting game's book and the seal's ring, for a browser check
         // that plays them by keys
         let (book, ring) = match &p.activity {
-            Activity::Sorting { book, .. } => (book.to_string(), String::new()),
+            Activity::Sorting { books, .. } => (
+                books.first().map(|b| b.to_string()).unwrap_or_default(),
+                String::new(),
+            ),
             Activity::Sealing { rings, at } => (
                 String::new(),
                 rings.get(*at).map(|r| r.to_string()).unwrap_or_default(),
@@ -2677,6 +2727,20 @@ impl Session {
                     json!({"t": "title", "col": "sum", "text": if p.draft.is_empty() { s.t("builder.new") } else { spell::name(c, &p.draft) }}),
                     json!({"t": "p", "col": "sum", "text": stats}),
                 ];
+                // what the spell does, piece by piece, in order (T38)
+                if !p.draft.is_empty() {
+                    bl.push(json!({"t": "h", "col": "sum", "text": s.t("builder.in_order")}));
+                    let items: Vec<Value> = p
+                        .draft
+                        .iter()
+                        .map(|&k| {
+                            let piece = &c.file.pieces[k as usize];
+                            let facts = self.piece_card(k as usize, String::new())["facts"].as_str().unwrap_or("").to_string();
+                            json!({"lead": piece.name, "text": if facts.is_empty() { piece.text.clone() } else { format!("{} {}", piece.text, facts) }})
+                        })
+                        .collect();
+                    bl.push(json!({"t": "ol", "col": "sum", "items": items}));
+                }
                 if let Some(m) = draft_mana {
                     bl.push(json!({"t": "mana", "col": "sum", "mana": m}));
                 }
@@ -2812,7 +2876,7 @@ impl Session {
                     a["mana"] = mana(s, cost);
                     actions.push(a);
                 }
-                json!({"id": "station", "kind": "side", "heading": s.t("station.book"), "text": s.t("book.text"), "rows": rows, "actions": actions})
+                self.ui_book(m, p, rows, actions)
             }
             Station::Office => self.ui_office(p),
             Station::Map => {
@@ -2995,6 +3059,241 @@ impl Session {
         json!({"label": st.name, "chip": self.seat_name(st.seat), "school": c.file.schools[st.school as usize].id, "on": pick == Some(st.id), "press": press})
     }
 
+    /// A student's health and speed for the spells they know (T42), as
+    /// shown: health, and speed in metres a second to a tenth.
+    fn mage_numbers(&self, st: &prep::Student) -> (i32, String) {
+        let b = self.c.balance();
+        let plan = battle::StudentPlan {
+            spells: st.known.clone(),
+            ..Default::default()
+        };
+        let (hp, _) = battle::mage_stats(&self.c, &plan);
+        let sum: i32 = st.known.iter().map(|k| k.1.max(0)).sum();
+        let cms = b.mage_speed_cms + sum * b.mage_speed_per_100_cms / 100;
+        (hp, format!("{}.{}", cms / 100, cms % 100 / 10))
+    }
+
+    /// The invasion book (T40, T44), after its mockup: your students to
+    /// send, a road to each rival with your raiders on it, who stays on
+    /// your towers, and the invasion spells as before.
+    fn ui_book(&self, m: &Match, p: &prep::Prep, wild_rows: Vec<Value>, spell_actions: Vec<Value>) -> Value {
+        let s = &self.s;
+        let c = &self.c;
+        let rivals: Vec<usize> = (0..m.seats.len())
+            .filter(|&t| t != m.local as usize && m.seats[t].active())
+            .collect();
+        let temper = |t: u8| {
+            c.file
+                .temperaments
+                .get(t as usize)
+                .map(|x| x.name.clone())
+                .unwrap_or_default()
+        };
+        let mut bl = vec![
+            json!({"t": "title", "col": "list", "text": s.t("station.book")}),
+            json!({"t": "p", "col": "list", "tone": "muted", "text": s.t("raid.lead")}),
+            json!({"t": "h", "col": "list", "text": s.t("raid.students")}),
+        ];
+        let rows: Vec<Value> = p
+            .students
+            .iter()
+            .map(|st| {
+                let (hp, speed) = self.mage_numbers(st);
+                let detail = match st.raid {
+                    Some((t, _)) => s.f("raid.away", &[("rival", m.seats.get(t as usize).map(|x| x.name.clone()).unwrap_or_default())]),
+                    None => s.f("raid.stats", &[("hp", hp.to_string()), ("speed", speed), ("n", st.known.len().to_string())]),
+                };
+                let mut press = act_json("raid.hold", &st.id.to_string(), st.name.clone(), st.raid.is_none());
+                press["grab"] = act_json("raid.hold", &st.id.to_string(), String::new(), true);
+                let actions = if st.raid.is_some() { vec![act_json("raid.recall", &st.id.to_string(), s.t("raid.recall"), true)] } else { vec![] };
+                json!({"label": st.name, "detail": detail, "chip": temper(st.temper), "school": c.file.schools[st.school as usize].id, "on": self.raid_held == Some(st.id), "dim": st.raid.is_some(), "press": press, "actions": actions})
+            })
+            .collect();
+        if rows.is_empty() {
+            bl.push(json!({"t": "p", "col": "list", "text": s.t("office.no_students")}));
+        } else {
+            bl.push(json!({"t": "rows", "col": "list", "rows": rows}));
+        }
+        bl.push(json!({"t": "p", "col": "list", "tone": "small", "text": s.t("raid.how")}));
+        // the road: your tower, then each rival, with your raiders on the way
+        let mut items = vec![
+            json!({"kind": "roof", "left": "0%", "top": "14%", "w": "11%", "h": "17%"}),
+            json!({"kind": "tower", "text": s.t("raid.you"), "left": "2%", "top": "30%", "w": "7%", "h": "62%"}),
+        ];
+        // a dotted road from your tower to each rival's card (T44)
+        let n = rivals.len().max(1) as i32;
+        let along = |k: usize, u: i32| {
+            let card = 40 + k as i32 * 1000 / n + (1000 / n - 60) / 2;
+            let (x0, y0, x1) = (100, 700, 610);
+            // level at first, then up or down to the card
+            let e = u * u / 1000;
+            (x0 + (x1 - x0) * u / 1000, y0 + (card - y0) * e / 1000)
+        };
+        for k in 0..rivals.len() {
+            for d in 1..18 {
+                let (x, y) = along(k, d * 1000 / 18);
+                items.push(json!({"kind": "dot", "left": strings::css_pct(x - 6), "top": strings::css_pct(y - 12), "w": "1.2%", "h": "3.4%"}));
+            }
+        }
+        for (k, &t) in rivals.iter().enumerate() {
+            let top = 40 + k as i32 * 1000 / rivals.len().max(1) as i32;
+            let mine: Vec<&prep::Student> = p
+                .students
+                .iter()
+                .filter(|st| st.raid.map(|r| r.0 as usize) == Some(t))
+                .collect();
+            let names: Vec<String> = mine.iter().map(|st| st.name.clone()).collect();
+            let text = if names.is_empty() {
+                s.f(
+                    "raid.rival_none",
+                    &[
+                        ("rival", m.seats[t].name.clone()),
+                        ("score", strings::number(m.seats[t].score)),
+                    ],
+                )
+            } else {
+                s.f(
+                    "raid.rival",
+                    &[
+                        ("rival", m.seats[t].name.clone()),
+                        ("score", strings::number(m.seats[t].score)),
+                        ("names", names.join(", ")),
+                    ],
+                )
+            };
+            let mut a = act_json(
+                "raid.drop",
+                &t.to_string(),
+                String::new(),
+                self.raid_held.is_some(),
+            );
+            a["drop"] = json!(true);
+            items.push(json!({"kind": "rival", "text": text, "action": a, "on": self.raid_held.is_some(), "left": "62%", "top": strings::css_pct(top), "w": "37%", "h": strings::css_pct(1000 / rivals.len().max(1) as i32 - 60)}));
+            for (j, st) in mine.iter().enumerate() {
+                let (x, y) = along(k, 820 - j as i32 * 90);
+                items.push(json!({"kind": "walker", "tone": format!("school-{}", c.file.schools[st.school as usize].id), "text": initials(&st.name),
+                    "left": strings::css_pct(x - 20), "top": strings::css_pct(y - 80), "w": "4%", "h": "16%"}));
+            }
+        }
+        if rivals.is_empty() {
+            items.push(json!({"kind": "note", "text": s.t("raid.no_rivals"), "left": "20%", "top": "38%", "w": "60%", "h": "24%"}));
+        }
+        bl.push(json!({"t": "board", "col": "road", "aspect": "26 / 9", "items": items}));
+        let home = p.students.iter().filter(|st| st.raid.is_none()).count();
+        bl.push(json!({"t": "h", "col": "home", "text": s.t("raid.home_heading")}));
+        bl.push(json!({"t": "p", "col": "home", "text": s.f("raid.home", &[("n", home.to_string()), ("of", p.students.len().to_string())])}));
+        let staying: Vec<Value> = p
+            .students
+            .iter()
+            .filter(|st| st.raid.is_none())
+            .map(|st| json!({"text": st.name, "tone": ""}))
+            .collect();
+        bl.push(json!({"t": "chips", "col": "home", "chips": staying}));
+        bl.push(json!({"t": "h", "col": "spells", "text": s.t("raid.spells_heading")}));
+        bl.push(json!({"t": "p", "col": "spells", "tone": "muted", "text": s.t("book.text")}));
+        bl.push(json!({"t": "rows", "col": "spells", "rows": wild_rows}));
+        if !spell_actions.is_empty() {
+            bl.push(json!({"t": "actions", "col": "spells", "actions": spell_actions}));
+        }
+        json!({"id": "station", "kind": "raid", "blocks": bl})
+    }
+
+    /// A temperament's tree as a board (T41), after the BT lab: a choice
+    /// spreads its options across, a sequence stacks its steps down, and
+    /// each node is lit by what it answered last (`lit`, empty for none).
+    fn tree_board(&self, temper: u8, lit: &[u8]) -> Value {
+        use crate::mind::Kind;
+        let s = &self.s;
+        let Some(tree) = self.c.minds.get(temper as usize) else {
+            return json!({"t": "p", "text": ""});
+        };
+        let (at, cols) = tree.layout();
+        let rows = at.iter().map(|a| a.1).max().unwrap_or(0) + 1;
+        let (cw, rh) = (1000 / cols.max(1), 1000 / rows.max(1));
+        let label = |k: &Kind| match k {
+            Kind::First => s.t("bt.first"),
+            Kind::Seq => s.t("bt.seq"),
+            Kind::If(q) => s.t(&format!(
+                "bt.if.{}",
+                serde_json::to_value(q)
+                    .ok()
+                    .and_then(|v| v.as_str().map(|x| x.to_string()))
+                    .unwrap_or_default()
+            )),
+            Kind::Do(a) => s.t(&format!(
+                "bt.do.{}",
+                serde_json::to_value(a)
+                    .ok()
+                    .and_then(|v| v.as_str().map(|x| x.to_string()))
+                    .unwrap_or_default()
+            )),
+        };
+        let mut items = Vec::new();
+        let indent = |n: usize| -> i32 {
+            // a sequence's steps sit a little to the right of it
+            let deep = tree
+                .nodes
+                .iter()
+                .enumerate()
+                .any(|(p, (k, kids))| *k == Kind::Seq && kids.contains(&n) && at[p].0 == at[n].0);
+            if deep {
+                cw / 10
+            } else {
+                0
+            }
+        };
+        for (n, (kind, kids)) in tree.nodes.iter().enumerate() {
+            let (c0, r0) = at[n];
+            let left = c0 * cw + cw / 20 + indent(n);
+            let top = r0 * rh + rh / 8;
+            let (w, h) = (cw * 8 / 10, rh * 7 / 10);
+            let tone = match lit.get(n).copied().unwrap_or(0) {
+                crate::mind::RAN_DONE => "ran",
+                crate::mind::RAN_RUNNING => "running",
+                crate::mind::RAN_FAILED => "failed",
+                _ => "",
+            };
+            let shape = match kind {
+                Kind::First => "node-first",
+                Kind::Seq => "node-seq",
+                Kind::If(_) => "node-ask",
+                Kind::Do(_) => "node-step",
+            };
+            items.push(json!({"kind": shape, "tone": tone, "text": label(kind), "left": strings::css_pct(left), "top": strings::css_pct(top), "w": strings::css_pct(w), "h": strings::css_pct(h)}));
+            // lines: a choice drops to a bar over its options; a sequence
+            // runs a line down its left side to each step
+            let line = |l: i32, t: i32, w: i32, h: i32| json!({"kind": "edge", "left": strings::css_pct(l), "top": strings::css_pct(t), "w": strings::css_pct(w.max(3)), "h": strings::css_pct(h.max(4))});
+            if kids.is_empty() {
+                continue;
+            }
+            if *kind == Kind::First {
+                let bar = top + h + (rh - h) / 2 - rh / 16;
+                let xs: Vec<i32> = kids
+                    .iter()
+                    .map(|&k| at[k].0 * cw + cw / 20 + indent(k) + cw * 4 / 10)
+                    .collect();
+                let (lo, hi) = (
+                    xs.iter().copied().min().unwrap_or(0),
+                    xs.iter().copied().max().unwrap_or(0),
+                );
+                items.push(line(left + w / 2, top + h, 3, bar - top - h));
+                items.push(line(lo, bar, hi - lo + 3, 4));
+                for x in xs {
+                    items.push(line(x, bar, 3, rh / 4));
+                }
+            } else {
+                let x = left + cw / 30;
+                let last = kids.iter().map(|&k| at[k].1).max().unwrap_or(r0);
+                items.push(line(x, top + h, 3, (last - r0) * rh - h / 2 + rh / 8));
+                for &k in kids {
+                    let ky = at[k].1 * rh + rh / 8 + h / 2;
+                    items.push(line(x, ky, cw / 10 - cw / 30, 4));
+                }
+            }
+        }
+        json!({"t": "board", "aspect": format!("{} / {}", cols * 16, rows * 6), "items": items})
+    }
+
     /// Office hours (T15, T32), after its mockup: the class on the left,
     /// the student in the middle, where they stand and what they cast on
     /// the right.
@@ -3033,6 +3332,18 @@ impl Session {
         };
         bl.push(json!({"t": "title", "col": "who", "text": st.name}));
         bl.push(json!({"t": "p", "col": "who", "tone": "muted", "text": s.f("office.about", &[("good", c.file.schools[st.school as usize].name.clone()), ("bad", c.file.schools[st.weak as usize].name.clone()), ("q", st.quality.to_string())])}));
+        let temper = c.file.temperaments.get(st.temper as usize);
+        bl.push(json!({"t": "chips", "col": "who", "chips": [{"text": temper.map(|t| t.name.clone()).unwrap_or_default(), "tone": "gold"}]}));
+        // health and speed from summed effectiveness (T42)
+        let sum: i32 = st.known.iter().map(|k| k.1.max(0)).sum();
+        let (hp, speed) = self.mage_numbers(st);
+        let most_hp = b.mage_hp + b.mage_hp_per_100 * 5;
+        bl.push(json!({"t": "h", "col": "who", "text": s.f("office.summed", &[("n", sum.to_string())])}));
+        bl.push(json!({"t": "meters", "col": "who", "rows": [
+            {"label": s.t("office.health"), "value": hp.to_string(), "left": "0%", "width": full(hp, most_hp), "tone": "good"},
+            {"label": s.t("office.speed"), "value": s.f("office.speed_value", &[("v", speed)]), "left": "0%", "width": full(b.mage_speed_cms + sum * b.mage_speed_per_100_cms / 100, b.mage_speed_cms + b.mage_speed_per_100_cms * 5), "tone": "mana"},
+        ]}));
+        bl.push(json!({"t": "p", "col": "who", "tone": "small", "text": s.f("office.summed_explain", &[("hp", b.mage_hp.to_string()), ("per", b.mage_hp_per_100.to_string()), ("speed", (b.mage_speed_cms / 100).to_string()), ("per_speed", format!("{}.{}", b.mage_speed_per_100_cms / 100, b.mage_speed_per_100_cms % 100 / 10))])}));
         bl.push(json!({"t": "h", "col": "who", "text": s.t("office.stats")}));
         bl.push(json!({"t": "meters", "col": "who", "rows": [
             {"label": s.t("office.mana"), "value": st.mana_max.to_string(), "left": "0%", "width": full(st.mana_max, b.student_mana[1]), "tone": "mana"},
@@ -3068,6 +3379,27 @@ impl Session {
             bl.push(json!({"t": "p", "col": "who", "tone": "muted", "text": s.t("office.no_spells")}));
         } else {
             bl.push(json!({"t": "table", "col": "who", "head": [s.t("office.col_spell"), s.t("office.col_eff"), s.t("office.col_cast")], "rows": spells}));
+        }
+        // the right column: seats and casting, or how they decide (T41)
+        let tabs: Vec<Value> = [("seats", "office.tab_seats"), ("mind", "office.tab_mind")]
+            .iter()
+            .map(|(k, label)| {
+                let mut a = act_json("office.tab", k, s.t(label), true);
+                a["on"] = json!(self.office_tab == *k);
+                a
+            })
+            .collect();
+        bl.push(json!({"t": "actions", "col": "deploy", "style": "tabs", "actions": tabs}));
+        if self.office_tab == "mind" {
+            if let Some(t) = temper {
+                bl.push(json!({"t": "p", "col": "deploy", "text": format!("{}: {}", t.name, t.text)}));
+            }
+            bl.push(json!({"t": "chips", "col": "deploy", "chips": [{"text": s.t("bt.legend_ran"), "tone": "good"}, {"text": s.t("bt.legend_running"), "tone": "gold"}, {"text": s.t("bt.legend_failed"), "tone": "bad"}]}));
+            let mut tree = self.tree_board(st.temper, &[]);
+            tree["col"] = json!("deploy");
+            bl.push(tree);
+            bl.push(json!({"t": "p", "col": "deploy", "tone": "small", "text": s.t("bt.read")}));
+            return json!({"id": "station", "kind": "office", "blocks": bl});
         }
         // where they stand
         bl.push(json!({"t": "h", "col": "deploy", "text": s.f("office.where_short", &[("name", st.name.clone())])}));
@@ -3242,17 +3574,28 @@ impl Session {
         json!({"id": "busy", "kind": "seal", "box": overlay::css_box(overlay::SEAL_BOX), "blocks": bl})
     }
 
-    /// The sorting game (T20, T32), after its mockup: the pile, the count,
-    /// and the shelves as buttons; the falling book is the overlay's.
-    fn ui_sort(&self, shelved: i32, streak: i32, per: &[u8], book: u8) -> Value {
+    /// The book pile (T39), after its mockup: books on the floor to drag
+    /// to their school's shelf, the count, and whether the sort is still
+    /// perfect. Nothing falls.
+    fn ui_sort(&self, books: &[u8], held: Option<usize>, per: &[u8], misses: i32) -> Value {
         let s = &self.s;
         let c = &self.c;
         let b = c.balance();
-        let n = c.file.schools.len();
-        let left = (b.sort_books - shelved).max(0);
-        // the pile's colours, in a fixed order so it does not flicker
-        let pile: Vec<&str> = (0..left)
-            .map(|k| c.file.schools[(k as usize * 3 + 1) % n.max(1)].id.as_str())
+        let total = b.sort_books.max(1);
+        let shelved = total - books.len() as i32;
+        // the floor: a book's place comes from its number, so it does not jump
+        let items: Vec<Value> = books
+            .iter()
+            .enumerate()
+            .map(|(i, &k)| {
+                let school = &c.file.schools[(k as usize).min(c.file.schools.len() - 1)];
+                let (col, row) = (i as i32 % 4, i as i32 / 4);
+                let mut a = act_json("sort.hold", &i.to_string(), String::new(), true);
+                a["grab"] = act_json("sort.hold", &i.to_string(), String::new(), true);
+                json!({"kind": "book", "tone": format!("school-{}", school.id), "text": school.name, "action": a, "on": held == Some(i),
+                    "left": strings::css_pct(20 + col * 245 + (i as i32 * 37) % 40), "top": strings::css_pct(30 + row * 320 + (i as i32 * 53) % 40),
+                    "w": strings::css_pct(205), "h": strings::css_pct(250)})
+            })
             .collect();
         let shelves: Vec<Value> = c
             .file
@@ -3263,21 +3606,64 @@ impl Session {
                 let spines: Vec<String> = (0..per.get(k).copied().unwrap_or(0) as i32)
                     .map(|j| strings::css_pct(600 + (j * 7 + k as i32 * 3) % 4 * 100))
                     .collect();
-                json!({"action": act_json("sort.shelf", &k.to_string(), String::new(), true), "school": school.id, "label": school.name, "key": (k + 1).to_string(), "spines": spines, "on": false})
+                let mut a = act_json("sort.shelf", &k.to_string(), String::new(), true);
+                a["drop"] = json!(true);
+                json!({"action": a, "school": school.id, "label": school.name, "key": (k + 1).to_string(), "spines": spines, "on": false})
             })
             .collect();
-        let _ = book;
+        let (chip, tone) = if misses == 0 {
+            (s.t("sort.perfect_yet"), "good")
+        } else {
+            (s.f("sort.missed", &[("n", misses.to_string())]), "bad")
+        };
         let bl = vec![
             json!({"t": "title", "col": "head", "text": s.t("sort.title")}),
             json!({"t": "p", "col": "head", "tone": "muted", "text": s.t("sort.text")}),
-            json!({"t": "pile", "col": "pile", "label": s.f("sort.floor", &[("n", left.to_string())]), "books": pile}),
-            json!({"t": "progress", "col": "found", "label": s.t("sort.searching"), "value": s.f("sort.count", &[("n", shelved.to_string()), ("of", b.sort_books.to_string())]), "width": strings::css_pct((shelved * 1000 / b.sort_books.max(1)).clamp(0, 1000))}),
-            json!({"t": "p", "col": "found", "tone": "muted", "text": s.f("sort.explain", &[("of", b.sort_books.to_string())])}),
-            json!({"t": "chips", "col": "found", "chips": [{"text": s.f("sort.streak", &[("n", streak.to_string())]), "tone": if streak > 0 { "good" } else { "" }}]}),
+            json!({"t": "board", "col": "pile", "aspect": "14 / 5", "items": items}),
+            json!({"t": "progress", "col": "found", "label": s.t("sort.shelving"), "value": s.f("sort.count", &[("n", shelved.to_string()), ("of", total.to_string())]), "width": strings::css_pct((shelved * 1000 / total).clamp(0, 1000))}),
+            json!({"t": "chips", "col": "found", "chips": [{"text": chip, "tone": tone}]}),
+            json!({"t": "p", "col": "found", "tone": "muted", "text": s.t("sort.explain")}),
             json!({"t": "actions", "col": "found", "style": "soft", "actions": [act_json("prep.cancel", "", s.t("busy.cancel"), true)]}),
             json!({"t": "shelves", "col": "shelves", "shelves": shelves}),
         ];
         json!({"id": "busy", "kind": "sort", "box": overlay::css_box(overlay::SORT_BOX), "blocks": bl})
+    }
+
+    /// A raider's journey (T45): who is going where, how far they are, and
+    /// how late the falls have made them. The run is the overlay's.
+    fn ui_journey(
+        &self,
+        m: &Match,
+        p: &prep::Prep,
+        student: u16,
+        target: u8,
+        ledge: usize,
+        falls: i32,
+    ) -> Value {
+        let s = &self.s;
+        let name = p
+            .students
+            .iter()
+            .find(|st| st.id == student)
+            .map(|st| st.name.clone())
+            .unwrap_or_default();
+        let rival = m
+            .seats
+            .get(target as usize)
+            .map(|x| x.name.clone())
+            .unwrap_or_default();
+        let late = falls.min(prep::LATE_FALLS) * self.c.balance().journey_late_s;
+        let gaps = (prep::LEDGES.len() - 1) as i32;
+        let bl = vec![
+            json!({"t": "title", "col": "head", "text": s.f("journey.title", &[("name", name), ("rival", rival)])}),
+            json!({"t": "p", "col": "head", "tone": "muted", "text": s.t("journey.text")}),
+            json!({"t": "chips", "col": "head", "chips": [
+                {"text": s.f("journey.jumps", &[("n", (ledge as i32).min(gaps).to_string()), ("of", gaps.to_string())]), "tone": ""},
+                {"text": s.f("journey.falls", &[("n", falls.to_string()), ("s", late.to_string())]), "tone": if falls > 0 { "bad" } else { "good" }},
+            ]}),
+            json!({"t": "keys", "col": "head", "parts": [{"key": s.t("key.space")}, {"text": s.t("journey.keys")}]}),
+        ];
+        json!({"id": "busy", "kind": "journey", "box": overlay::css_box(overlay::JOURNEY_BOX), "blocks": bl})
     }
 
     /// Beside the sorting game: the golem that searches instead (T21).
@@ -3338,6 +3724,138 @@ impl Session {
         json!({"id": "route", "kind": "route", "blocks": bl})
     }
 
+    /// The raiders on your field and your raiders away (T44).
+    fn ui_raiders(&self, m: &Match, b: &crate::battle::Battle) -> Value {
+        let s = &self.s;
+        let local = m.local as usize;
+        let mut rows = Vec::new();
+        for (k, mage) in b.casters.iter().enumerate() {
+            if mage.team != crate::battle::Team::Foe {
+                continue;
+            }
+            let rival = m
+                .seats
+                .get(mage.from as usize)
+                .map(|x| x.name.clone())
+                .unwrap_or_default();
+            let detail = if mage.fell > 0 {
+                s.t("raid.fell")
+            } else if b.tick < mage.arrive {
+                s.t("raid.coming")
+            } else {
+                format!("{} / {}", mage.hp, mage.hp_max)
+            };
+            let _ = k;
+            rows.push(json!({"label": s.f("raid.raider_row", &[("name", mage.plan.name.clone()), ("rival", rival)]), "detail": detail, "bar": strings::css_pct(mage.hp * 1000 / mage.hp_max.max(1)), "school": "foe"}));
+        }
+        let mut away = Vec::new();
+        for (t, other) in m.battles.iter().enumerate() {
+            let Some(other) = other else { continue };
+            if t == local {
+                continue;
+            }
+            for mage in other
+                .casters
+                .iter()
+                .filter(|x| x.team == crate::battle::Team::Foe && x.from as usize == local)
+            {
+                let state = if mage.fell > 0 {
+                    s.t("raid.fell")
+                } else {
+                    format!("{} / {}", mage.hp, mage.hp_max)
+                };
+                away.push(json!({"label": s.f("raid.away_row", &[("name", mage.plan.name.clone()), ("rival", m.seats[t].name.clone())]), "detail": state}));
+            }
+        }
+        let mut bl = vec![json!({"t": "h", "col": "raiders", "text": s.t("raid.on_field")})];
+        if rows.is_empty() {
+            bl.push(json!({"t": "p", "col": "raiders", "tone": "small", "text": s.t("raid.none_here")}));
+        } else {
+            bl.push(json!({"t": "rows", "col": "raiders", "rows": rows}));
+        }
+        if !away.is_empty() {
+            bl.push(json!({"t": "h", "col": "raiders", "text": s.t("raid.yours_away")}));
+            bl.push(json!({"t": "rows", "col": "raiders", "rows": away}));
+        }
+        json!({"id": "raiders", "kind": "raiders", "blocks": bl})
+    }
+
+    /// One of your students' trees, lit as it decides (T41).
+    fn ui_mind(&self, b: &crate::battle::Battle) -> Option<Value> {
+        use crate::mind::Kind;
+        let s = &self.s;
+        let mine: Vec<usize> = (0..b.casters.len())
+            .filter(|&k| b.casters[k].team == crate::battle::Team::Ally)
+            .collect();
+        if mine.is_empty() {
+            return None;
+        }
+        let k = mine[self.watch % mine.len()];
+        let mage = &b.casters[k];
+        let t = mage.plan.temper as usize % self.c.minds.len().max(1);
+        let tree = self.c.minds.get(t)?;
+        let temper = self
+            .c
+            .file
+            .temperaments
+            .get(t)
+            .map(|x| x.name.clone())
+            .unwrap_or_default();
+        // the tree read top to bottom, each node with its depth and answer
+        let mut depth = vec![0usize; tree.nodes.len()];
+        for (n, (_, kids)) in tree.nodes.iter().enumerate() {
+            for &c in kids {
+                depth[c] = depth[n] + 1;
+            }
+        }
+        let lines: Vec<Value> = tree
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(n, (kind, _))| {
+                let text = match kind {
+                    Kind::First => s.t("bt.first"),
+                    Kind::Seq => s.t("bt.seq"),
+                    Kind::If(q) => s.t(&format!(
+                        "bt.if.{}",
+                        serde_json::to_value(q)
+                            .ok()
+                            .and_then(|v| v.as_str().map(|x| x.to_string()))
+                            .unwrap_or_default()
+                    )),
+                    Kind::Do(a) => s.t(&format!(
+                        "bt.do.{}",
+                        serde_json::to_value(a)
+                            .ok()
+                            .and_then(|v| v.as_str().map(|x| x.to_string()))
+                            .unwrap_or_default()
+                    )),
+                };
+                let (mark, tone) = match mage.lit.get(n).copied().unwrap_or(0) {
+                    crate::mind::RAN_DONE => (s.t("bt.mark_ran"), "ran"),
+                    crate::mind::RAN_RUNNING => (s.t("bt.mark_running"), "running"),
+                    crate::mind::RAN_FAILED => (s.t("bt.mark_failed"), "failed"),
+                    _ => (String::new(), ""),
+                };
+                json!({"text": text, "mark": mark, "tone": tone, "pad": format!("{}em", depth[n])})
+            })
+            .collect();
+        let state = if mage.fell > 0 {
+            s.t("raid.fell")
+        } else {
+            s.f(
+                "bt.watch_stats",
+                &[("hp", mage.hp.to_string()), ("of", mage.hp_max.to_string())],
+            )
+        };
+        Some(json!({"id": "mind", "kind": "mind", "blocks": [
+            {"t": "h", "col": "mind", "text": s.f("bt.watching", &[("name", mage.plan.name.clone()), ("temper", temper)])},
+            {"t": "actions", "col": "mind", "style": "soft", "actions": [act_json("watch.prev", "", s.t("bt.prev"), mine.len() > 1), act_json("watch.next", "", s.t("bt.next"), mine.len() > 1)]},
+            {"t": "lines", "col": "mind", "lines": lines},
+            {"t": "p", "col": "mind", "tone": "small", "text": state},
+        ]}))
+    }
+
     fn ui_battle(&self, m: &Match) -> Value {
         let s = &self.s;
         let shown = self.shown(m);
@@ -3380,6 +3898,29 @@ impl Session {
                     };
                     labels.push(json!({"text": pop.value.to_string(), "left": strings::css_pct(gx), "top": strings::css_pct(gy), "kind": kind}));
                 }
+            }
+            // raiders on this field, named (T44), each a line above the last
+            let mut named = 0;
+            for (k, mage) in b.casters.iter().enumerate() {
+                if mage.team != crate::battle::Team::Foe || !b.standing_mage(k) {
+                    continue;
+                }
+                let lift = crate::fx::ONE * 4 + named * crate::fx::ONE * 3 / 2;
+                named += 1;
+                if let Some((x, y)) = geom::project(&mtx, mage.pos.add(v3(0, lift, 0))) {
+                    let rival = m
+                        .seats
+                        .get(mage.from as usize)
+                        .map(|x| x.name.clone())
+                        .unwrap_or_default();
+                    labels.push(json!({"text": s.f("raid.label", &[("name", mage.plan.name.clone()), ("rival", rival)]), "left": strings::css_pct(left + x * vp.2 / w), "top": strings::css_pct(top + y * vp.3 / h), "kind": "foe"}));
+                }
+            }
+        }
+        if let Some(Some(b)) = m.battles.get(local) {
+            panels.push(self.ui_raiders(m, b));
+            if let Some(mind) = self.ui_mind(b) {
+                panels.push(mind);
             }
         }
         let mut actions = vec![act_json(

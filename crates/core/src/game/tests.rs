@@ -269,3 +269,45 @@ fn a_harder_difficulty_brings_more_and_tougher_wild_enemies() {
     assert_eq!((easy.1, normal.1, brutal.1), (85, 105, 150));
     assert_eq!(Settings::from_content(&c).difficulty, 1, "normal by default");
 }
+
+#[test]
+fn a_student_sent_to_raid_fights_on_that_rivals_field_and_not_on_their_own() {
+    let c = shipped();
+    let mut m = versus(&c);
+    // the local archmage's first student raids seat 2
+    {
+        let p = m.seats[0].prep.as_mut().unwrap();
+        p.students[0].raid = Some((2, 0));
+        p.students[0].known = vec![(0, 100)];
+        p.spells = vec![vec![c.piece("fire_bolt").unwrap() as u16]];
+    }
+    let name = m.seats[0].prep.as_ref().unwrap().students[0].name.clone();
+    let home = m.seats[0].prep.as_ref().unwrap().students.len();
+    m.begin_battle(&c);
+    let mine = m.battles[0].as_ref().unwrap();
+    assert_eq!(
+        mine.casters
+            .iter()
+            .filter(|k| k.team == crate::battle::Team::Ally)
+            .count(),
+        home - 1
+    );
+    let theirs = m.battles[2].as_ref().unwrap();
+    let raiders: Vec<_> = theirs
+        .casters
+        .iter()
+        .filter(|k| k.team == crate::battle::Team::Foe)
+        .collect();
+    assert!(
+        raiders.iter().any(|k| k.from == 0 && k.plan.name == name),
+        "the raider is on seat 2's field"
+    );
+    // and only there
+    for t in [1usize, 3] {
+        let b = m.battles[t].as_ref().unwrap();
+        assert!(!b
+            .casters
+            .iter()
+            .any(|k| k.team == crate::battle::Team::Foe && k.from == 0));
+    }
+}

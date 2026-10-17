@@ -70,65 +70,79 @@ fn an_action_away_from_its_station_is_refused() {
     assert_eq!(p.act(&c, "library.read", ""), Ok(()));
 }
 
-/// Shelves every falling book on its own school's shelf until the find.
+/// Shelves the pile, each book on its own school's shelf (T39).
 pub fn sort(p: &mut Prep, c: &Content) {
     let mut guard = 0;
-    while let Activity::Sorting { book, .. } = &p.activity {
-        let shelf = book.to_string();
+    while let Activity::Sorting { books, .. } = &p.activity {
+        let shelf = books[0].to_string();
         p.act(c, "sort.shelf", &shelf).unwrap();
         guard += 1;
         assert!(guard < 100, "the sort ends");
     }
 }
 
+fn known(p: &Prep) -> usize {
+    p.known.iter().filter(|&&k| k).count()
+}
+
 #[test]
-fn a_book_is_found_by_shelving_ten_and_a_miss_makes_the_next_fall_faster() {
+fn a_book_put_on_a_wrong_shelf_goes_back_to_the_pile_and_a_perfect_sort_teaches_two() {
     let c = shipped();
+    // a sort with one mistake: one book
     let mut p = prep(&c);
     go(&mut p, Station::Library);
-    let before = p.known.iter().filter(|&&k| k).count();
+    let before = known(&p);
     p.act(&c, "library.read", "").unwrap();
-    let Activity::Sorting {
-        book, fall, shelved, ..
-    } = p.activity.clone()
-    else {
+    let Activity::Sorting { books, misses, .. } = p.activity.clone() else {
         panic!("sorting")
     };
-    // sort_fall_ms 1600: 96 ticks; none shelved yet
-    assert_eq!((fall, shelved), (96, 0));
-    // a wrong shelf: back on the pile, and 85% of the fall: 81 ticks
-    let wrong = ((book as usize + 1) % c.file.schools.len()).to_string();
+    // sort_books 12 on the floor, nothing missed yet
+    assert_eq!((books.len(), misses), (12, 0));
+    // pick up the fourth book and put it on the shelf after its own
+    p.act(&c, "sort.hold", "3").unwrap();
+    let wrong = ((books[3] as usize + 1) % c.file.schools.len()).to_string();
     p.act(&c, "sort.shelf", &wrong).unwrap();
-    let Activity::Sorting { fall, shelved, .. } = p.activity.clone() else {
+    let Activity::Sorting {
+        books: after,
+        misses,
+        held,
+        ..
+    } = p.activity.clone()
+    else {
         panic!("still sorting")
     };
-    assert_eq!((fall, shelved), (81, 0));
-    // a book that lands counts as a miss too
-    for _ in 0..81 {
-        p.step(&c, 0);
-    }
-    let Activity::Sorting { fall, .. } = p.activity.clone() else {
-        panic!("still sorting")
-    };
-    assert_eq!(fall, 68);
-    // sort_books 10 shelved finds the next book on the pile: nine is not enough
-    for _ in 0..9 {
-        let Activity::Sorting { book, .. } = p.activity.clone() else {
-            panic!("still sorting")
-        };
-        p.act(&c, "sort.shelf", &book.to_string()).unwrap();
-    }
-    assert!(
-        matches!(p.activity, Activity::Sorting { shelved: 9, .. }),
-        "nine shelved, still sorting"
+    assert_eq!(
+        (after.len(), misses, held),
+        (12, 1, None),
+        "back on the floor, one miss"
     );
+    // the right shelf takes it off the floor
+    p.act(&c, "sort.hold", "3").unwrap();
+    p.act(&c, "sort.shelf", &after[3].to_string()).unwrap();
+    let Activity::Sorting {
+        books: after, per, ..
+    } = p.activity.clone()
+    else {
+        panic!("still sorting")
+    };
+    assert_eq!(after.len(), 11);
+    assert_eq!(per[books[3] as usize], 1);
     sort(&mut p, &c);
     assert!(!p.busy());
+    let dud = usize::from(p.notes.iter().any(|n| n.key == "library.dud"));
     assert_eq!(
-        p.known.iter().filter(|&&k| k).count() + usize::from(p.notes.iter().any(|n| n.key == "library.dud")),
+        known(&p) + dud,
         before + 1,
-        "a new piece, or a book already known"
+        "one book: a new piece or one already known"
     );
+    // a perfect sort: a second book, and it teaches something new
+    let mut q = prep(&c);
+    go(&mut q, Station::Library);
+    q.act(&c, "library.read", "").unwrap();
+    sort(&mut q, &c);
+    let dud = usize::from(q.notes.iter().any(|n| n.key == "library.dud"));
+    assert_eq!(known(&q) + dud, before + 2, "two books for no mistake");
+    assert!(q.notes.iter().any(|n| n.key == "library.perfect"));
 }
 
 #[test]
@@ -672,39 +686,100 @@ fn a_step_of_a_rotation_can_be_taken_out() {
     assert_eq!(p.act(&c, "office.rot_del", &format!("{a},2")), Err("office.bad"));
 }
 
+// ---- round 8: raids, the journey, temperaments (T40, T41, T45) ----
+
+/// Runs a journey to its end, jumping when the runner is within this many
+/// cm of the end of its ledge (or never, for `None`).
+fn journey(p: &mut Prep, c: &Content, jump_at: Option<i32>) -> i32 {
+    let mut ticks = 0;
+    while let Activity::Journey { x, .. } = p.activity.clone() {
+        let cm = x * 100 / ONE;
+        let key = match (jump_at, LEDGES.iter().find(|l| cm >= l.0 && cm <= l.1)) {
+            (Some(d), Some(l)) if l.1 - cm <= d && l.1 < LEDGES[LEDGES.len() - 1].1 => NOTE[3],
+            _ => 0,
+        };
+        p.step(c, key);
+        ticks += 1;
+        assert!(ticks < TPS * 60, "the journey ends");
+    }
+    ticks
+}
+
 #[test]
-fn sorting_counts_a_streak_and_the_books_on_each_shelf() {
+fn a_raider_sent_from_the_invasion_book_jumps_three_gaps_and_a_fall_makes_them_later() {
     let c = shipped();
     let mut p = prep(&c);
-    go(&mut p, Station::Library);
-    p.act(&c, "library.read", "").unwrap();
-    let book = |p: &Prep| match &p.activity {
-        Activity::Sorting { book, .. } => *book,
-        _ => panic!("sorting"),
-    };
-    let first = book(&p);
-    p.act(&c, "sort.shelf", &first.to_string()).unwrap();
-    let second = book(&p);
-    p.act(&c, "sort.shelf", &second.to_string()).unwrap();
-    let wrong = (book(&p) + 1) % c.file.schools.len() as u8;
-    let Activity::Sorting { streak, per, .. } = p.activity.clone() else {
-        panic!("sorting")
-    };
-    assert_eq!(streak, 2);
-    let mut want = vec![0u8; c.file.schools.len()];
-    want[first as usize] += 1;
-    want[second as usize] += 1;
-    assert_eq!(per, want, "one on each right shelf");
-    p.act(&c, "sort.shelf", &wrong.to_string()).unwrap();
-    let Activity::Sorting {
-        streak, per: after, ..
-    } = p.activity.clone()
-    else {
-        panic!("sorting")
-    };
+    let id = p.students[0].id;
+    assert_eq!(p.act(&c, "raid.send", &format!("{id}:1")), Err("prep.not_here"));
+    go(&mut p, Station::Book);
     assert_eq!(
-        (streak, after),
-        (0, want),
-        "a miss ends the streak and shelves nothing"
+        p.act(&c, "raid.send", &format!("{id}:{}", p.seat)),
+        Err("raid.bad_rival")
     );
+    // well-timed jumps: no fall, there on time
+    p.act(&c, "raid.send", &format!("{id}:1")).unwrap();
+    let ticks = journey(&mut p, &c, Some(60));
+    assert_eq!(p.students[0].raid, Some((1, 0)));
+    // 19 m at 4.5 m/s: a little over four seconds
+    assert!((TPS * 4..TPS * 5).contains(&ticks), "{ticks} ticks");
+    assert_eq!(p.act(&c, "raid.send", &format!("{id}:2")), Err("raid.already"));
+    // calling them back clears the raid; the plan carries a raid
+    p.act(&c, "raid.recall", &id.to_string()).unwrap();
+    assert_eq!(p.students[0].raid, None);
+    // no jumps: they fall into every gap and are put back, but always get
+    // there: no more than three falls count, 2 s each
+    p.act(&c, "raid.send", &format!("{id}:3")).unwrap();
+    let Activity::Journey { .. } = p.activity else {
+        panic!("journeying")
+    };
+    let mut falls = 0;
+    let mut guard = 0;
+    while let Activity::Journey { falls: f, .. } = p.activity.clone() {
+        falls = f;
+        // jump only after two falls, so the run can end
+        let key = if f >= 2 { NOTE[3] } else { 0 };
+        let Activity::Journey { x, .. } = p.activity.clone() else {
+            break;
+        };
+        let cm = x * 100 / ONE;
+        let near_end = LEDGES
+            .iter()
+            .any(|l| cm >= l.1 - 60 && cm <= l.1 && l.1 < LEDGES[3].1);
+        p.step(&c, if near_end { key } else { 0 });
+        guard += 1;
+        assert!(guard < TPS * 90, "the run ends");
+    }
+    assert!(falls >= 2, "{falls} falls");
+    let (t, late) = p.students[0].raid.unwrap();
+    assert_eq!(t, 3);
+    assert_eq!(late, falls.min(LATE_FALLS) * 2 * TPS);
+    let plan = p.plan();
+    assert_eq!((plan.students[0].raid, plan.students[0].late), (3, late));
+    // a raid lasts one battle
+    p.start_day(&c, 600);
+    assert_eq!(p.students[0].raid, None);
+    assert_eq!(p.plan().students[0].raid, crate::battle::NO_RAID);
+}
+
+#[test]
+fn a_temperament_comes_from_the_name_and_school_and_follows_an_applicant_hired() {
+    let c = shipped();
+    let n = c.file.temperaments.len() as u8;
+    let a = temper_of(&c, "Odo Quillon", 2);
+    assert_eq!(a, temper_of(&c, "Odo Quillon", 2), "the same every time");
+    assert!(a < n);
+    // over many names every temperament turns up
+    let mut seen = vec![false; n as usize];
+    for k in 0..200 {
+        seen[temper_of(&c, &format!("Name {k}"), (k % 5) as u8) as usize] = true;
+    }
+    assert!(seen.iter().all(|&s| s), "{seen:?}");
+    let p = prep(&c);
+    for ap in &p.applicants {
+        assert_eq!(ap.temper, temper_of(&c, &ap.name, ap.school));
+    }
+    // the first students were applicants once: hired, they keep it
+    for st in &p.students {
+        assert_eq!(st.temper, temper_of(&c, &st.name, st.school));
+    }
 }

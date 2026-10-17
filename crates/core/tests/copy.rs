@@ -18,7 +18,23 @@ use std::path::{Path, PathBuf};
 use tool_core::glossary;
 
 /// (file name, word, reason): a ruled-out word that is right in one file.
-const ALLOWED: &[(&str, &str, &str)] = &[];
+const ALLOWED: &[(&str, &str, &str)] = &[
+    (
+        "data/",
+        "raid",
+        "a raid sends a student to a rival's battle (T40); an invasion spell is still never called one",
+    ),
+    (
+        "data/",
+        "health",
+        "a mage's health on the field (T42); the score is still never called health",
+    ),
+    (
+        "GLOSSARY.md",
+        "health",
+        "the Health entry names a mage's health (T42), not the score",
+    ),
+];
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")

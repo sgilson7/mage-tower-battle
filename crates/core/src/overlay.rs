@@ -104,35 +104,77 @@ fn school_colour(k: usize) -> Color {
     ][k.min(4)]
 }
 
-/// The book-sorting game (T20): the book falling toward the shelves, in
-/// its school's colour and shape; `fallen` is how far, in thousandths. The
-/// shelves, the pile and the count are the page's panel underneath.
-pub fn sorting(book: u8, fallen: i32) -> Vec<i32> {
+/// Where the journey is drawn (T45), in overlay pixels.
+pub const JOURNEY_BOX: [i32; 4] = [90, 90, 1100, 560];
+
+/// A raider's journey (T45): the ledges and gaps seen from the side, the
+/// rival's tower at the end, and the runner at (x, y) in cm, in their
+/// school's colour. The heading and counts are the page's panel above.
+pub fn journey(x_cm: i32, y_cm: i32, falls: i32, school: u8) -> Vec<i32> {
+    use crate::prep::{JOURNEY_END_CM, LEDGES};
     let mut d = DrawList::new();
-    let shapes = [
-        Shape::Triangle,
-        Shape::Square,
-        Shape::Diamond,
-        Shape::Star,
-        Shape::Cross,
-    ];
     d.clear(Color::Clear);
-    let b = (book as usize).min(4);
-    let [bx, by, bw, _] = SORT_BOX;
-    let (w, h) = (96, 120);
-    let x = bx + bw / 2 - w / 2;
-    let y = by + 90 + fallen.clamp(0, 1000) * 220 / 1000;
-    d.rect(x - 4, y - 4, w + 8, h + 8, Color::Ink);
-    d.rect(x, y, w, h, school_colour(b));
+    let [bx, by, bw, bh] = JOURNEY_BOX;
+    let span = LEDGES.last().map(|l| l.1).unwrap_or(JOURNEY_END_CM).max(1);
+    let px = |cm: i32| bx + 20 + cm * (bw - 40) / span;
+    let base = by + bh - 150;
+    let py = |cm: i32| base - cm * 12 / 10;
+    // far hills
+    for k in 0..6 {
+        let x = bx + k * bw / 6;
+        d.shape(
+            Shape::Triangle,
+            x + bw / 12,
+            base - 60,
+            Scale::Large,
+            Color::Band,
+            Color::Band,
+            0,
+        );
+    }
+    for &(a, e, h) in LEDGES.iter() {
+        let top = py(h);
+        d.rect(px(a), top, px(e) - px(a), by + bh - top, Color::Ink);
+        d.rect(
+            px(a) + 4,
+            top + 4,
+            px(e) - px(a) - 8,
+            by + bh - top - 4,
+            Color::CellRoute,
+        );
+        d.rect(px(a) + 4, top + 4, px(e) - px(a) - 8, 12, Color::CellOpen);
+    }
+    // the rival's tower at the end
+    let (tx, ty) = (
+        px(JOURNEY_END_CM + 150),
+        py(LEDGES.last().map(|l| l.2).unwrap_or(0)),
+    );
+    d.rect(tx - 28, ty - 150, 56, 150, Color::Ink);
+    d.rect(tx - 24, ty - 146, 48, 146, Color::Ivory);
     d.shape(
-        shapes[b],
-        x + w / 2,
-        y + h / 2,
+        Shape::Triangle,
+        tx,
+        ty - 172,
         Scale::Large,
-        Color::Paper,
+        Color::Bad,
         Color::Ink,
         3,
     );
+    // the runner: a robe and a hat in their school's colour
+    let (rx, ry) = (px(x_cm), py(y_cm));
+    d.rect(rx - 16, ry - 46, 32, 46, Color::Ink);
+    d.rect(rx - 13, ry - 43, 26, 40, school_colour(school as usize));
+    d.shape(Shape::Disc, rx, ry - 58, Scale::Tile, Color::Paper, Color::Ink, 3);
+    d.shape(
+        Shape::Triangle,
+        rx,
+        ry - 84,
+        Scale::Tile,
+        school_colour(school as usize),
+        Color::Ink,
+        3,
+    );
+    let _ = falls;
     d.finish()
 }
 

@@ -56,6 +56,42 @@ pub struct StudentPlan {
     pub mode: u8,
     #[serde(default)]
     pub rotation: Vec<u16>,
+    /// Their temperament, an index into the content's (T41).
+    #[serde(default)]
+    pub temper: u8,
+    /// The rival seat they raid this battle, or `NO_RAID` (T40), and how
+    /// many ticks late the journey made them (T45).
+    #[serde(default = "no_raid")]
+    pub raid: u8,
+    #[serde(default)]
+    pub late: i32,
+    /// Their name, for the raiders' panel on a rival's screen.
+    #[serde(default)]
+    pub name: String,
+}
+
+pub const NO_RAID: u8 = 255;
+
+fn no_raid() -> u8 {
+    NO_RAID
+}
+
+impl Default for StudentPlan {
+    fn default() -> StudentPlan {
+        StudentPlan {
+            mana_max: 0,
+            regen: 0,
+            spells: Vec::new(),
+            school: 0,
+            seat: AUTO_SEAT,
+            mode: CAST_BEST,
+            rotation: Vec::new(),
+            temper: 0,
+            raid: NO_RAID,
+            late: 0,
+            name: String::new(),
+        }
+    }
 }
 
 pub const AUTO_SEAT: i32 = -1;
@@ -170,6 +206,10 @@ pub struct Shot {
     pub team: Team,
     pub carry: Option<Carry>,
     pub done: bool,
+    /// The seat whose raider cast it (T40), or 255: a raider's hit on the
+    /// tower counts against that seat's rival.
+    #[serde(default = "no_raid")]
+    pub from: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -269,7 +309,56 @@ pub struct Caster {
     pub casting: u8,
     /// The next step of a rotation (T15).
     pub rot: usize,
+    /// Ally for this tower's own students, Foe for a rival's raider (T40).
+    pub team: Team,
+    /// Health and speed (a tick) from summed effectiveness (T42).
+    pub hp: i32,
+    pub hp_max: i32,
+    pub speed: Fx,
+    /// On a seat of the tower or a sub-tower; off it, they walk and fight
+    /// like a raider (T43). `home` is the seat.
+    pub on_tower: bool,
+    pub home: V3,
+    /// The tick a raider enters the field (0 for the tower's own), and the
+    /// seat it came from (255 for the tower's own).
+    pub arrive: i32,
+    pub from: u8,
+    /// The spells this mage can cast: their own plan's (a raider's are its
+    /// sender's), with each one's mana and cooldown in ticks.
+    pub chains: Vec<Vec<u16>>,
+    pub costs: Vec<i32>,
+    pub cds: Vec<i32>,
+    /// What each node of their tree answered last tick (T41).
+    pub lit: Vec<u8>,
+    /// The tick they fell, or 0 while standing.
+    pub fell: i32,
+    /// Walking this tick, for the picture.
+    pub moving: bool,
 }
+
+/// A rival's student sent to this battle (T40).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Raider {
+    pub from: u8,
+    pub plan: StudentPlan,
+    /// The sender's spells, which the raider's own indices name.
+    pub spells: Vec<Vec<u16>>,
+}
+
+/// A mage's health and speed a tick for the effectiveness summed over the
+/// spells they know (T42).
+pub fn mage_stats(c: &Content, plan: &StudentPlan) -> (i32, Fx) {
+    let b = c.balance();
+    let sum: i32 = plan.spells.iter().map(|s| s.1.max(0)).sum();
+    let hp = b.mage_hp + pct(sum, b.mage_hp_per_100);
+    let speed = content::cms(b.mage_speed_cms + pct(sum, b.mage_speed_per_100_cms));
+    (hp, speed)
+}
+
+/// How far a ground mage stands out from the tower: a little past the seats.
+const GROUND_OUT: Fx = ONE * 55 / 10;
+/// Height a mage on the ground casts from.
+const HAND: Fx = ONE;
 
 #[derive(Debug, Clone)]
 pub struct Battle {
@@ -286,8 +375,6 @@ pub struct Battle {
     pub pile: Pile,
     pub pops: Vec<Pop>,
     pub spells: Vec<Vec<u16>>,
-    spell_cost: Vec<i32>,
-    spell_cd: Vec<i32>,
     queue: Vec<(i32, u16, Team, u8, Option<Carry>, i32)>,
     pub ward: i32,
     pub tally: Tally,
@@ -425,16 +512,6 @@ impl Battle {
             pile: Pile::default(),
             pops: Vec::new(),
             spells: plan.spells.clone(),
-            spell_cost: plan
-                .spells
-                .iter()
-                .map(|s| crate::spell::stats(c, s).mana)
-                .collect(),
-            spell_cd: plan
-                .spells
-                .iter()
-                .map(|s| content::ticks(crate::spell::stats(c, s).cooldown_ms))
-                .collect(),
             queue: Vec::new(),
             ward: 0,
             tally: Tally::default(),
@@ -464,6 +541,17 @@ impl Battle {
         }
         let tower = tower_centre(&b.arena);
         let bal = c.balance();
+        // a student away raiding is not on this tower (T40)
+        let home_plan = Plan {
+            students: plan
+                .students
+                .iter()
+                .filter(|s| s.raid == NO_RAID)
+                .cloned()
+                .collect(),
+            ..plan.clone()
+        };
+        let plan = &home_plan;
         let wants: Vec<i32> = plan.students.iter().map(|s| s.seat).collect();
         let got = seating(seats, sub_seats.len(), &wants);
         // the ground's places go first to those who chose it, then to the rest
@@ -486,21 +574,9 @@ impl Battle {
         }
         for (i, s) in plan.students.iter().enumerate() {
             let (pos, range_pct) = chosen[i].unwrap_or((tower, bal.ground_range_pct));
-            b.casters.push(Caster {
-                plan: s.clone(),
-                pos,
-                range_pct,
-                mana: s.mana_max * 100,
-                cd: s
-                    .spells
-                    .iter()
-                    .enumerate()
-                    .map(|(k, _)| (k as i32 * 17 + i as i32 * 7) % 40)
-                    .collect(),
-                aim: pos,
-                casting: 0,
-                rot: 0,
-            });
+            let on_tower = got.get(i).map(|&g| g != GROUND_SEAT).unwrap_or(false);
+            let k = b.mage(c, s, pos, range_pct, Team::Ally, &plan.spells, i as i32);
+            b.casters.push(Caster { on_tower, ..k });
         }
         // the day's wild enemies, a unit every 12 ticks within a group
         for w in wild {
@@ -533,6 +609,72 @@ impl Battle {
         b
     }
 
+    /// A mage at `pos` with their plan's spells, ready to cast.
+    #[allow(clippy::too_many_arguments)]
+    fn mage(
+        &self,
+        c: &Content,
+        s: &StudentPlan,
+        pos: V3,
+        range_pct: i32,
+        team: Team,
+        spells: &[Vec<u16>],
+        i: i32,
+    ) -> Caster {
+        let (life, speed) = mage_stats(c, s);
+        Caster {
+            plan: s.clone(),
+            pos,
+            range_pct,
+            mana: s.mana_max * 100,
+            cd: s
+                .spells
+                .iter()
+                .enumerate()
+                .map(|(k, _)| (k as i32 * 17 + i * 7) % 40)
+                .collect(),
+            aim: pos,
+            casting: 0,
+            rot: 0,
+            team,
+            hp: life,
+            hp_max: life,
+            speed,
+            on_tower: false,
+            home: pos,
+            arrive: 0,
+            from: NO_RAID,
+            chains: spells.to_vec(),
+            costs: spells.iter().map(|ch| crate::spell::stats(c, ch).mana).collect(),
+            cds: spells
+                .iter()
+                .map(|ch| content::ticks(crate::spell::stats(c, ch).cooldown_ms))
+                .collect(),
+            lit: Vec::new(),
+            fell: 0,
+            moving: false,
+        }
+    }
+
+    /// Adds a rival's raider (T40): they walk in at the entry some seconds
+    /// after the battle starts, later for each fall on their journey.
+    pub fn add_raider(&mut self, c: &Content, r: &Raider) {
+        let entry = arena::centre(self.arena.entry.0, self.arena.entry.1);
+        let n = self.casters.iter().filter(|k| k.team == Team::Foe).count() as i32;
+        let at = v3(entry.x + (n % 3 - 1) * ONE, ONE / 2, entry.z);
+        let range = c.balance().ground_range_pct;
+        let mut k = self.mage(c, &r.plan, at, range, Team::Foe, &r.spells, 30 + n);
+        k.arrive = c.balance().raid_arrive_s * TPS + r.plan.late.clamp(0, TPS * 60);
+        k.from = r.from;
+        self.casters.push(k);
+    }
+
+    /// Whether a mage is on the field and standing.
+    pub fn standing_mage(&self, i: usize) -> bool {
+        let k = &self.casters[i];
+        k.fell == 0 && self.tick >= k.arrive
+    }
+
     fn new_budget(&mut self, c: &Content, caster: u8) -> u32 {
         self.budgets.push(c.balance().cast_budget);
         self.cast_caster.push(caster);
@@ -547,7 +689,8 @@ impl Battle {
         self.tick >= self.ticks
             || (self.tick > TPS * 5
                 && self.queue.is_empty()
-                && !self.units.iter().any(|u| u.team == Team::Foe))
+                && !self.units.iter().any(|u| u.team == Team::Foe)
+                && !self.casters.iter().any(|k| k.team == Team::Foe && k.fell == 0))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -757,6 +900,7 @@ impl Battle {
                     team,
                     carry,
                     done: false,
+                    from,
                 });
             }
             Effect::Burst {
@@ -786,6 +930,18 @@ impl Battle {
                     if self.hurt(c, i, d, dt, push) {
                         kills.push(self.units[i].body.pos);
                     }
+                }
+                for ci in 0..self.casters.len() {
+                    if self.casters[ci].team != team
+                        && self.standing_mage(ci)
+                        && self.casters[ci].pos.sub(target).flat_len() <= r + ONE / 2
+                    {
+                        hit_any.get_or_insert(self.casters[ci].pos);
+                        self.hurt_mage(ci, d, dt);
+                    }
+                }
+                if team == Team::Foe && self.tower().sub(target).flat_len() <= r + ONE * 26 / 10 {
+                    self.hit_tower(c, d, from, target);
                 }
                 self.after(c, carry, target, hit_any, &kills, from);
             }
@@ -848,12 +1004,13 @@ impl Battle {
                     .copied()
                     .unwrap_or(255);
                 let mut life = 0;
-                if team == Team::Ally && caster != 255 {
+                // a raider's summons are held the same way (T40)
+                if caster != 255 {
                     n = pct(n, bal.ally_summon_pct).max(1);
                     let alive = self
                         .units
                         .iter()
-                        .filter(|u| u.caster == caster && u.team == Team::Ally && u.hp > 0)
+                        .filter(|u| u.caster == caster && u.team == team && u.hp > 0)
                         .count() as i32;
                     n = n.min(bal.summons_per_student - alive).max(0);
                     life = content::ticks(bal.summon_life_s * 1000);
@@ -1167,9 +1324,15 @@ impl Battle {
 
     fn cast_all(&mut self, c: &Content) {
         for ci in 0..self.casters.len() {
+            self.casters[ci].moving = false;
+            if !self.standing_mage(ci) {
+                continue;
+            }
             let regen = self.casters[ci].plan.regen * 100 / TPS;
             let spring_bonus = self.zones.iter().any(|z| {
-                z.field == Field::ManaSpring && z.pos.sub(self.casters[ci].pos).flat_len() <= z.radius
+                z.field == Field::ManaSpring
+                    && z.team == self.casters[ci].team
+                    && z.pos.sub(self.casters[ci].pos).flat_len() <= z.radius
             });
             let cap = self.casters[ci].plan.mana_max * 100;
             self.casters[ci].mana =
@@ -1177,16 +1340,20 @@ impl Battle {
             if self.casters[ci].casting > 0 {
                 self.casters[ci].casting -= 1;
             }
+            for cd in self.casters[ci].cd.iter_mut() {
+                if *cd > 0 {
+                    *cd -= 1;
+                }
+            }
             // a rotation skips steps this student cannot cast here: a spell
             // they were never taught, or an invasion
             if self.casters[ci].plan.mode == CAST_ROTATION {
                 let n = self.casters[ci].plan.rotation.len();
                 for _ in 0..n {
-                    let pl = &self.casters[ci].plan;
-                    let step = pl.rotation[self.casters[ci].rot % n];
-                    let castable = pl.spells.iter().any(|(si, _)| *si == step)
-                        && self
-                            .spells
+                    let k = &self.casters[ci];
+                    let step = k.plan.rotation[k.rot % n];
+                    let castable = k.plan.spells.iter().any(|(si, _)| *si == step)
+                        && k.chains
                             .get(step as usize)
                             .map(|ch| !crate::spell::is_invasion(c, ch))
                             .unwrap_or(false);
@@ -1196,58 +1363,188 @@ impl Battle {
                     self.casters[ci].rot += 1;
                 }
             }
-            for k in 0..self.casters[ci].plan.spells.len() {
-                if self.casters[ci].cd[k] > 0 {
-                    self.casters[ci].cd[k] -= 1;
-                    continue;
+            // what to do comes from the temperament's tree (T41)
+            let t = (self.casters[ci].plan.temper as usize) % c.minds.len().max(1);
+            let Some(tree) = c.minds.get(t) else {
+                continue;
+            };
+            let mut lit = std::mem::take(&mut self.casters[ci].lit);
+            tree.tick(&mut Mind { b: self, c, ci }, &mut lit);
+            self.casters[ci].lit = lit;
+        }
+    }
+
+    /// The other side's things a mage could aim at: units, then mages.
+    fn targets(&self, ci: usize, mages_only: bool) -> Vec<V3> {
+        let team = self.casters[ci].team;
+        let mut out = Vec::new();
+        if !mages_only {
+            for u in &self.units {
+                if u.team != team && u.hp > 0 {
+                    out.push(u.body.pos.add(v3(0, ONE / 2, 0)));
                 }
-                let (si, eff) = self.casters[ci].plan.spells[k];
-                // a rotation casts only its next step; one spell, only it (T15)
-                let pl = &self.casters[ci].plan;
-                let wanted = match (pl.mode, pl.rotation.is_empty()) {
-                    (CAST_ROTATION, false) => Some(pl.rotation[self.casters[ci].rot % pl.rotation.len()]),
-                    (CAST_ONE, false) => Some(pl.rotation[0]),
-                    _ => None,
-                };
-                if wanted.map(|w| w != si).unwrap_or(false) {
-                    continue;
-                }
-                let Some(chain) = self.spells.get(si as usize).cloned() else {
-                    continue;
-                };
-                if crate::spell::is_invasion(c, &chain) {
-                    continue;
-                }
-                let cost = self.spell_cost[si as usize] * 100;
-                if self.casters[ci].mana < cost {
-                    continue;
-                }
-                let range = pct(spell_range(c, &chain), self.casters[ci].range_pct);
-                let pos = self.casters[ci].pos;
-                let needs_foe = !matches!(
-                    first_effect(c, &chain),
-                    Some(Effect::Ward { .. })
-                        | Some(Effect::Ground {
-                            field: Field::ManaSpring,
-                            ..
-                        })
-                );
-                let target = match self.nearest(pos, Team::Ally, range) {
-                    Some(i) => self.units[i].body.pos.add(v3(0, ONE / 2, 0)),
-                    None if !needs_foe && self.units.iter().any(|u| u.team == Team::Foe) => pos,
-                    None => continue,
-                };
-                self.casters[ci].mana -= cost;
-                self.casters[ci].cd[k] = pct(self.spell_cd[si as usize], 100).max(6);
-                self.casters[ci].aim = target;
-                self.casters[ci].casting = 10;
-                self.casters[ci].rot += 1;
-                let school = c.piece_school[chain[0] as usize] as u8;
-                self.events.push((Ev::Cast(school), pos));
-                let cast = self.new_budget(c, ci as u8);
-                self.run(c, &chain, 0, pos, target, eff, Team::Ally, 0, cast, 255);
             }
         }
+        for (k, m) in self.casters.iter().enumerate() {
+            if m.team != team && self.standing_mage(k) {
+                out.push(m.pos.add(v3(0, HAND, 0)));
+            }
+        }
+        out
+    }
+
+    fn nearest_of(at: V3, list: &[V3], range: Fx) -> Option<V3> {
+        let r2 = range as i64 * range as i64;
+        list.iter()
+            .map(|p| (p.sub(at).flat().len2(), *p))
+            .filter(|(d, _)| *d <= r2)
+            .min_by_key(|(d, _)| *d)
+            .map(|(_, p)| p)
+    }
+
+    /// The furthest any of a mage's spells reaches from where they stand.
+    fn reach(&self, c: &Content, ci: usize) -> Fx {
+        let k = &self.casters[ci];
+        k.plan
+            .spells
+            .iter()
+            .filter_map(|(si, _)| k.chains.get(*si as usize))
+            .filter(|ch| !crate::spell::is_invasion(c, ch))
+            .map(|ch| pct(spell_range(c, ch), k.range_pct))
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// Casts every ready spell that reaches `target`: Done when one was
+    /// cast, Running while those that reach are cooling down or short of
+    /// mana, Failed when none reaches.
+    fn cast_at(&mut self, c: &Content, ci: usize, target: V3) -> crate::mind::Status {
+        use crate::mind::Status;
+        let from = self.casters[ci].pos.add(if self.casters[ci].on_tower {
+            V3::ZERO
+        } else {
+            v3(0, HAND, 0)
+        });
+        let dist = target.sub(self.casters[ci].pos).flat_len();
+        let mut reaches = false;
+        // every ready spell that reaches is cast this tick, as before (T15)
+        let mut cast_any = false;
+        for k in 0..self.casters[ci].plan.spells.len() {
+            let (si, eff) = self.casters[ci].plan.spells[k];
+            let m = &self.casters[ci];
+            // a rotation casts only its next step; one spell, only it (T15)
+            let wanted = match (m.plan.mode, m.plan.rotation.is_empty()) {
+                (CAST_ROTATION, false) => Some(m.plan.rotation[m.rot % m.plan.rotation.len()]),
+                (CAST_ONE, false) => Some(m.plan.rotation[0]),
+                _ => None,
+            };
+            if wanted.map(|w| w != si).unwrap_or(false) {
+                continue;
+            }
+            let Some(chain) = m.chains.get(si as usize).cloned() else {
+                continue;
+            };
+            if crate::spell::is_invasion(c, &chain) {
+                continue;
+            }
+            let range = pct(spell_range(c, &chain), m.range_pct);
+            let at_self = matches!(
+                first_effect(c, &chain),
+                Some(Effect::Ward { .. })
+                    | Some(Effect::Ground {
+                        field: Field::ManaSpring,
+                        ..
+                    })
+            );
+            if !at_self && dist > range {
+                continue;
+            }
+            reaches = true;
+            let cost = m.costs[si as usize] * 100;
+            if m.cd[k] > 0 || m.mana < cost {
+                continue;
+            }
+            let aim = if at_self { m.pos } else { target };
+            let team = m.team;
+            let sender = m.from;
+            let cd = m.cds[si as usize].max(6);
+            let k_ = &mut self.casters[ci];
+            k_.mana -= cost;
+            k_.cd[k] = cd;
+            k_.aim = aim;
+            k_.casting = 10;
+            k_.rot += 1;
+            let school = c.piece_school[chain[0] as usize] as u8;
+            self.events.push((Ev::Cast(school), from));
+            let cast = self.new_budget(c, ci as u8);
+            self.run(c, &chain, 0, from, aim, eff, team, 0, cast, sender);
+            cast_any = true;
+        }
+        if cast_any {
+            Status::Done
+        } else if reaches {
+            Status::Running
+        } else {
+            Status::Failed
+        }
+    }
+
+    /// Walks a mage on the ground toward `goal`: Done once there.
+    fn walk_to(&mut self, ci: usize, goal: V3) -> crate::mind::Status {
+        let k = &mut self.casters[ci];
+        let d = goal.sub(k.pos).flat();
+        if d.flat_len() <= k.speed.max(ONE / 20) {
+            k.pos = v3(goal.x, ONE / 2, goal.z);
+            return crate::mind::Status::Done;
+        }
+        let step = d.with_len(k.speed);
+        k.pos = v3(k.pos.x + step.x, ONE / 2, k.pos.z + step.z);
+        k.moving = true;
+        crate::mind::Status::Running
+    }
+
+    /// Where a tower's own mage stands on the ground below their seat.
+    fn below_seat(&self, ci: usize) -> V3 {
+        let t = self.tower();
+        let out = self.casters[ci].home.sub(t).flat();
+        let dir = if out.flat_len() > ONE / 10 {
+            out.with_len(GROUND_OUT)
+        } else {
+            v3(0, 0, GROUND_OUT)
+        };
+        v3(t.x + dir.x, ONE / 2, t.z + dir.z)
+    }
+
+    /// A mage takes damage; at none they fall for the rest of the battle.
+    fn hurt_mage(&mut self, ci: usize, damage: i32, dtype: u8) {
+        let k = &mut self.casters[ci];
+        if k.fell != 0 {
+            return;
+        }
+        k.hp -= damage.max(1);
+        let at = k.pos.add(v3(0, ONE * 2, 0));
+        let fell = k.hp <= 0;
+        if fell {
+            k.hp = 0;
+            k.fell = self.tick.max(1);
+            self.events.push((Ev::Kill, at));
+        }
+        self.pop(at, damage.max(1), 100, PopKind::Number, dtype, 0);
+    }
+
+    /// The tower takes a raider's hit, at `raid_tower_pct` of the spell's
+    /// damage: the ward first, then the score.
+    fn hit_tower(&mut self, c: &Content, damage: i32, from: u8, at: V3) {
+        let damage = pct(damage, c.balance().raid_tower_pct).max(1);
+        let absorbed = damage.min(self.ward);
+        self.ward -= absorbed;
+        self.tally.warded += absorbed;
+        let taken = damage - absorbed;
+        self.tally.damage_taken += taken;
+        if (from as usize) < 4 {
+            self.tally.taken_from[from as usize] += taken;
+        }
+        self.events.push((Ev::TowerHit, at));
     }
 
     fn move_units(&mut self, c: &Content) {
@@ -1301,9 +1598,18 @@ impl Battle {
             let mut strike: Option<usize> = None;
             let mut at_tower = false;
             let mut at_lure: Option<usize> = None;
+            let mut strike_mage: Option<usize> = None;
             if team == Team::Foe {
+                let mage = (0..self.casters.len()).find(|&k| {
+                    self.casters[k].team == Team::Ally
+                        && !self.casters[k].on_tower
+                        && self.standing_mage(k)
+                        && self.casters[k].pos.sub(pos).flat_len() <= reach + ONE * 8 / 10
+                });
                 if pos.sub(tower).flat_len() <= tower_reach + reach + self.units[i].body.radius {
                     at_tower = true;
+                } else if let Some(k) = mage {
+                    strike_mage = Some(k);
                 } else if let Some(a) = self.nearest(pos, Team::Foe, reach + ONE / 2) {
                     strike = Some(a);
                 } else {
@@ -1348,6 +1654,14 @@ impl Battle {
                 u.stuck = u.stuck.saturating_add(1);
             } else {
                 u.stuck = 0;
+            }
+            if u.attack_cd == 0 && strike_mage.is_some() {
+                u.attack_cd = content::ticks(e.attack_every);
+                let dt = c.damage_type(&e.damage_type) as u8;
+                if let Some(k) = strike_mage {
+                    self.hurt_mage(k, e.attack, dt);
+                }
+                continue;
             }
             if u.attack_cd == 0 && (strike.is_some() || at_tower || at_lure.is_some()) {
                 u.attack_cd = content::ticks(e.attack_every);
@@ -1451,6 +1765,44 @@ impl Battle {
                 } else {
                     sh.done = true;
                     break;
+                }
+            }
+            // a mage of the other side in the way (T43)
+            if !self.shots[s].done {
+                for ci in 0..self.casters.len() {
+                    let (team, r, from) = (self.shots[s].team, self.shots[s].radius, self.shots[s].from);
+                    let k = &self.casters[ci];
+                    let tag = 1_000_000 + ci as u32;
+                    if k.team == team || !self.standing_mage(ci) || self.shots[s].hit.contains(&tag) {
+                        continue;
+                    }
+                    let centre = k.pos.add(v3(0, HAND, 0));
+                    let reach = r + ONE * 6 / 10;
+                    if pos.sub(centre).len2() > reach as i64 * reach as i64 {
+                        continue;
+                    }
+                    let (dmg, dt) = (self.shots[s].damage, self.shots[s].dtype);
+                    let _ = from;
+                    first_hit.get_or_insert(pos);
+                    self.hurt_mage(ci, dmg, dt);
+                    let sh = &mut self.shots[s];
+                    sh.hit.push(tag);
+                    if sh.pierce > 0 {
+                        sh.pierce -= 1;
+                    } else {
+                        sh.done = true;
+                        break;
+                    }
+                }
+            }
+            // a raider's shot that reaches the tower strikes it (T40)
+            if !self.shots[s].done && self.shots[s].team == Team::Foe {
+                let t = self.tower();
+                if pos.sub(t).flat_len() <= ONE * 26 / 10 && pos.y < ONE * 9 {
+                    let (dmg, from) = (self.shots[s].damage, self.shots[s].from);
+                    self.hit_tower(c, dmg, from, pos);
+                    first_hit.get_or_insert(pos);
+                    self.shots[s].done = true;
                 }
             }
             let sh = &mut self.shots[s];
@@ -1583,11 +1935,145 @@ impl Battle {
             eat(s.pos.x as i64);
             eat(s.pos.z as i64);
         }
+        for k in &self.casters {
+            eat(k.hp as i64);
+            eat(k.pos.x as i64);
+            eat(k.pos.z as i64);
+        }
         h
     }
 }
 
 /// Where each copy of a formation starts and lands.
+/// The battle as one mage's tree sees it (T41).
+struct Mind<'a> {
+    b: &'a mut Battle,
+    c: &'a Content,
+    ci: usize,
+}
+
+impl crate::mind::World for Mind<'_> {
+    fn ask(&mut self, q: crate::mind::Cond) -> bool {
+        use crate::mind::Cond;
+        let (b, ci) = (&*self.b, self.ci);
+        let k = &b.casters[ci];
+        match q {
+            Cond::Hurt => k.hp * 100 < k.hp_max * self.c.balance().hurt_pct,
+            Cond::FoeMage => !b.targets(ci, true).is_empty(),
+            Cond::FoeInRange => {
+                let reach = b.reach(self.c, ci);
+                Battle::nearest_of(k.pos, &b.targets(ci, false), reach).is_some()
+            }
+            Cond::Raiding => k.team == Team::Foe,
+            Cond::FoeNearTower => {
+                k.team == Team::Ally
+                    && Battle::nearest_of(
+                        b.tower(),
+                        &b.targets(ci, false),
+                        content::cm(self.c.balance().near_tower_cm),
+                    )
+                    .is_some()
+            }
+            Cond::OnTower => k.on_tower,
+        }
+    }
+
+    fn act(&mut self, a: crate::mind::Act) -> crate::mind::Status {
+        use crate::mind::{Act, Status};
+        let (c, ci) = (self.c, self.ci);
+        let b = &mut *self.b;
+        let pos = b.casters[ci].pos;
+        let ally = b.casters[ci].team == Team::Ally;
+        let reach = b.reach(c, ci);
+        match a {
+            Act::CastNearest => match Battle::nearest_of(pos, &b.targets(ci, false), reach) {
+                Some(t) => b.cast_at(c, ci, t),
+                None => Status::Failed,
+            },
+            Act::CastMage => match Battle::nearest_of(pos, &b.targets(ci, true), reach) {
+                Some(t) => b.cast_at(c, ci, t),
+                None => Status::Failed,
+            },
+            Act::CastNearTower => {
+                let near = content::cm(c.balance().near_tower_cm);
+                let tower = b.tower();
+                match Battle::nearest_of(tower, &b.targets(ci, false), near) {
+                    Some(t) if t.sub(pos).flat_len() <= reach => b.cast_at(c, ci, t),
+                    _ => Status::Failed,
+                }
+            }
+            Act::CastTower => {
+                let t = b.tower();
+                if ally || t.sub(pos).flat_len() > reach {
+                    return Status::Failed;
+                }
+                b.cast_at(c, ci, t.add(v3(0, ONE * 3, 0)))
+            }
+            Act::Advance => {
+                if ally {
+                    return Status::Done;
+                }
+                let t = b.tower();
+                if t.sub(pos).flat_len() <= reach.max(ONE * 4) {
+                    return Status::Done;
+                }
+                let next = b.arena.next_step(pos);
+                b.walk_to(ci, next);
+                Status::Running
+            }
+            Act::LeaveTower => {
+                if b.casters[ci].on_tower {
+                    let at = b.below_seat(ci);
+                    let k = &mut b.casters[ci];
+                    k.on_tower = false;
+                    k.pos = at;
+                    k.range_pct = c.balance().ground_range_pct;
+                }
+                Status::Done
+            }
+            Act::ApproachMage => {
+                if b.casters[ci].on_tower {
+                    return Status::Failed;
+                }
+                match Battle::nearest_of(pos, &b.targets(ci, true), 200 * ONE) {
+                    Some(t) if t.sub(pos).flat_len() <= reach * 7 / 10 => Status::Done,
+                    Some(t) => b.walk_to(ci, t),
+                    None => Status::Failed,
+                }
+            }
+            Act::FallBack | Act::Hold => {
+                if !ally {
+                    if a == Act::Hold {
+                        return Status::Done;
+                    }
+                    let e = arena::centre(b.arena.entry.0, b.arena.entry.1);
+                    return match b.walk_to(ci, e) {
+                        Status::Done => Status::Done,
+                        s => s,
+                    };
+                }
+                if b.casters[ci].on_tower {
+                    return Status::Done;
+                }
+                // back below the seat, then up onto it
+                let under = b.below_seat(ci);
+                if b.walk_to(ci, under) == Status::Done {
+                    let k = &mut b.casters[ci];
+                    k.on_tower = k.home.y > ONE;
+                    k.pos = if k.on_tower { k.home } else { under };
+                    k.range_pct = if k.on_tower {
+                        c.balance().seat_range_pct
+                    } else {
+                        c.balance().ground_range_pct
+                    };
+                    return Status::Done;
+                }
+                Status::Running
+            }
+        }
+    }
+}
+
 fn arrange(arr: Arrange, copies: i32, i: i32, origin: V3, target: V3) -> (V3, V3) {
     if copies <= 1 {
         return (origin, target);

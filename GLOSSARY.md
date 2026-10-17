@@ -64,6 +64,10 @@ A creature that walks the path to a tower and attacks it. It comes from the day'
 
 Not: monster
 
+### Health
+
+How much a mage on the field can take before they fall for the rest of the battle. The more effectiveness summed over the spells they know, the more health they have and the faster they move.
+
 ### Invasion
 
 Enemies you add to a rival's battle by casting an invasion spell. Yours appear in their invasion book at once; your students' appear only when the battle starts.
@@ -73,6 +77,10 @@ Not: raid
 ### Invasion book
 
 The book on its lectern that lists what the next battle will bring to your tower.
+
+### Journey
+
+The short run a raider makes to reach a rival's towers: a few jumps over gaps. A fall makes them arrive later.
 
 ### Librarian golem
 
@@ -113,6 +121,10 @@ Not: lectern, stage
 The part of each day when you act: {day.prep_s} seconds to read, make spells, recruit, teach and change the layout.
 
 Not: build phase
+
+### Raider
+
+A student you send to a rival's battle. They walk in with that battle's enemies, cast their own spells, and attack the tower and the students on it. A raider is not on your own towers that battle.
 
 ### Recruitment table
 
@@ -175,6 +187,10 @@ A small tower placed nearer the path, with room for one student.
 ### Teaching elemental
 
 A summoned penguin that teaches at the podium for you, as well as you drew its summoning glyphs.
+
+### Temperament
+
+How a student decides what to do on the field, such as Hunter or Steadfast. Each temperament is a behaviour tree you can read at office hours.
 
 ### Terrain feature
 

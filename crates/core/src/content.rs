@@ -246,6 +246,24 @@ pub struct Helper {
 #[serde(deny_unknown_fields)]
 pub struct Balance {
     pub score_start: i32,
+    /// A mage on the field (T42): health is `mage_hp` plus `mage_hp_per_100`
+    /// for every 100% of effectiveness summed over the spells they know;
+    /// speed likewise, in cm/s.
+    pub mage_hp: i32,
+    pub mage_hp_per_100: i32,
+    pub mage_speed_cms: i32,
+    pub mage_speed_per_100_cms: i32,
+    /// Below this percent of health a mage is hurt (T41).
+    pub hurt_pct: i32,
+    /// An enemy this close to the tower is near it (T41), in cm.
+    pub near_tower_cm: i32,
+    /// Raiders join a rival's battle this long after it starts (T40), and
+    /// each fall on the journey makes them this much later (T45).
+    pub raid_arrive_s: i32,
+    pub journey_late_s: i32,
+    /// Percent of a raider's spell damage that reaches the tower's score
+    /// (T40); students and summons take it whole.
+    pub raid_tower_pct: i32,
     /// The pieces a new archmage knows before reading a book (T1).
     pub start_pieces: Vec<String>,
     /// Your own summons (T25): percent of a summon's count, at most this
@@ -255,13 +273,9 @@ pub struct Balance {
     pub summons_per_student: i32,
     pub summon_life_s: i32,
     pub summon_mana_pct: i32,
-    /// The book-sorting game (T20): books to shelve for one find, how long a
-    /// book takes to fall, how much faster after a miss, the fastest; and
-    /// copies of known books in the pile.
+    /// The book pile (T39): books to shelve for one find; and copies of
+    /// known books in the pile.
     pub sort_books: i32,
-    pub sort_fall_ms: i32,
-    pub sort_faster_pct: i32,
-    pub sort_min_ms: i32,
     pub dud_books: i32,
     /// Seconds a book's card stays on screen (T10).
     pub card_s: i32,
@@ -345,6 +359,18 @@ pub struct ContentFile {
     pub tomes: Vec<Tome>,
     pub trials: Vec<Trial>,
     pub achievements: Vec<Achievement>,
+    /// What a student's temperament is, and the behaviour tree it gives
+    /// them on the field (T41).
+    pub temperaments: Vec<Temperament>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Temperament {
+    pub id: String,
+    pub name: String,
+    pub text: String,
+    pub tree: crate::mind::RawNode,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -401,6 +427,8 @@ pub struct Content {
     pub rate: Vec<Vec<i32>>,
     /// For each piece: its school's index.
     pub piece_school: Vec<usize>,
+    /// Each temperament's behaviour tree, flattened (T41).
+    pub minds: Vec<crate::mind::Tree>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -428,6 +456,10 @@ pub enum ContentError {
         piece: String,
         stroke: String,
     },
+    BadTree {
+        temperament: String,
+        why: String,
+    },
 }
 
 impl ContentError {
@@ -439,6 +471,7 @@ impl ContentError {
             ContentError::BelowHalf { attacker, defender, pct } => format!("The type chart gives {attacker} on {defender} {pct}%; nothing may go below 50%, so no enemy is immune."),
             ContentError::OutOfRange { field, value } => format!("The balance value \"{field}\" is {value}, which is out of range."),
             ContentError::BadGlyph { piece, stroke } => format!("The glyph of \"{piece}\" uses a stroke \"{stroke}\" the game cannot draw."),
+            ContentError::BadTree { temperament, why } => format!("The tree of the temperament \"{temperament}\" cannot be read: {why}."),
         }
     }
 }
@@ -560,10 +593,28 @@ impl Content {
                 });
             }
         }
+        let ids: Vec<&str> = file.temperaments.iter().map(|t| t.id.as_str()).collect();
+        unique(&ids, "temperament")?;
+        if file.temperaments.is_empty() {
+            return Err(ContentError::OutOfRange {
+                field: "temperaments".into(),
+                value: 0,
+            });
+        }
+        let mut minds = Vec::new();
+        for t in &file.temperaments {
+            minds.push(
+                crate::mind::Tree::build(&t.tree).map_err(|e| ContentError::BadTree {
+                    temperament: t.id.clone(),
+                    why: e,
+                })?,
+            );
+        }
         Ok(Content {
             file,
             rate,
             piece_school,
+            minds,
         })
     }
 

@@ -251,6 +251,27 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
             }
         }
     }
+    // raiders (T40): the attack mage sends its Reckless and Hunter students
+    // at the leader; each journey has a fall or so by chance. The other
+    // styles keep their class at home: raiding by all four took about a
+    // thousand more points a match off every tower (SECOND-ORDER R8.12)
+    if invade && style == Style::AttackMage {
+        let target = if leader != p.seat {
+            leader
+        } else {
+            (0..4u8).find(|&t| t != p.seat).unwrap_or(0)
+        };
+        let reckless = c.file.temperaments.iter().position(|t| t.id == "reckless");
+        let hunter = c.file.temperaments.iter().position(|t| t.id == "hunter");
+        let late_s = c.balance().journey_late_s;
+        for st in p.students.iter_mut() {
+            let goes = Some(st.temper as usize) == reckless || Some(st.temper as usize) == hunter;
+            if goes && !st.known.is_empty() {
+                let falls = rng.below(3) as i32 / 2;
+                st.raid = Some((target, falls * late_s * TPS));
+            }
+        }
+    }
     p.ready = true;
 }
 
@@ -312,5 +333,38 @@ mod tests {
             c.balance().start_students as usize,
             "the attack mage recruits nobody: {out:?}"
         );
+    }
+
+    #[test]
+    fn a_rival_sends_its_reckless_students_to_raid_the_leader_but_not_on_the_quiet_first_day() {
+        let c = shipped();
+        let reckless = c
+            .file
+            .temperaments
+            .iter()
+            .position(|t| t.id == "reckless")
+            .unwrap() as u8;
+        for invade in [false, true] {
+            let mut p = bot_prep(&c, 1);
+            for st in p.students.iter_mut() {
+                st.temper = reckless;
+            }
+            let mut rng = Rng::new(5);
+            day(&c, &mut p, Style::AttackMage, 70, 0, invade, &mut rng);
+            // the day's hires keep their own temperaments: look at the reckless
+            let taught: Vec<&crate::prep::Student> = p
+                .students
+                .iter()
+                .filter(|st| !st.known.is_empty() && st.temper == reckless)
+                .collect();
+            assert!(!taught.is_empty());
+            for st in taught {
+                assert_eq!(
+                    st.raid.map(|r| r.0),
+                    if invade { Some(0) } else { None },
+                    "invade {invade}"
+                );
+            }
+        }
     }
 }

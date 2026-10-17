@@ -2,6 +2,18 @@
  "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
  "entries": [
   {
+   "version": "1.7.0",
+   "date": "2026-10-17",
+   "minor": false,
+   "items": [
+    "Every tile in the laboratory says what its piece does, with its numbers, and the spell's box reads the whole spell out in order.",
+    "Finding a book is a pile on the floor: drag each to its school's shelf, with no timer. Sort the pile with no mistake and you learn two books.",
+    "Send students to raid a rival from the invasion book. After a short run of jumps they join that rival's next battle, cast their own spells and attack the tower and its students. They are off your own towers while they are away.",
+    "Each student has a temperament, such as Hunter or Steadfast. Office hours draws how they decide as a tree, and in a battle you can watch it light up.",
+    "A student's health and speed grow with the spells they know: add up their effectiveness over every spell."
+   ]
+  },
+  {
    "version": "1.6.0",
    "date": "2026-10-17",
    "minor": false,

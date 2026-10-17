@@ -137,6 +137,7 @@ fn battle(c: &Content, chain: &[u16]) -> Battle {
             regen: 100_000,
             spells: vec![(0, 100)],
             school: 0,
+            ..Default::default()
         }],
         placed: Vec::new(),
     };

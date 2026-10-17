@@ -155,10 +155,18 @@ def run(p, engine, origin):
     joiner.wait_for_selector("body[data-phase='waiting']", state="attached", timeout=TIMEOUT_MS)
     check(True, "the joiner waits for the host's plan")
     host.click(DAY_READY)
+    # a battle lasts until its enemies are gone (T54): both browsers watch
+    # at four times speed, and a slow CI machine gets ten minutes
+    for page in (host, joiner):
+        try:
+            page.wait_for_selector("body[data-phase='battle']", state="attached", timeout=TIMEOUT_MS * 8)
+            page.click("button[data-action='battle.speed'][data-value='4']", timeout=TIMEOUT_MS)
+        except Exception:
+            pass
     summaries = []
     for who, page in (("host", host), ("joiner", joiner)):
         try:
-            page.wait_for_selector("body[data-phase='summary']", state="attached", timeout=120000)
+            page.wait_for_selector("body[data-phase='summary']", state="attached", timeout=600000)
             summaries.append(page.inner_text("#summary"))
         except Exception:
             summaries.append("")

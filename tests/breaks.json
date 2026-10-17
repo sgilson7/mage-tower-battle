@@ -688,8 +688,8 @@
   {
     "name": "office hours' tower seat is ignored",
     "file": "crates/core/src/battle.rs",
-    "find": "            if (0..seats as i32).contains(&t) && !tower_taken[t as usize] {",
-    "replace": "            if false && !tower_taken[t as usize] {",
+    "find": "        if (0..tower_seats as i32).contains(&t) && !tower[t as usize] {",
+    "replace": "        if false && !tower[t as usize] {",
     "test": "office_hours_seats_students_where_they_were_put_and_others_fill_in"
   },
   {
@@ -779,8 +779,8 @@
   {
     "name": "every student gets a seat",
     "file": "crates/core/src/battle.rs",
-    "find": "            *slot = Some(if let Some(k) = tower_taken.iter().position(|t| !t) {",
-    "replace": "            *slot = Some(if let Some(k) = Some(0) {",
+    "find": "                if let Some(k) = tower.iter().position(|t| !t) {",
+    "replace": "                if let Some(k) = Some(0) {",
     "test": "students_beyond_the_seats_stand_on_the_ground_with_less_range"
   },
   {
@@ -814,8 +814,8 @@
   {
     "name": "the map's panel is a side panel",
     "file": "crates/core/src/session.rs",
-    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
-    "replace": "        json!({\"id\": \"layout\", \"kind\": \"side\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"blocks\": bl})",
+    "replace": "        json!({\"id\": \"layout\", \"kind\": \"side\", \"blocks\": bl})",
     "test": "e_opens_the_map_at_the_map_table_and_esc_closes_it"
   },
   {
@@ -828,8 +828,92 @@
   {
     "name": "the map panel ticks",
     "file": "crates/core/src/session.rs",
-    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
-    "replace": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"heading\": s.t(\"station.map\"), \"text\": text, \"rows\": rows, \"tick\": self.tick, \"saved_actions\": placed, \"actions\": [act_json(\"layout.mode\", if self.layout.golem { \"mana\" } else { \"golem\" }, s.t(if self.layout.golem { \"map.use_mana\" } else { \"map.use_golem\" }), true), act_json(\"layout.close\", \"\", s.t(\"map.close\"), true)]})",
+    "find": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"blocks\": bl})",
+    "replace": "        json!({\"id\": \"layout\", \"kind\": \"map\", \"blocks\": bl, \"tick\": self.tick})",
     "test": "the_map_panel_does_not_change_while_something_rises"
+  },
+  {
+    "name": "a taken tower seat can be chosen twice",
+    "file": "crates/core/src/battle.rs",
+    "find": "        if (0..tower_seats as i32).contains(&t) && !tower[t as usize] {",
+    "replace": "        if (0..tower_seats as i32).contains(&t) {",
+    "test": "seating_gives_choices_first_then_the_first_free_seat"
+  },
+  {
+    "name": "sub-tower seats start inside the tower's",
+    "file": "crates/core/src/battle.rs",
+    "find": "pub const SUB_SEAT: i32 = 32;",
+    "replace": "pub const SUB_SEAT: i10 = 32;",
+    "test": "a_student_put_on_a_sub_tower_stands_on_it_not_on_a_tower_seat"
+  },
+  {
+    "name": "a seat holds two students",
+    "file": "crates/core/src/prep.rs",
+    "find": "                        other.seat = old;",
+    "replace": "                        let _ = (&other, old);",
+    "test": "a_seat_holds_one_student_and_two_trade_when_one_takes_the_others"
+  },
+  {
+    "name": "the map table cannot seat a student",
+    "file": "crates/core/src/prep.rs",
+    "find": "                let at_map = name == \"office.seat\" && self.at(Station::Map).is_ok();",
+    "replace": "                let at_map = false;",
+    "test": "a_seat_can_be_chosen_at_the_map_table_and_nothing_else_of_office_hours"
+  },
+  {
+    "name": "a rotation's step cannot be taken out",
+    "file": "crates/core/src/prep.rs",
+    "find": "                        s.rotation.remove(v as usize);",
+    "replace": "                        let _ = v;",
+    "test": "a_step_of_a_rotation_can_be_taken_out"
+  },
+  {
+    "name": "a streak counts double",
+    "file": "crates/core/src/prep.rs",
+    "find": "                    *streak += 1;",
+    "replace": "                    *streak += 2;",
+    "test": "sorting_counts_a_streak_and_the_books_on_each_shelf"
+  },
+  {
+    "name": "every book goes on the first shelf",
+    "file": "crates/core/src/prep.rs",
+    "find": "                    if let Some(n) = per.get_mut(shelf as usize) {",
+    "replace": "                    if let Some(n) = per.get_mut(0) {",
+    "test": "sorting_counts_a_streak_and_the_books_on_each_shelf"
+  },
+  {
+    "name": "pressing a disc on the map picks no one",
+    "file": "crates/core/src/session.rs",
+    "find": "                \"pointer.down\" if hit.who.is_some() => self.office_pick = hit.who,",
+    "replace": "                \"pointer.down\" if hit.who.is_some() => {},",
+    "test": "on_the_map_a_students_disc_is_dragged_to_another_seat"
+  },
+  {
+    "name": "a dropped tile goes in any slot",
+    "file": "crates/core/src/session.rs",
+    "find": "                if kind != value && kind != \"branch\" {",
+    "replace": "                if false {",
+    "test": "the_builder_shows_one_kind_of_tile_and_a_dropped_tile_must_fit_its_slot"
+  },
+  {
+    "name": "the tray shows every kind at once",
+    "file": "crates/core/src/session.rs",
+    "find": "            .filter(|&i| p.known[i] && spell_piece(i) && kind_of(i) == open)",
+    "replace": "            .filter(|&i| p.known[i] && spell_piece(i))",
+    "test": "the_builder_shows_one_kind_of_tile_and_a_dropped_tile_must_fit_its_slot"
+  },
+  {
+    "name": "the board leaves a tower seat out",
+    "file": "crates/core/src/overlay.rs",
+    "find": "    let mut out: Vec<(i32, i32, i32)> = (0..tower_seats)",
+    "replace": "    let mut out: Vec<(i32, i32, i32)> = (1..tower_seats)",
+    "test": "office_hours_draws_the_seats_and_a_held_seat_can_be_picked_up"
+  },
+  {
+    "name": "the ring being turned reads as next",
+    "file": "crates/core/src/session.rs",
+    "find": "                let chip = if k < at { \"seal.sealed\" } else if k == at { \"seal.turning\" } else { \"seal.next\" };",
+    "replace": "                let chip = if k < at { \"seal.sealed\" } else if k == usize::MAX { \"seal.turning\" } else { \"seal.next\" };",
+    "test": "the_seal_lists_its_rings_and_the_sorting_game_has_a_shelf_button_each"
   }
 ]

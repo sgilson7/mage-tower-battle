@@ -55,7 +55,8 @@ def run(page, check, engine):
     page.click("button[data-action='layout.feature'][data-value='glass_wall']")
     box = page.locator("#overlay").bounding_box()
     page.mouse.click(box["x"] + box["width"] * 0.4, box["y"] + box["height"] * 0.25)
-    page.wait_for_selector("#rising", state="attached", timeout=LONG)
+    # what rises is listed beside the map, under the route (T32)
+    hold_until(page, None, lambda: "×" in page.inner_text("#route"), limit_s=LONG / 1000)
     # a slow press and release, as a person clicks, while the wall rises
     pick = page.locator("button[data-action='layout.feature'][data-value='sub_tower']").bounding_box()
     page.mouse.move(pick["x"] + pick["width"] / 2, pick["y"] + pick["height"] / 2)
@@ -63,8 +64,22 @@ def run(page, check, engine):
     page.wait_for_timeout(150)
     page.mouse.up()
     page.wait_for_timeout(200)
-    picked = STRINGS["map.selected"] in page.locator("#layout li", has_text=CONTENT["features"][-1]["name"]).inner_text().lower()
+    picked = page.locator("#layout li.on", has_text=CONTENT["features"][-1]["name"]).count() == 1
     check(picked, "a map button still works after placing something")
+    # seating on the map (T33): drag the first student's disc from seat 0,
+    # at the ring's top (847, 88 of 1280 × 720), a quarter turn on to seat 3
+    # (911, 153)
+    page.click("button[data-action='layout.seats'][data-value='on']")
+    at = lambda x, y: (box["x"] + box["width"] * x / 1280, box["y"] + box["height"] * y / 720)
+    page.mouse.move(*at(847, 88))
+    page.mouse.down()
+    page.mouse.move(*at(880, 120), steps=4)
+    page.mouse.move(*at(911, 153), steps=4)
+    page.mouse.up()
+    seat4 = STRINGS["office.seat_tower"].replace("{n}", "4")
+    hold_until(page, None, lambda: seat4.lower() in page.inner_text("#layout").lower(), limit_s=5)
+    check(seat4.lower() in page.inner_text("#layout").lower(), "a student dragged on the map takes the seat")
+    page.click("button[data-action='layout.seats'][data-value='off']")
     page.keyboard.press("Escape")
     page.wait_for_selector("body[data-overlay='off']", state="attached", timeout=LONG)
     check(True, "Esc closes the map")

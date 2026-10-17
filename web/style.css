@@ -35,6 +35,11 @@
   --conjuration: #6b46c1;
   --illusion: #ff6fa8;
   --restoration: #e8b23a;
+  --dial: #f4ecdf;
+  --clear: transparent;
+  --ring_pay: rgba(224, 69, 58, 0.25);
+  --ring_mod: rgba(74, 95, 209, 0.25);
+  --ring_trig: rgba(232, 194, 26, 0.32);
   --line: 3px;
   --radius: 16px;
   /* a button's text stays dark on gold, and a chip's background follows
@@ -42,10 +47,14 @@
   --on-button: #2b2140;
   --chip-bg: #e9e0ff;
   --row-bg: rgba(255, 255, 255, 0.35);
+  --card-bg: #ffffff;
+  --on-bg: #fff1c9;
+  --note-bg: #fffbe0;
+  --track: #e6dcc9;
   --font: ui-rounded, "SF Pro Rounded", "Nunito", "Segoe UI Rounded", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --paper: #2a2238; --panel: #2a2238; --ink: #f2ecff; --muted: #b9aedc; --drawn: #f2ecff; --shade: rgba(10, 8, 18, 0.6); --chip-bg: #4a3d66; --row-bg: rgba(255, 255, 255, 0.06); }
+  :root { --paper: #2a2238; --panel: #2a2238; --ink: #f2ecff; --muted: #b9aedc; --drawn: #f2ecff; --shade: rgba(10, 8, 18, 0.6); --chip-bg: #4a3d66; --row-bg: rgba(255, 255, 255, 0.06); --dial: #3a3050; --card-bg: #342a48; --on-bg: #4a3d22; --note-bg: #3a3328; --track: #4a3d66; }
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -182,11 +191,15 @@ body[data-screen="title"] .panel-version .act { font-size: 12px; padding: 2px 8p
 .panel-mana .mana::before { width: 18px; height: 18px; }
 #card .mana { font-size: 18px; }
 
-/* office hours (T15): the class, the student, where they stand */
-body[data-screen="play"] .panel-office-roster { position: absolute; left: 12px; top: 84px; bottom: 70px; width: 27%; overflow: auto; }
-body[data-screen="play"] .panel-office-student { position: absolute; left: calc(27% + 22px); top: 84px; bottom: 70px; width: 33%; overflow: auto; }
-body[data-screen="play"] .panel-office-deploy { position: absolute; right: 12px; top: 84px; bottom: 70px; width: calc(40% - 44px); overflow: auto; }
+/* office hours (T15, T32), after its mockup: one panel, three columns */
+body[data-screen="play"] .panel-office { position: absolute; left: 12px; right: 12px; top: 84px; bottom: 70px; display: grid; grid-template-columns: 24% minmax(0, 1fr) 37%; gap: 14px; }
+.panel-office .col { overflow: auto; min-height: 0; }
+.panel-office .col-roster h2 { font-size: 24px; }
+.panel-office .col-who, .panel-builder .col-sum { border: var(--line) solid var(--ink); border-radius: 14px; background: var(--card-bg); padding: 12px 14px; }
+.panel-office .col-who h2 { font-size: 26px; }
 body[data-screen="play"][data-station="office"] .panel-jobs { display: none; }
+/* a panel that fills the room hides the stations' labels behind it */
+body[data-station="office"] #labels, body[data-station="lab"] #labels { display: none; }
 
 /* the spell builder (T17), after the wireframe and Galactic Survivors' rigs:
    blue modifiers, red payloads, yellow triggers */
@@ -224,3 +237,155 @@ body[data-screen="play"] .panel-builder { position: absolute; left: 12px; right:
 body[data-screen="play"] .panel-self { position: absolute; left: 12px; top: 70px; display: flex; gap: 4px; padding: 0; background: transparent; border: none; box-shadow: none; }
 .panel-self .act { padding: 2px 4px; font-size: 11px; display: inline-flex; align-items: center; gap: 2px; background: var(--chip-bg); color: var(--ink); }
 .act-icon { width: 22px; height: 22px; color: var(--restoration); }
+
+/* blocks the core lays out (T32): headings, notes, meters, tables, boards */
+.panel h3 { margin: 12px 0 6px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.panel .muted { color: var(--muted); font-size: 14px; }
+.panel .small { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.note { background: var(--note-bg); border: 2px dashed var(--ink); border-radius: 10px; padding: 6px 10px; font-size: 13px; margin: 8px 0; }
+.note b { color: var(--bad); }
+.keys { font-size: 14px; }
+kbd { font: 800 13px var(--font); color: var(--ink); border: 2px solid var(--ink); border-bottom-width: 4px; border-radius: 6px; padding: 0 6px; background: var(--card-bg); }
+.meters { display: grid; grid-template-columns: minmax(90px, auto) minmax(60px, 1fr) 52px; gap: 5px 8px; align-items: center; font-size: 14px; }
+.m-value { text-align: right; }
+.track { position: relative; display: block; height: 12px; border: 2px solid var(--ink); border-radius: 6px; background: var(--track); overflow: hidden; }
+.track i { position: absolute; left: 0; top: 0; bottom: 0; background: #8fc7ff; }
+.track.centre::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--ink); }
+.tone-mana { background: #8fc7ff !important; }
+.tone-good { background: #7fd6a8 !important; }
+.tone-gold { background: var(--gold) !important; }
+.tone-destruction { background: var(--destruction) !important; }
+.tone-alteration { background: var(--alteration) !important; }
+.tone-conjuration { background: var(--conjuration) !important; }
+.tone-illusion { background: var(--illusion) !important; }
+.tone-restoration { background: var(--restoration) !important; }
+.chip.tone-good { background: #d6f2e6 !important; color: #2b2140; }
+.table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.table td, .table th { padding: 4px 6px; text-align: left; border-bottom: 1px solid rgba(43, 33, 64, 0.15); }
+.table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.big { font: 900 26px var(--font); margin: 2px 0 6px; }
+.big small { font-size: 15px; color: var(--good); margin-left: 6px; }
+.chip-row { display: flex; gap: 6px; margin: 6px 0; }
+
+/* buttons in groups: a chosen one is gold, the rest soft */
+.seg, .tabs, .soft { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.seg .act, .tabs .act, .soft .act, .chips .act { background: var(--chip-bg); color: var(--ink); }
+.act.on, .seg .act.on, .tabs .act.on, .chips .act.on { background: var(--gold); color: var(--on-button); }
+.steps, .adds { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.steps .act { background: var(--card-bg); color: var(--ink); border-color: #e0453a; box-shadow: 0 3px 0 rgba(43, 33, 64, 0.3); display: inline-flex; align-items: center; gap: 6px; }
+.adds .act { background: transparent; color: var(--ink); border-style: dashed; box-shadow: none; font-size: 13px; padding: 3px 9px; }
+.act .mana { margin-left: 6px; color: inherit; }
+/* the spell's card stays light in either theme, so its words stay dark */
+.slot.spell .mana { color: #2b2140; }
+.num { font-style: normal; background: var(--ink); color: var(--paper); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+
+/* a row that is one button: press to pick, drag to a seat */
+.row.on { background: var(--on-bg); box-shadow: 0 0 0 3px var(--gold); }
+.row.dim { opacity: 0.6; }
+.row:has(.row-press) { padding: 0; }
+.act.row-press { display: flex; align-items: center; gap: 8px; width: 100%; background: transparent; border: none; box-shadow: none; padding: 6px 8px; text-align: left; font: inherit; color: var(--ink); border-radius: 10px; cursor: grab; touch-action: none; }
+.act.row-press.on { background: transparent; }
+.act.row-press .row-label { font-weight: 800; }
+body[data-dragging="on"] { cursor: grabbing; }
+.sw { width: 22px; height: 22px; border: 2px solid var(--ink); border-radius: 5px; flex: none; }
+.sw-glass { background: var(--glass); } .sw-ivory { background: var(--ivory); } .sw-lava { background: var(--lava); } .sw-bait { background: var(--bait); } .sw-sub { background: var(--sub); }
+
+/* the field as boxes (T32, T33): route, walls, the tower, a disc per seat */
+.board { position: relative; width: 100%; background: var(--cell_open); border: var(--line) solid var(--ink); border-radius: 14px; overflow: hidden; }
+.bi { position: absolute; }
+.bi-route { background: var(--cell_route); }
+.bi-scenery { background: var(--cell_scenery); }
+.bi-entry { background: var(--cell_entry); }
+.bi-tower { background: var(--cell_tower); border: 2px solid var(--ink); border-radius: 6px; }
+.bi.act { padding: 0; border: 3px solid var(--ink); border-radius: 50%; box-shadow: none; font: 800 12px var(--font); background: var(--paper); color: var(--muted); display: flex; align-items: center; justify-content: center; touch-action: none; }
+.bi.act:disabled { opacity: 1; cursor: default; }
+.bi.act.taken { background: var(--accent); color: #fff; cursor: grab; }
+.bi.act.given { background: var(--sub); color: #2b2140; cursor: grab; }
+.bi.act.on { background: var(--gold); color: #2b2140; box-shadow: 0 0 0 3px var(--gold); }
+.bi.act:hover { transform: scale(1.12); }
+
+/* the map table (T23, T32, T33), after its mockup */
+body[data-screen="play"] .panel-map { width: calc(27.5% - 24px); }
+.panel-map .row { padding: 0; border-left-width: 2px; background: var(--card-bg); }
+.panel-map .row .chip { margin-left: auto; }
+body[data-screen="play"] .panel-route { position: absolute; right: 12px; top: 84px; width: calc(27.5% - 24px); max-height: calc(100% - 154px); overflow: auto; font-size: 14px; }
+body[data-busy="sealing"] .panel-route, body[data-busy="sorting"] .panel-route { display: none; }
+
+/* the builder (T17, T32), after its mockup: the lane, then the tray beside this spell */
+body[data-screen="play"] .panel-builder { display: grid; grid-template-columns: minmax(0, 1fr) 290px; grid-template-areas: "head head" "lane lane" "tray sum"; align-content: start; gap: 8px 14px; }
+.panel-builder .col-head { grid-area: head; }
+.panel-builder .col-head p { margin: 0; }
+.panel-builder .col-lane { grid-area: lane; min-width: 0; }
+.panel-builder .col-tray { grid-area: tray; min-width: 0; }
+.panel-builder .col-sum { grid-area: sum; align-self: start; }
+.panel-builder .col-sum h2 { font-size: 24px; margin: 0; }
+.panel-builder .col-sum h3 { margin-top: 0; }
+.panel-builder .col-sum .panel-mana .mana { font-size: 28px; }
+.lane { margin: 0; padding: 12px; background: repeating-linear-gradient(90deg, rgba(43, 33, 64, 0.04) 0 40px, transparent 40px 80px), var(--row-bg); }
+.lane-row { gap: 18px; min-height: 0; }
+.set { position: relative; gap: 18px; padding: 22px 0 0; border-right: none; }
+.set-label { position: absolute; top: 0; left: 0; font: 800 12px var(--font); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.mods { gap: 6px; }
+.slot { position: relative; width: 120px; min-height: 66px; gap: 2px; background: var(--card-bg); }
+.slot small { font: 800 10px var(--font); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.slot-name { font: 800 15px/1.15 var(--font); }
+.slot-does { font: 600 11px/1.2 var(--font); color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.slot.pay { width: 140px; min-height: 150px; }
+.slot.pay .slot-icon { width: 64px; height: 64px; }
+.slot.trig { width: 126px; min-height: 120px; }
+.slot.spell { width: 136px; min-height: 110px; background: #fff0ee; color: #2b2140; }
+.slot.spell small { color: #6b5f80; }
+.slot.spell b { font: 800 16px/1.15 var(--font); }
+.slot.empty { background: transparent; }
+.slot.empty .slot-name { font-size: 15px; color: var(--muted); }
+/* the wire between one slot and the next */
+.set > .slot::before, .set > .mods::before, .lane-row > .set::before { content: ""; position: absolute; left: -18px; top: 50%; width: 18px; height: 4px; background: var(--ink); }
+.set > .mods { position: relative; }
+.set > .slot:first-of-type::before { display: none; }
+.lane-row > .set::before { top: calc(50% + 11px); }
+.lane-row > .slot.spell + .set::before, .lane-row > .set + .set::before { display: block; }
+.lane-row > .set:first-child::before, .lane-row > .branch-from + .set::before { display: none; }
+.tray { margin-top: 0; gap: 6px; }
+.tray .tabs { margin: 0; }
+.tile { width: 128px; min-height: 92px; justify-content: center; gap: 2px; border-radius: 12px; font-size: 14px; touch-action: none; cursor: grab; }
+.tile .slot-icon { width: 36px; height: 36px; }
+.tile.unread { display: inline-flex; align-items: center; justify-content: center; opacity: 0.45; border: 3px dashed var(--muted); color: var(--muted); font: 800 13px var(--font); cursor: default; }
+.tile.unread.pay { border-color: #e0453a; } .tile.unread.mod { border-color: #4a5fd1; } .tile.unread.trig { border-color: #e8c21a; }
+
+/* the seal and the sorting game (T20, T22, T32): the panel sits where the
+   core says, and the overlay draws the dial or the falling book over it */
+body[data-busy="sealing"] #overlay, body[data-busy="sorting"] #overlay { z-index: 2; pointer-events: none; }
+body[data-busy="sealing"] .panel-jobs, body[data-busy="sorting"] .panel-jobs, body[data-busy="sealing"] .panel-self, body[data-busy="sorting"] .panel-self { display: none; }
+body[data-screen="play"] .panel-seal, body[data-screen="play"] .panel-sort { position: absolute; box-shadow: 0 5px 0 rgba(43, 33, 64, 0.4), 0 0 0 200vmax var(--shade); }
+.panel-seal .col-head p, .panel-sort .col-head p { margin: 0; }
+.panel-seal .col-side { position: absolute; left: 58%; right: 30px; top: 96px; bottom: 16px; overflow: auto; }
+.panel-seal .col-side .rows { margin-top: 0; }
+.panel-seal .row-label { font-size: 17px; }
+.panel-seal .row .chip { margin-left: auto; }
+.panel-sort .col-pile { position: absolute; left: 34px; top: 108px; width: 210px; }
+.pile b { font-size: 13px; }
+.pile-books { margin-top: 4px; }
+.pile-book { display: inline-block; width: 36px; height: 26px; border: 2px solid var(--ink); border-radius: 4px; margin: 2px; transform: rotate(-8deg); }
+.pile-book:nth-child(odd) { transform: rotate(5deg); }
+.panel-sort .col-found { position: absolute; right: 30px; top: 108px; width: 290px; font-size: 14px; }
+.progress-top { display: flex; justify-content: space-between; font-size: 14px; }
+.progress .track { height: 16px; border-width: 3px; border-radius: 8px; margin-top: 2px; }
+.panel-sort .col-shelves { position: absolute; left: 30px; right: 30px; bottom: 26px; height: 210px; }
+.shelves { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 12px; height: 100%; }
+.act.shelf { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; border: 4px solid var(--ink); border-radius: 12px; color: #fff; font: 800 18px var(--font); padding: 8px; box-shadow: 0 4px 0 var(--ink); }
+.act.shelf:active { transform: translateY(2px); }
+.spines { display: flex; gap: 3px; align-items: flex-end; height: 90px; }
+.spine { width: 14px; border: 2px solid var(--ink); border-radius: 3px; }
+.shelf kbd { margin-top: 2px; }
+.pile-book.school-destruction, .shelf.school-destruction .spine { background: var(--destruction); }
+.pile-book.school-alteration, .shelf.school-alteration .spine { background: var(--alteration); }
+.pile-book.school-conjuration, .shelf.school-conjuration .spine { background: var(--conjuration); }
+.pile-book.school-illusion, .shelf.school-illusion .spine { background: var(--illusion); }
+.pile-book.school-restoration, .shelf.school-restoration .spine { background: var(--restoration); }
+.act.shelf.school-destruction { background: color-mix(in srgb, var(--destruction) 78%, #000); }
+.act.shelf.school-alteration { background: color-mix(in srgb, var(--alteration) 72%, #000); }
+.act.shelf.school-conjuration { background: color-mix(in srgb, var(--conjuration) 80%, #000); }
+.act.shelf.school-illusion { background: color-mix(in srgb, var(--illusion) 70%, #000); }
+.act.shelf.school-restoration { background: color-mix(in srgb, var(--restoration) 68%, #000); }
+body[data-screen="play"] .panel-golem-card { position: absolute; right: 16px; top: 250px; width: 280px; font-size: 13px; z-index: 1; }
+.panel-golem-card h2 { font-size: 17px; }

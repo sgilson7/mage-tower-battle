@@ -82,27 +82,33 @@ pub fn drawing(a: &Activity, names: &[String], heading: &str, live: &str) -> Vec
     d.finish()
 }
 
-/// The shelves of the sorting game span this much of the overlay.
-const SHELF_X: i32 = 120;
-const SHELF_W: i32 = 1040;
+/// The sorting game's and the seal's panels, in overlay pixels: x, y, w,
+/// h. The page places the panel's text and buttons in the same box, and
+/// the overlay draws the moving parts over it (T32).
+pub const SORT_BOX: [i32; 4] = [30, 80, 940, 600];
+pub const SEAL_BOX: [i32; 4] = [190, 80, 900, 580];
 
-/// Which shelf a logical x falls on, by school index.
-pub fn shelf_at(lx: i32, n: usize) -> Option<usize> {
-    let n = n.max(1) as i32;
-    ((SHELF_X..SHELF_X + SHELF_W).contains(&lx)).then(|| ((lx - SHELF_X) * n / SHELF_W) as usize)
+/// A box in overlay pixels as CSS percentages of the stage.
+pub fn css_box(b: [i32; 4]) -> serde_json::Value {
+    let pct = |v: i32, of: i32| crate::strings::css_pct(v * 1000 / of);
+    serde_json::json!({"left": pct(b[0], draw_w()), "top": pct(b[1], draw_h()), "width": pct(b[2], draw_w()), "height": pct(b[3], draw_h())})
 }
 
-/// The book-sorting game (T20): a book of a school falls toward five
-/// shelves; `fallen` is how far, in thousandths.
-pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) -> Vec<i32> {
-    let mut d = DrawList::new();
-    let schools = [
+fn school_colour(k: usize) -> Color {
+    [
         Color::Destruction,
         Color::Alteration,
         Color::Conjuration,
         Color::Illusion,
         Color::Restoration,
-    ];
+    ][k.min(4)]
+}
+
+/// The book-sorting game (T20): the book falling toward the shelves, in
+/// its school's colour and shape; `fallen` is how far, in thousandths. The
+/// shelves, the pile and the count are the page's panel underneath.
+pub fn sorting(book: u8, fallen: i32) -> Vec<i32> {
+    let mut d = DrawList::new();
     let shapes = [
         Shape::Triangle,
         Shape::Square,
@@ -110,50 +116,18 @@ pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) ->
         Shape::Star,
         Shape::Cross,
     ];
-    d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
-    d.rect(80, 110, 1120, 590, Color::Panel);
-    d.text(draw_w() / 2, 148, 26, Color::Ink, Align::Center, heading);
-    d.text(draw_w() / 2, 178, 16, Color::Muted, Align::Center, hint);
-    let n = c.file.schools.len().max(1) as i32;
-    let w = SHELF_W / n;
-    for k in 0..n {
-        let x = SHELF_X + k * w;
-        let colour = schools[(k as usize).min(4)];
-        d.rect(x + 6, 500, w - 12, 180, colour);
-        d.shape(
-            shapes[(k as usize).min(4)],
-            x + w / 2,
-            550,
-            Scale::Large,
-            Color::Paper,
-            Color::Ink,
-            3,
-        );
-        d.text(
-            x + w / 2,
-            630,
-            20,
-            Color::Paper,
-            Align::Center,
-            &c.file.schools[k as usize].name,
-        );
-        d.text(
-            x + w / 2,
-            662,
-            18,
-            Color::Paper,
-            Align::Center,
-            &(k + 1).to_string(),
-        );
-    }
-    // the falling book, its school's colour and shape
+    d.clear(Color::Clear);
     let b = (book as usize).min(4);
-    let y = 210 + fallen.clamp(0, 1000) * 280 / 1000;
-    d.rect(draw_w() / 2 - 50, y, 100, 130, schools[b]);
+    let [bx, by, bw, _] = SORT_BOX;
+    let (w, h) = (96, 120);
+    let x = bx + bw / 2 - w / 2;
+    let y = by + 90 + fallen.clamp(0, 1000) * 220 / 1000;
+    d.rect(x - 4, y - 4, w + 8, h + 8, Color::Ink);
+    d.rect(x, y, w, h, school_colour(b));
     d.shape(
         shapes[b],
-        draw_w() / 2,
-        y + 65,
+        x + w / 2,
+        y + h / 2,
         Scale::Large,
         Color::Paper,
         Color::Ink,
@@ -162,17 +136,37 @@ pub fn sorting(c: &Content, book: u8, fallen: i32, heading: &str, hint: &str) ->
     d.finish()
 }
 
-/// Sealing a spell (T22): a ring for each piece, its glyph at the ring's
-/// turn, the gold mark at the top, the ring being turned in gold.
-pub fn seal(c: &Content, pieces: &[u16], rings: &[i32], at: usize, heading: &str, hint: &str) -> Vec<i32> {
+fn circle(d: &mut DrawList, cx: i32, cy: i32, r: i32, colour: Color, width: i32) {
+    use crate::fx;
+    let ring: Vec<(i32, i32)> = (0..=64)
+        .map(|i| {
+            let a = fx::TURN * i / 64;
+            (
+                cx + fx::mul(fx::sin(a), r * fx::ONE) / fx::ONE,
+                cy - fx::mul(fx::cos(a), r * fx::ONE) / fx::ONE,
+            )
+        })
+        .collect();
+    d.line(&ring, colour, width);
+}
+
+/// Sealing a spell (T22, T32): the dial, a band for each piece in its
+/// kind's colour, its glyph where the ring has turned it, a sealed ring's
+/// glyph ringed in green under the gold mark. The words are the page's
+/// panel beside it.
+pub fn seal(c: &Content, pieces: &[u16], rings: &[i32], at: usize) -> Vec<i32> {
+    use crate::content::PieceKind;
     use crate::fx;
     let mut d = DrawList::new();
-    d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
-    d.rect(200, 120, 880, 590, Color::Panel);
-    d.text(draw_w() / 2, 158, 26, Color::Ink, Align::Center, heading);
-    d.text(draw_w() / 2, 188, 16, Color::Muted, Align::Center, hint);
-    let (cx, cy) = (draw_w() / 2, 450);
+    d.clear(Color::Clear);
+    let [bx, by, _, _] = SEAL_BOX;
+    let (cx, cy, r) = (bx + 40 + 235, by + 84 + 235, 235);
+    // the dial: a disc drawn as a thick ring, then its rim
+    circle(&mut d, cx, cy, r / 2, Color::Dial, r);
+    circle(&mut d, cx, cy, r, Color::Ink, 5);
     let n = rings.len().max(1) as i32;
+    let step = 150 / n;
+    let band = (step * 7 / 10).max(6);
     let point = |r: i32, a: i32| {
         (
             cx + fx::mul(fx::sin(a), r * fx::ONE) / fx::ONE,
@@ -180,34 +174,121 @@ pub fn seal(c: &Content, pieces: &[u16], rings: &[i32], at: usize, heading: &str
         )
     };
     for (k, &turn) in rings.iter().enumerate() {
-        let r = 220 - k as i32 * 170 / n;
-        let colour = if k < at {
-            Color::Good
-        } else if k == at {
-            Color::Gold
-        } else {
-            Color::Band
+        let rr = 205 - k as i32 * step - step / 2;
+        let piece = pieces.get(k).copied().unwrap_or(0) as usize;
+        let colour = match c.file.pieces.get(piece).map(|p| &p.kind) {
+            Some(PieceKind::Payload { .. }) => Color::RingPay,
+            Some(PieceKind::Trigger { .. }) | Some(PieceKind::Branch) => Color::RingTrig,
+            _ => Color::RingMod,
         };
-        let ring: Vec<(i32, i32)> = (0..=48).map(|i| point(r, fx::TURN * i / 48)).collect();
-        d.line(&ring, colour, if k == at { 8 } else { 5 });
-        // the piece's glyph, small, where the ring has turned it
+        circle(&mut d, cx, cy, rr, colour, band);
+        if k == at {
+            circle(&mut d, cx, cy, rr - band / 2, Color::Gold, 3);
+            circle(&mut d, cx, cy, rr + band / 2, Color::Gold, 3);
+        }
         let a = turn * fx::TURN / crate::prep::SEAL_STEPS;
-        let (gx, gy) = point(r, a);
-        let piece = &c.file.pieces[pieces.get(k).copied().unwrap_or(0) as usize];
-        let g: Vec<(i32, i32)> = glyph::glyph(&piece.glyph)
+        let (gx, gy) = point(rr, a);
+        let size = (band + 4).min(36);
+        let g: Vec<(i32, i32)> = glyph::glyph(&c.file.pieces[piece].glyph)
             .iter()
             .map(|&(x, y)| {
                 (
-                    gx + (x - glyph::BOX / 2) * 34 / glyph::BOX,
-                    gy + (y - glyph::BOX / 2) * 34 / glyph::BOX,
+                    gx + (x - glyph::BOX / 2) * size / glyph::BOX,
+                    gy + (y - glyph::BOX / 2) * size / glyph::BOX,
                 )
             })
             .collect();
-        d.line(&g, Color::Ink, 4);
+        d.line(&g, school_colour(c.piece_school[piece]), 4);
+        if k < at {
+            circle(&mut d, gx, gy, size * 3 / 4, Color::Good, 4);
+        }
     }
-    // the mark
-    d.shape(Shape::Star, cx, cy - 244, Scale::Tile, Color::Gold, Color::Ink, 2);
+    // the mark, and a dashed line from it to the middle
+    let top = cy - r;
+    let mut y = top + 20;
+    while y < cy - 44 {
+        d.line(&[(cx, y), (cx, (y + 8).min(cy - 44))], Color::Gold, 3);
+        y += 16;
+    }
+    d.shape(Shape::Down, cx, top + 4, Scale::Tile, Color::Gold, Color::Ink, 3);
+    circle(&mut d, cx, cy, 22, Color::Paper, 44);
+    circle(&mut d, cx, cy, 44, Color::Ink, 4);
+    d.text(
+        cx,
+        cy,
+        28,
+        Color::Ink,
+        Align::Center,
+        &(at + 1).min(rings.len()).to_string(),
+    );
     d.finish()
+}
+
+/// A seat on a picture of the field (T32, T33): which seat, where its
+/// middle is in thousandths of a cell, and who holds it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Spot {
+    pub seat: i32,
+    pub x: i32,
+    pub z: i32,
+    /// The holder, and their initials, empty for a free seat.
+    pub who: Option<u16>,
+    pub text: String,
+    /// The student picked at office hours holds it.
+    pub on: bool,
+    /// The holder chose it, rather than being given the first free seat.
+    pub chose: bool,
+}
+
+/// The tower's seats stand on a ring this far round its middle, and a
+/// seat's disc is this wide, both in thousandths of a cell.
+pub const SPOT_RING: i32 = 3600;
+pub const SPOT_SIZE: i32 = 1500;
+
+/// Where the seats are on the field: the tower's in a ring from the top,
+/// clockwise, then each sub-tower's just above it.
+pub fn spots(a: &Arena, tower_seats: i32, subs: &[(i32, i32)]) -> Vec<(i32, i32, i32)> {
+    use crate::fx;
+    let (cx, cz) = (a.tower.0 * 1000 + 500, a.tower.1 * 1000 + 500);
+    let n = tower_seats.max(1);
+    let mut out: Vec<(i32, i32, i32)> = (0..tower_seats)
+        .map(|i| {
+            let ang = i * fx::TURN / n;
+            (
+                i,
+                cx + (fx::sin(ang) as i64 * SPOT_RING as i64 / fx::ONE as i64) as i32,
+                cz - (fx::cos(ang) as i64 * SPOT_RING as i64 / fx::ONE as i64) as i32,
+            )
+        })
+        .collect();
+    for (k, &(x, z)) in subs.iter().enumerate() {
+        out.push((
+            crate::battle::SUB_SEAT + k as i32,
+            x * 1000 + 500,
+            z * 1000 + 500 - 1100,
+        ));
+    }
+    out
+}
+
+/// The spot under a logical point on the layout map.
+pub fn spot_at(spots: &[Spot], lx: i32, ly: i32) -> Option<&Spot> {
+    let r = SPOT_SIZE * MAP_CELL / 2000 + 2;
+    spots.iter().find(|s| {
+        let (x, y) = (MAP_X + s.x * MAP_CELL / 1000, MAP_Y + s.z * MAP_CELL / 1000);
+        (lx - x).abs() <= r && (ly - y).abs() <= r
+    })
+}
+
+/// A feature's swatch: the colour role its cells are drawn in, by name.
+pub fn swatch(id: &str) -> &'static str {
+    match id {
+        "glass_wall" => "glass",
+        "ivory_wall" => "ivory",
+        "lava_pool" => "lava",
+        "bait" => "bait",
+        _ => "sub",
+    }
 }
 
 /// The interview's note lane: notes slide left to the hit line.
@@ -246,6 +327,7 @@ pub fn layout(
     placed: &[Placed],
     rising: &[Placed],
     ghost: Option<(&Placed, bool)>,
+    seats: &[Spot],
 ) -> Vec<i32> {
     let mut d = DrawList::new();
     d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
@@ -279,10 +361,10 @@ pub fn layout(
     // what is still rising shows as a smaller square of its colour
     let all = placed.iter().map(|p| (p, 2)).chain(rising.iter().map(|p| (p, 5)));
     for (p, inset) in all {
-        let colour = match c.file.features[p.feature as usize].id.as_str() {
-            "glass_wall" => Color::Glass,
-            "ivory_wall" => Color::Ivory,
-            "lava_pool" => Color::Lava,
+        let colour = match swatch(&c.file.features[p.feature as usize].id) {
+            "glass" => Color::Glass,
+            "ivory" => Color::Ivory,
+            "lava" => Color::Lava,
             "bait" => Color::Bait,
             _ => Color::Sub,
         };
@@ -310,6 +392,25 @@ pub fn layout(
             }
         }
     }
+    // seating students (T33): a disc for each seat, the holder's initials on it
+    for sp in seats {
+        let (x, y) = (MAP_X + sp.x * MAP_CELL / 1000, MAP_Y + sp.z * MAP_CELL / 1000);
+        let (fill, ink) = match (sp.on, sp.text.is_empty(), sp.chose) {
+            (true, _, _) => (Color::Gold, Color::Ink),
+            (_, true, _) => (Color::Paper, Color::Muted),
+            (_, _, true) => (Color::Accent, Color::Paper),
+            _ => (Color::Sub, Color::Ink),
+        };
+        d.shape(Shape::Disc, x, y, Scale::Tile, fill, Color::Ink, 2);
+        d.text(
+            x,
+            y + 1,
+            11,
+            ink,
+            Align::Center,
+            if sp.text.is_empty() { "+" } else { &sp.text },
+        );
+    }
     d.finish()
 }
 
@@ -335,7 +436,9 @@ mod tests {
     fn each_overlay_is_a_complete_draw_list() {
         let c = crate::content::shipped();
         let a = crate::battle::field(3);
-        assert!(walk(&layout(&c, &a, &[], &[], None)).unwrap() > arena::SIZE as usize * arena::SIZE as usize);
+        assert!(
+            walk(&layout(&c, &a, &[], &[], None, &[])).unwrap() > arena::SIZE as usize * arena::SIZE as usize
+        );
         let lane = Lane::new(&mut crate::rng::Rng::new(1), false, 4, 9);
         let keys = ["J".to_string(), "K".to_string(), "L".to_string(), "✦".to_string()];
         assert!(walk(&interview(&lane, "Interview", &keys, "")).is_some());

@@ -550,6 +550,8 @@ impl Content {
             ("max_chain", b.max_chain, 2, 8),
             ("effect_min_pct", b.effect_min_pct, 1, 100),
             ("effect_max_pct", b.effect_max_pct, 50, 150),
+            // a tower seat's number stays below the sub-towers' (T33)
+            ("tower_seats", b.tower_seats, 0, crate::battle::SUB_SEAT),
         ] {
             if !(lo..=hi).contains(&value) {
                 return Err(ContentError::OutOfRange {

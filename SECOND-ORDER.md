@@ -105,6 +105,16 @@ One row per assumption, surprise or open item. **Kind** is *divergence* (what wa
 | R5.11 | finding | The Crash Course trial asked for an 80% class average. | Under the steep curve, 80% needs a near-flawless drawing for eight students. | The target moved to the trial's data at 60%; the text says why. | `data/content.json` trials | done |
 | R5.12 | finding | The builder's tiles drew their names in the school's colour; Alteration green on paper measured 2.6:1. | Caught by `tests/browser/contrast.py` (T6's check) before the push. | The icon keeps the school's colour; the name stays ink. | `tests/browser/contrast.py` | done |
 | R5.13 | finding | Ten break rows rotted this round, because their code was rewritten (reading, saving, seating, raising, the map panel, mana). | `break_tests.py` reported each as ROTTED, none as missed. | Each was rewritten against today's line; the sorting test gained a nine-is-not-enough step so a break that ends sorting early is caught. | `tests/breaks.json` | done |
+| R6.1 | divergence | Round 5's screens were built to their approved mockups. | They were drawn by the generic panel renderer (rows, chips, buttons) and lost the mockups' columns, bars, field, dial and shelves; the person saw it at once (T32). I checked each screen worked, not that it looked like its mockup. | The page gained a few generic blocks the core lays out (columns, meters, a table, a board of placed boxes, button groups with one chosen, keys, a note, shelves) and drag and drop. Office hours, the builder, the seal, the sorting game and the map table were rebuilt to their mockups and compared side by side. | `CLAUDE.md` rule 13 | done |
+| R6.2 | finding | Sub-tower seats were numbered from `SUB_SEAT` 10. | The tower has 12 seats, so "Sub-tower 1" and "Sub-tower 2" were tower seats 11 and 12, and office hours offered only Towers 1–10. No test seated a student on a sub-tower by choice. | `SUB_SEAT` is 32; content refuses `tower_seats` above it; a test puts a student on a sub-tower and finds them there. | `a_student_put_on_a_sub_tower_stands_on_it_not_on_a_tower_seat`; content check | done |
+| R6.3 | divergence | Choosing a seat at office hours put the student there. | Two students could choose one seat; the second was quietly given the first free seat. | A seat holds one student: whoever had it takes the mover's old place, so dragging one student onto another trades them. The ground holds any number. The map table can choose a seat (T33), nothing else of office hours. | `a_seat_holds_one_student_and_two_trade_when_one_takes_the_others` | done |
+| R6.4 | divergence | The pictures of the field would compute who sits where for themselves. | That would be a second copy of the battle's seating rule. | The rule moved out of `Battle::new` into `battle::seating`, which the battle, office hours' board and the map's discs all use, so a picture shows where a student will stand, including those given the first free seat (pale). | `seating_gives_choices_first_then_the_first_free_seat` | done |
+| R6.5 | finding | The seats would be drawn where they are in 3D. | In 3D the 12 seats stand at three heights on a ring 2.3 cells round the tower; seen from above they overlap. | The map and office hours draw them on a flat ring 3.6 cells round, from the top, clockwise: a diagram, not to scale. Office hours' board shows the part of the field round the seats and any sub-towers, 8 wide to 5 high and at least 18 cells across, as the mockup crops. | `overlay::spots` | done |
+| R6.6 | finding | The overlay canvas cleared itself each frame. | It never cleared; every overlay began with a full-screen shade, which hid that. The seal and sorting game now draw over a panel, without a shade, and left trails. | The clear op wipes the canvas before it fills, and a see-through `clear` colour exists. | `web/render2d.js` | done |
+| R6.7 | divergence | The sorting game's shelves were drawn on the canvas, and clicks mapped to shelves by x. | The mockup's shelves hold the books shelved and a key cap; that is easier as page buttons. | The shelves are buttons (`sort.shelf`), the canvas draws only the falling book over the panel and takes no pointer, and `shelf_at` is gone. The seal works the same way: the dial on the canvas, the words beside it. | `the_seal_lists_its_rings_and_the_sorting_game_has_a_shelf_button_each` | done |
+| R6.8 | divergence | Each mockup's every detail would be built. | Left out: the sorting game's clock chip (the game keeps no time for it) and office hours' "hired on day 1 from an interview of 82" (not recorded). The builder's tray shows one blank tile with a count, not one blank per unread piece: twenty blanks pushed the tray off the panel. | Recorded here. | | done |
+| R6.9 | worklist | The new words are mine. | Office hours, map seating, seal, sorting game and builder labels (listed at the foot). "Seal and keep the spell" became "Seal the spell", as in the mockup. | For the person to read. | | person |
+| R6.10 | finding | The contrast check covered the new screens. | It measured the title, the glossary and the laboratory only. Measuring the laboratory again in the dark theme found two mana numbers drawn in the theme's pale ink on a light card and on a gold button (1.0:1 and 1.7:1). | A mana number takes its button's colour, the spell's card keeps dark words, and the check now also measures office hours and the map's seating, failing if the walk does not reach them. | `tests/browser/contrast.py` | done |
 
 ## Strings written by the agent
 
@@ -377,3 +387,70 @@ Every string in `data/strings.json` (263). The names in `data/content.json` are 
 | `page.bad_code` | A room code is four to eight letters and digits. |
 | `page.loading` | Getting the connection ready. |
 | `online.invite_more` | Invite another player |
+| `office.lead` | A desk in the tower room. See each student, choose where they stand in the battle, and what they cast. |
+| `office.class` | Your class · {n} students |
+| `office.stats` | Stats |
+| `office.range` | Range |
+| `office.per_s_short` | {n}/s |
+| `office.proficiency` | Proficiency by school |
+| `office.spells_heading` | Spells and casting effectiveness |
+| `office.col_spell` | Spell |
+| `office.col_eff` | Effectiveness |
+| `office.col_cast` | Cast |
+| `office.no_spells` | Nothing taught yet. Teach a spell at the podium. |
+| `office.where_short` | Where {name} stands |
+| `office.board_text` | Click a seat or drag a student onto one: the ring is the tower's {n} seats, and a sub-tower has its own. Dark: chosen here. Pale: given the first free seat. The ground has less range. |
+| `office.casts` | What {name} casts |
+| `office.step_hint` | Click a step to take it out. |
+| `office.add` | + {spell} |
+| `map.tab_build` | Build |
+| `map.tab_seats` | Seat students |
+| `map.seats_how` | Pick a student, then click a seat on the map, or drag a student's disc from one seat to another. Two students trade seats. |
+| `map.golem_chip` | golem, {s} s |
+| `map.rise_chip` | {s} s a cell |
+| `map.route_heading` | The route |
+| `map.route_cells` | {n} cells |
+| `map.route_was` | was {n} |
+| `map.route_far` | Enemies walk {x} times as far as on the bare field. |
+| `map.route_placed` | This field: {n} cells placed. |
+| `map.route_note` | A wall that would close the route is refused, cell by cell, as you drag. |
+| `map.seats_note` | Students stand where the map shows when the battle starts. Anyone you have not seated takes the first free seat. |
+| `map.pick_student` | Pick a student first. |
+| `seal.title` | Seal the spell |
+| `seal.text` | Turn each ring until its piece's glyph sits under the gold mark. One ring for each piece, so a longer spell takes longer to seal. |
+| `seal.ring` | Ring {n} · {piece} |
+| `seal.sealed` | sealed |
+| `seal.turning` | turning |
+| `seal.next` | next |
+| `key.left` | A |
+| `key.right` | D |
+| `key.space` | Space |
+| `key.esc` | Esc |
+| `seal.keys_turn` | turn the ring · |
+| `seal.keys_lock` | lock it · |
+| `seal.keys_stop` | stop |
+| `seal.explain` | Each ring starts at a random turn and turns a step further if you lock it off the mark. |
+| `seal.never_lead` | Never changes the spell. |
+| `seal.never` | How well you seal only changes how long saving takes. Effectiveness comes from teaching at the podium. |
+| `sort.title` | Sort the pile |
+| `sort.text` | Shelve each book by its school before it lands: press its number or click its shelf. Somewhere in the pile is a book you have not read. |
+| `sort.floor` | On the floor: {n} |
+| `sort.searching` | Searching |
+| `sort.count` | {n} of {of} shelved |
+| `sort.explain` | {of} shelved finds the book. A wrong shelf drops the book back on the pile, and the next one falls faster. |
+| `sort.streak` | Streak {n} |
+| `sort.golem_heading` | Or send the golem |
+| `sort.golem_text` | A librarian golem searches the pile alone: one unread book every {s} s, for this much mana. Slower than you, but you can teach meanwhile. |
+| `sort.golem_wake` | Wake the golem |
+| `builder.lead` | Each set reads left to right: optional modifiers, a payload, then a trigger. A trigger opens the next set; a branch starts a second row from the first trigger. |
+| `builder.drag` | Drag a tile onto a slot, or click a tile to add it. A slot only takes its own kind: blue modifiers, red payloads, yellow triggers. |
+| `builder.this_spell` | This spell |
+| `builder.seal_note` | Sealing is a short puzzle. It never changes how strong the spell is. |
+| `builder.your_spells` | Your spells |
+| `builder.empty` | Start with a payload from the tray below. |
+| `builder.set` | Set {n} |
+| `builder.set_after` | Set {n}: {trigger} |
+| `builder.unread` | {n} not read yet |
+| `builder.wrong_slot` | That slot takes another kind of piece. |
+| `lab.stats` | Power {power} · cooldown {cooldown} s |
+| `lab.save` | Seal the spell |

@@ -45,7 +45,7 @@ pub struct StudentPlan {
     /// The school the student leans to, for the colour of their robe.
     #[serde(default)]
     pub school: u8,
-    /// Where office hours put them (T15): a tower seat 0–3, a sub-tower
+    /// Where office hours put them (T15): a tower seat below `tower_seats`, a sub-tower
     /// `SUB_SEAT + k`, `GROUND_SEAT`, or `AUTO_SEAT` for the first free one.
     #[serde(default = "auto_seat")]
     pub seat: i32,
@@ -59,7 +59,7 @@ pub struct StudentPlan {
 }
 
 pub const AUTO_SEAT: i32 = -1;
-pub const SUB_SEAT: i32 = 10;
+pub const SUB_SEAT: i32 = 32;
 pub const GROUND_SEAT: i32 = 99;
 pub const CAST_BEST: u8 = 0;
 pub const CAST_ROTATION: u8 = 1;
@@ -322,6 +322,43 @@ pub fn seat_pos(tower: V3, i: usize) -> V3 {
     )
 }
 
+/// Where each student stands (T15, T33): office hours' choices first, then
+/// everyone else in hiring order into the first free tower seat, then a
+/// sub-tower's, then the ground. A choice of a seat that is taken or not
+/// there counts as no choice. Each answer is a tower seat below
+/// `tower_seats`, `SUB_SEAT + k`, or `GROUND_SEAT`.
+pub fn seating(tower_seats: usize, subs: usize, wants: &[i32]) -> Vec<i32> {
+    let mut tower = vec![false; tower_seats];
+    let mut sub = vec![false; subs];
+    let mut got: Vec<Option<i32>> = vec![None; wants.len()];
+    for (i, &t) in wants.iter().enumerate() {
+        if (0..tower_seats as i32).contains(&t) && !tower[t as usize] {
+            tower[t as usize] = true;
+            got[i] = Some(t);
+        } else if (SUB_SEAT..SUB_SEAT + subs as i32).contains(&t) && !sub[(t - SUB_SEAT) as usize] {
+            sub[(t - SUB_SEAT) as usize] = true;
+            got[i] = Some(t);
+        } else if t == GROUND_SEAT {
+            got[i] = Some(GROUND_SEAT);
+        }
+    }
+    got.into_iter()
+        .map(|g| {
+            g.unwrap_or_else(|| {
+                if let Some(k) = tower.iter().position(|t| !t) {
+                    tower[k] = true;
+                    k as i32
+                } else if let Some(k) = sub.iter().position(|t| !t) {
+                    sub[k] = true;
+                    SUB_SEAT + k as i32
+                } else {
+                    GROUND_SEAT
+                }
+            })
+        })
+        .collect()
+}
+
 /// Where students without a seat stand: a ring round the tower's foot.
 pub fn ground_pos(tower: V3, i: usize) -> V3 {
     let a = (i as i32 * fx::TURN * 7 / 40) % fx::TURN;
@@ -427,39 +464,25 @@ impl Battle {
         }
         let tower = tower_centre(&b.arena);
         let bal = c.balance();
-        // seats: office hours' choices first (T15), then everyone else in
-        // hiring order into the first free tower seat, then a sub-tower's,
-        // then the ground
-        let mut tower_taken = vec![false; seats];
-        let mut sub_taken = vec![false; sub_seats.len()];
+        let wants: Vec<i32> = plan.students.iter().map(|s| s.seat).collect();
+        let got = seating(seats, sub_seats.len(), &wants);
+        // the ground's places go first to those who chose it, then to the rest
         let mut chosen: Vec<Option<(V3, i32)>> = vec![None; plan.students.len()];
         let mut ground = 0;
-        for (i, s) in plan.students.iter().enumerate() {
-            let t = s.seat;
-            if (0..seats as i32).contains(&t) && !tower_taken[t as usize] {
-                tower_taken[t as usize] = true;
-                chosen[i] = Some((seat_pos(tower, t as usize), bal.seat_range_pct));
-            } else if (SUB_SEAT..SUB_SEAT + sub_seats.len() as i32).contains(&t)
-                && !sub_taken[(t - SUB_SEAT) as usize]
-            {
-                sub_taken[(t - SUB_SEAT) as usize] = true;
-                chosen[i] = Some((sub_seats[(t - SUB_SEAT) as usize], bal.seat_range_pct));
-            } else if t == GROUND_SEAT {
-                chosen[i] = Some((ground_pos(tower, ground), bal.ground_range_pct));
-                ground += 1;
+        for pass in [true, false] {
+            for (i, &g) in got.iter().enumerate() {
+                if g == GROUND_SEAT && (wants[i] == GROUND_SEAT) == pass {
+                    chosen[i] = Some((ground_pos(tower, ground), bal.ground_range_pct));
+                    ground += 1;
+                }
             }
         }
-        for slot in chosen.iter_mut().filter(|c| c.is_none()) {
-            *slot = Some(if let Some(k) = tower_taken.iter().position(|t| !t) {
-                tower_taken[k] = true;
-                (seat_pos(tower, k), bal.seat_range_pct)
-            } else if let Some(k) = sub_taken.iter().position(|t| !t) {
-                sub_taken[k] = true;
-                (sub_seats[k], bal.seat_range_pct)
-            } else {
-                ground += 1;
-                (ground_pos(tower, ground - 1), bal.ground_range_pct)
-            });
+        for (i, &g) in got.iter().enumerate() {
+            if (0..seats as i32).contains(&g) {
+                chosen[i] = Some((seat_pos(tower, g as usize), bal.seat_range_pct));
+            } else if g >= SUB_SEAT && g != GROUND_SEAT {
+                chosen[i] = Some((sub_seats[(g - SUB_SEAT) as usize], bal.seat_range_pct));
+            }
         }
         for (i, s) in plan.students.iter().enumerate() {
             let (pos, range_pct) = chosen[i].unwrap_or((tower, bal.ground_range_pct));

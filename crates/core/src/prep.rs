@@ -174,6 +174,12 @@ pub enum Activity {
         y: i32,
         fall: i32,
         shelved: i32,
+        /// Right in a row, and how many went on each school's shelf, for
+        /// the picture (T32).
+        #[serde(default)]
+        streak: i32,
+        #[serde(default)]
+        per: Vec<u8>,
     },
 }
 
@@ -460,9 +466,16 @@ impl Prep {
                 *left -= 1;
                 finished_reading = *left <= 0;
             }
-            Activity::Sorting { book, y, fall, .. } => {
+            Activity::Sorting {
+                book,
+                y,
+                fall,
+                streak,
+                ..
+            } => {
                 *y += 1;
                 if *y >= *fall {
+                    *streak = 0;
                     // it landed: back on the pile, and the next falls faster
                     *fall = (*fall * b.sort_faster_pct / 100)
                         .max(content::ticks(b.sort_min_ms))
@@ -961,6 +974,8 @@ impl Prep {
                     y: 0,
                     fall,
                     shelved: 0,
+                    streak: 0,
+                    per: vec![0; c.file.schools.len()],
                 };
             }
             "sort.shelf" => {
@@ -971,13 +986,20 @@ impl Prep {
                     y,
                     fall,
                     shelved,
+                    streak,
+                    per,
                 } = &mut self.activity
                 else {
                     return Err("sort.none");
                 };
                 if shelf == *book {
                     *shelved += 1;
+                    *streak += 1;
+                    if let Some(n) = per.get_mut(shelf as usize) {
+                        *n += 1;
+                    }
                 } else {
+                    *streak = 0;
                     // back on the pile, and the next falls faster
                     *fall = (*fall * b.sort_faster_pct / 100)
                         .max(content::ticks(b.sort_min_ms))
@@ -1256,17 +1278,36 @@ impl Prep {
                 self.erase(c, (n[0], n[1]));
             }
             // office hours (T15): value "student id,choice"
-            "office.seat" | "office.mode" | "office.rot_add" | "office.rot_clear" => {
-                self.at(Station::Office)?;
+            "office.seat" | "office.mode" | "office.rot_add" | "office.rot_del" | "office.rot_clear" => {
+                // a seat can also be chosen on the map table (T33)
+                let at_map = name == "office.seat" && self.at(Station::Map).is_ok();
+                if !at_map {
+                    self.at(Station::Office)?;
+                }
                 let n = crate::strings::ints(value);
                 let id = *n.first().ok_or("office.bad")? as u16;
                 let spells = self.spells.len() as i32;
+                let v = n.get(1).copied().unwrap_or(0);
+                let old = self
+                    .students
+                    .iter()
+                    .find(|s| s.id == id)
+                    .ok_or("office.bad")?
+                    .seat;
+                // a seat holds one student: whoever had it takes the mover's
+                // old place (T33)
+                let single = (0..c.balance().tower_seats).contains(&v)
+                    || (crate::battle::SUB_SEAT..crate::battle::GROUND_SEAT).contains(&v);
+                if name == "office.seat" && single {
+                    if let Some(other) = self.students.iter_mut().find(|s| s.id != id && s.seat == v) {
+                        other.seat = old;
+                    }
+                }
                 let s = self
                     .students
                     .iter_mut()
                     .find(|s| s.id == id)
                     .ok_or("office.bad")?;
-                let v = n.get(1).copied().unwrap_or(0);
                 match name {
                     "office.seat" => {
                         let ok = v == crate::battle::AUTO_SEAT
@@ -1289,6 +1330,12 @@ impl Prep {
                             return Err("office.bad");
                         }
                         s.rotation.push(v as u16);
+                    }
+                    "office.rot_del" => {
+                        if !(0..s.rotation.len() as i32).contains(&v) {
+                            return Err("office.bad");
+                        }
+                        s.rotation.remove(v as usize);
                     }
                     _ => s.rotation.clear(),
                 }

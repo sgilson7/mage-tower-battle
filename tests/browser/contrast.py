@@ -95,6 +95,26 @@ def run(p, engine, origin):
         page.locator("button[data-action='lab.add']").last.click()
         page.wait_for_timeout(200)
         look(page, "spell laboratory with a draft", scheme)
+        # office hours and seating on the map (T32, T33): the most colours
+        # on one screen; the office is at x 0, south of the room
+        page.keyboard.down("KeyA")
+        waited = 0
+        while waited < 10000 and int(page.get_attribute("body", "data-x") or 0) > 4:
+            page.wait_for_timeout(40)
+            waited += 40
+        page.keyboard.up("KeyA")
+        hold_until(page, ["KeyS"], "office")
+        page.wait_for_timeout(200)
+        if page.get_attribute("body", "data-station") != "office" or page.locator("#station, #layout").count() == 0:
+            failures.append(f"{scheme}: never reached the office")
+        look(page, "office hours", scheme)
+        hold_until(page, ["KeyW"], "map")
+        page.keyboard.press("KeyE")
+        page.click("button[data-action='layout.seats'][data-value='on']")
+        page.wait_for_timeout(200)
+        if page.get_attribute("body", "data-station") != "map" or page.locator("#station, #layout").count() == 0:
+            failures.append(f"{scheme}: never reached the map")
+        look(page, "map table, seating", scheme)
         page.close()
     browser.close()
 

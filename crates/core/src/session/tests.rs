@@ -19,6 +19,45 @@ fn session() -> Session {
 }
 
 /// Every string in a view model, with none missing from strings.json.
+/// A panel's blocks of one type (T32), in order.
+fn blocks(panel: &Value, t: &str) -> Vec<Value> {
+    panel["blocks"]
+        .as_array()
+        .map(|b| b.iter().filter(|x| x["t"] == t).cloned().collect())
+        .unwrap_or_default()
+}
+
+fn find_panel(s: &Session, id: &str) -> Option<Value> {
+    s.ui()["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == id)
+        .cloned()
+}
+
+/// Every button a panel holds, wherever it sits.
+fn buttons_in(v: &Value) -> Vec<Value> {
+    let mut out = Vec::new();
+    match v {
+        Value::Object(m) => {
+            if m.contains_key("name") && m.contains_key("enabled") {
+                out.push(v.clone());
+            }
+            for x in m.values() {
+                out.extend(buttons_in(x));
+            }
+        }
+        Value::Array(a) => {
+            for x in a {
+                out.extend(buttons_in(x));
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
 fn no_missing(v: &Value) {
     let text = v.to_string();
     let re_like = text.match_indices('[').filter(|(i, _)| {
@@ -424,11 +463,7 @@ fn e_opens_the_map_at_the_map_table_and_esc_closes_it() {
         panel["kind"], "map",
         "the map's panel is not a side panel the overlay hides"
     );
-    assert!(panel["actions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|a| a["name"] == "layout.close"));
+    assert!(buttons_in(&panel).iter().any(|a| a["name"] == "layout.close"));
     tick(&mut s, prep::BACK | prep::USE);
     assert!(!s.layout.open, "Esc closes it, even with E held");
     tick(&mut s, prep::USE);
@@ -632,12 +667,19 @@ fn the_map_panel_does_not_change_while_something_rises() {
             .find(|p| p["id"] == id)
             .cloned()
     };
-    assert!(panel(&s, "rising").is_some(), "the glass wall is rising");
+    let glass = s.c.file.features[s.c.feature("glass_wall").unwrap()].name.clone();
+    assert!(
+        panel(&s, "route")
+            .unwrap()
+            .to_string()
+            .contains(&format!("1 × {glass}")),
+        "the glass wall is rising, beside the map"
+    );
     let before = panel(&s, "layout").unwrap();
     // glass rises in 500 ms (30 ticks); look while it is still rising
     run(&mut s, 20);
     assert_eq!(panel(&s, "layout").unwrap(), before, "the map's buttons stay put");
-    assert_ne!(panel(&s, "rising"), None);
+    assert!(panel(&s, "route").unwrap().to_string().contains(&glass));
 }
 
 #[test]
@@ -778,8 +820,9 @@ fn mana_costs_are_sent_for_the_mana_symbol() {
         .find(|p| p["id"] == "station")
         .cloned()
         .unwrap();
-    assert_eq!(lab["mana"]["n"], bolt.to_string(), "the draft's cost");
-    assert_eq!(lab["mana"]["label"], format!("{bolt} mana"));
+    let cost = &blocks(&lab, "mana")[0]["mana"];
+    assert_eq!(cost["n"], bolt.to_string(), "the draft's cost");
+    assert_eq!(cost["label"], format!("{bolt} mana"));
     s.act("lab.add", "ice_shard").unwrap();
     s.act("lab.save", "").unwrap();
     seal(&mut s);
@@ -791,12 +834,13 @@ fn mana_costs_are_sent_for_the_mana_symbol() {
         .find(|p| p["id"] == "station")
         .cloned()
         .unwrap();
+    let saved: Vec<Value> = buttons_in(&lab)
+        .into_iter()
+        .filter(|a| a["name"] == "spell.choose")
+        .collect();
+    assert!(!saved.is_empty());
     assert!(
-        lab["saved"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|r| r["mana"]["n"].is_string()),
+        saved.iter().all(|r| r["mana"]["n"].is_string()),
         "each saved spell's cost"
     );
     s.act("glossary.toggle", "").unwrap();
@@ -865,7 +909,6 @@ fn office_hours_shows_a_student_and_sets_their_seat_and_rotation() {
     s.act("match.start", "practice").unwrap();
     s.teleport(Station::Office);
     run(&mut s, 1);
-    let c = s.c.clone();
     let ids: Vec<u16> =
         s.m.as_ref()
             .unwrap()
@@ -879,14 +922,19 @@ fn office_hours_shows_a_student_and_sets_their_seat_and_rotation() {
     let ui = s.ui();
     no_missing(&ui);
     let ps = ui["panels"].as_array().unwrap();
-    assert!(
-        ps.iter().any(|p| p["id"] == "office-student"),
-        "the student's numbers"
+    let office = ps.iter().find(|p| p["id"] == "station").unwrap();
+    assert_eq!(office["kind"], "office", "one panel, after the mockup");
+    assert_eq!(
+        blocks(office, "meters").len(),
+        2,
+        "the student's stats and their leanings"
     );
-    let deploy = ps.iter().find(|p| p["id"] == "office-deploy").unwrap();
-    let seat_buttons = deploy["actions"].as_array().unwrap().len() as i32;
-    // first free, the tower's seats, no sub-tower yet, the ground
-    assert_eq!(seat_buttons, 1 + c.balance().tower_seats + 1);
+    let seat_buttons = buttons_in(office)
+        .iter()
+        .filter(|a| a["name"] == "office.seat")
+        .count() as i32;
+    // the tower's 12 seats on the board, no sub-tower yet, then first free and the ground
+    assert_eq!(seat_buttons, 12 + 2);
     let id = ids[0];
     s.act("office.pick", &id.to_string()).unwrap();
     s.act("office.seat", &format!("{id},{}", battle::GROUND_SEAT))
@@ -909,5 +957,157 @@ fn office_hours_shows_a_student_and_sets_their_seat_and_rotation() {
     assert!(
         ui.to_string().contains("Stands: Ground"),
         "the students tab shows where they stand"
+    );
+}
+
+#[test]
+fn on_the_map_a_students_disc_is_dragged_to_another_seat() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Map);
+    s.act("layout.open", "").unwrap();
+    s.act("layout.seats", "on").unwrap();
+    let ids: Vec<u16> =
+        s.m.as_ref()
+            .unwrap()
+            .local_prep()
+            .unwrap()
+            .students
+            .iter()
+            .map(|x| x.id)
+            .collect();
+    // nobody seated yet: the first student is given seat 0, at the ring's top.
+    // The tower's middle is cell (27.5, 4.5) and the ring 3.6 cells round
+    // it; a cell is 18 px from (352, 72): seat 0 at (847, 88), seat 3 a
+    // quarter turn on at (911, 153)
+    let err = s.act("pointer.up", "911,153,1280,720").unwrap_err();
+    assert_eq!(
+        err, "Pick a student first.",
+        "an empty seat needs a student picked"
+    );
+    s.act("pointer.down", "847,88,1280,720").unwrap();
+    s.act("pointer.up", "911,153,1280,720").unwrap();
+    let seats: Vec<i32> =
+        s.m.as_ref()
+            .unwrap()
+            .local_prep()
+            .unwrap()
+            .students
+            .iter()
+            .map(|x| x.seat)
+            .collect();
+    assert_eq!(seats[0], 3, "the first student now chose seat 3");
+    assert_eq!(seats[1], battle::AUTO_SEAT, "the other was not moved");
+    // the map shows the seats only while seating
+    s.act("layout.seats", "off").unwrap();
+    s.act("pointer.down", "847,88,1280,720").unwrap();
+    s.act("pointer.up", "847,88,1280,720").unwrap();
+    assert_eq!(s.m.as_ref().unwrap().local_prep().unwrap().students[0].seat, 3);
+    let _ = ids;
+}
+
+#[test]
+fn the_builder_shows_one_kind_of_tile_and_a_dropped_tile_must_fit_its_slot() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Lab);
+    run(&mut s, 1);
+    let tray = |s: &Session| blocks(&find_panel(s, "station").unwrap(), "tray")[0]["tray"].clone();
+    let kinds = |t: &Value| -> Vec<String> {
+        t["tiles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["kind"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let t = tray(&s);
+    assert!(
+        !kinds(&t).is_empty() && kinds(&t).iter().all(|k| k == "pay"),
+        "payloads first"
+    );
+    s.act("lab.tab", "trig").unwrap();
+    assert!(kinds(&tray(&s)).iter().all(|k| k == "trig"));
+    assert!(s.act("lab.tab", "spells").is_err());
+    s.act("lab.hold", "fire_bolt").unwrap();
+    assert!(
+        s.act("lab.drop", "trig").is_err(),
+        "a payload does not go in a trigger's slot"
+    );
+    s.act("lab.hold", "fire_bolt").unwrap();
+    s.act("lab.drop", "pay").unwrap();
+    let c = s.c.clone();
+    assert_eq!(
+        s.m.as_ref().unwrap().local_prep().unwrap().draft,
+        vec![c.piece("fire_bolt").unwrap() as u16]
+    );
+    assert!(s.act("lab.drop", "pay").is_err(), "nothing held after a drop");
+    no_missing(&s.ui());
+}
+
+#[test]
+fn the_seal_lists_its_rings_and_the_sorting_game_has_a_shelf_button_each() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Lab);
+    run(&mut s, 1);
+    s.act("lab.add", "fire_bolt").unwrap();
+    s.act("lab.add", "ice_shard").unwrap();
+    s.act("lab.save", "").unwrap();
+    let seal = find_panel(&s, "busy").unwrap();
+    assert_eq!(seal["kind"], "seal");
+    let rings = blocks(&seal, "rows")[0]["rows"].as_array().unwrap().clone();
+    assert_eq!(rings.len(), 2, "a ring for each piece");
+    assert_eq!(
+        (rings[0]["chip"].as_str(), rings[1]["chip"].as_str()),
+        (Some("turning"), Some("next"))
+    );
+    no_missing(&s.ui());
+    s.act("prep.cancel", "").unwrap();
+    s.teleport(Station::Library);
+    s.act("library.read", "").unwrap();
+    let sort = find_panel(&s, "busy").unwrap();
+    assert_eq!(sort["kind"], "sort");
+    let shelves: Vec<Value> = buttons_in(&sort)
+        .into_iter()
+        .filter(|a| a["name"] == "sort.shelf")
+        .collect();
+    assert_eq!(shelves.len(), s.c.file.schools.len());
+    assert!(
+        find_panel(&s, "golem").is_some(),
+        "the golem is offered beside it"
+    );
+    no_missing(&s.ui());
+}
+
+#[test]
+fn office_hours_draws_the_seats_and_a_held_seat_can_be_picked_up() {
+    let mut s = session();
+    s.act("match.start", "practice").unwrap();
+    s.teleport(Station::Office);
+    run(&mut s, 1);
+    let office = find_panel(&s, "station").unwrap();
+    let board = &blocks(&office, "board")[0];
+    let seats: Vec<&Value> = board["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["kind"] == "seat")
+        .collect();
+    assert_eq!(seats.len(), 12, "the tower's twelve seats");
+    // two students, given seats 0 and 1: those discs can be picked up
+    let held: Vec<&str> = seats
+        .iter()
+        .filter_map(|i| i["text"].as_str())
+        .filter(|t| !t.is_empty())
+        .collect();
+    assert_eq!(held.len(), 2);
+    assert_eq!(
+        seats.iter().filter(|i| i["action"]["grab"].is_object()).count(),
+        2
+    );
+    assert!(
+        seats.iter().all(|i| i["action"]["drop"] == true),
+        "each seat takes a drop"
     );
 }

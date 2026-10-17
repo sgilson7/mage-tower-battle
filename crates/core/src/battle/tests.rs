@@ -523,3 +523,47 @@ fn a_branch_starts_both_rows_when_its_trigger_fires() {
     assert_eq!(after_one, 1);
     assert_eq!(b.shots.len() - after_one, 2);
 }
+
+#[test]
+fn seating_gives_choices_first_then_the_first_free_seat() {
+    // three tower seats, one sub-tower seat; worked by hand: the second
+    // asks for seat 1 after the first did, so is given the next free one
+    let wants = [AUTO_SEAT, 1, 1, SUB_SEAT, GROUND_SEAT, AUTO_SEAT, AUTO_SEAT];
+    assert_eq!(
+        seating(3, 1, &wants),
+        vec![0, 1, 2, SUB_SEAT, GROUND_SEAT, GROUND_SEAT, GROUND_SEAT]
+    );
+    // a sub-tower that is not there counts as no choice
+    assert_eq!(seating(1, 0, &[SUB_SEAT, AUTO_SEAT]), vec![0, GROUND_SEAT]);
+}
+
+#[test]
+fn a_student_put_on_a_sub_tower_stands_on_it_not_on_a_tower_seat() {
+    // sub-tower seats were once numbered from 10, inside the tower's 12
+    let c = shipped();
+    assert!(c.balance().tower_seats <= SUB_SEAT);
+    let sub = c.feature("sub_tower").unwrap() as u16;
+    let st = StudentPlan {
+        seat: SUB_SEAT,
+        mode: 0,
+        rotation: Vec::new(),
+        mana_max: 100,
+        regen: 10,
+        spells: vec![(0, 100)],
+        school: 0,
+    };
+    let plan = Plan {
+        spells: vec![ids(&c, &["fire_bolt"])],
+        students: vec![st],
+        placed: vec![Placed {
+            feature: sub,
+            cells: vec![(20, 12)],
+        }],
+    };
+    let b = Battle::new(&c, 0, &plan, &[], &[], 1, 1, TPS * 90, 24);
+    let at = crate::arena::centre(20, 12);
+    assert_eq!(
+        (b.casters[0].pos.x, b.casters[0].pos.y, b.casters[0].pos.z),
+        (at.x, ONE * 33 / 10, at.z)
+    );
+}

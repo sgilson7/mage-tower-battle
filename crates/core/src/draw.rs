@@ -29,7 +29,7 @@ pub const HEIGHT: i32 = 720;
 /// What the page does next. The discriminant is the code on the list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Op {
-    /// colour
+    /// colour: wipes the canvas, then fills it
     Clear = 0,
     /// x, y, w, h, fill
     Rect = 1,
@@ -85,9 +85,15 @@ pub enum Color {
     Conjuration = 30,
     Illusion = 31,
     Restoration = 32,
+    Dial = 33,
+    RingPay = 34,
+    RingMod = 35,
+    RingTrig = 36,
+    /// Nothing: a clear in this colour leaves the canvas see-through.
+    Clear = 37,
 }
 
-pub const PALETTE: [(Color, &str); 33] = [
+pub const PALETTE: [(Color, &str); 38] = [
     (Color::Paper, "paper"),
     (Color::Ink, "ink"),
     (Color::Muted, "muted"),
@@ -121,6 +127,11 @@ pub const PALETTE: [(Color, &str); 33] = [
     (Color::Conjuration, "conjuration"),
     (Color::Illusion, "illusion"),
     (Color::Restoration, "restoration"),
+    (Color::Dial, "dial"),
+    (Color::RingPay, "ring_pay"),
+    (Color::RingMod, "ring_mod"),
+    (Color::RingTrig, "ring_trig"),
+    (Color::Clear, "clear"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,12 +143,14 @@ pub enum Shape {
     Star = 4,
     Cross = 5,
     Disc = 6,
+    /// A triangle pointing down, for the seal's mark (T32).
+    Down = 7,
 }
 
 /// Each shape is one or more closed polygons, centred on 0, 0, with points
 /// in `UNIT`ths of the shape's size: a square of size 1 runs from -500 to
 /// 500. Indexed by `Shape`.
-pub const SHAPES: [&[&[[i32; 2]]]; 7] = [
+pub const SHAPES: [&[&[[i32; 2]]]; 8] = [
     &[&[[-500, -500], [500, -500], [500, 500], [-500, 500]]],
     &[&[[0, -600], [600, 0], [0, 600], [-600, 0]]],
     &[&[
@@ -186,6 +199,7 @@ pub const SHAPES: [&[&[[i32; 2]]]; 7] = [
         [-500, 0],
         [-354, -354],
     ]],
+    &[&[[-520, -420], [520, -420], [0, 560]]],
 ];
 
 /// A shape's size in canvas pixels, in `UNIT`ths: `Tile` draws a square

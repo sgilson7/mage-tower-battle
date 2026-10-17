@@ -626,3 +626,85 @@ fn spells_on_yourself_speed_mana_hold_more_and_cost_less() {
         "not a piece of a spell"
     );
 }
+
+#[test]
+fn a_seat_holds_one_student_and_two_trade_when_one_takes_the_others() {
+    let c = shipped();
+    let mut p = prep(&c);
+    let (a, b) = (p.students[0].id, p.students[1].id);
+    go(&mut p, Station::Office);
+    p.act(&c, "office.seat", &format!("{a},3")).unwrap();
+    p.act(&c, "office.seat", &format!("{b},5")).unwrap();
+    p.act(&c, "office.seat", &format!("{b},3")).unwrap();
+    assert_eq!((p.students[0].seat, p.students[1].seat), (5, 3), "they trade");
+    // the ground holds any number, so no one moves
+    let g = crate::battle::GROUND_SEAT;
+    p.act(&c, "office.seat", &format!("{a},{g}")).unwrap();
+    p.act(&c, "office.seat", &format!("{b},{g}")).unwrap();
+    assert_eq!((p.students[0].seat, p.students[1].seat), (g, g));
+}
+
+#[test]
+fn a_seat_can_be_chosen_at_the_map_table_and_nothing_else_of_office_hours() {
+    let c = shipped();
+    let mut p = prep(&c);
+    let a = p.students[0].id;
+    go(&mut p, Station::Map);
+    p.act(&c, "office.seat", &format!("{a},2")).unwrap();
+    assert_eq!(p.students[0].seat, 2);
+    assert_eq!(p.act(&c, "office.mode", &format!("{a},1")), Err("prep.not_here"));
+    go(&mut p, Station::Library);
+    assert_eq!(p.act(&c, "office.seat", &format!("{a},4")), Err("prep.not_here"));
+}
+
+#[test]
+fn a_step_of_a_rotation_can_be_taken_out() {
+    let c = shipped();
+    let mut p = prep(&c);
+    let a = p.students[0].id;
+    p.spells = vec![vec![0], vec![1], vec![2]];
+    go(&mut p, Station::Office);
+    for k in [0, 1, 2] {
+        p.act(&c, "office.rot_add", &format!("{a},{k}")).unwrap();
+    }
+    p.act(&c, "office.rot_del", &format!("{a},1")).unwrap();
+    assert_eq!(p.students[0].rotation, vec![0, 2]);
+    assert_eq!(p.act(&c, "office.rot_del", &format!("{a},2")), Err("office.bad"));
+}
+
+#[test]
+fn sorting_counts_a_streak_and_the_books_on_each_shelf() {
+    let c = shipped();
+    let mut p = prep(&c);
+    go(&mut p, Station::Library);
+    p.act(&c, "library.read", "").unwrap();
+    let book = |p: &Prep| match &p.activity {
+        Activity::Sorting { book, .. } => *book,
+        _ => panic!("sorting"),
+    };
+    let first = book(&p);
+    p.act(&c, "sort.shelf", &first.to_string()).unwrap();
+    let second = book(&p);
+    p.act(&c, "sort.shelf", &second.to_string()).unwrap();
+    let wrong = (book(&p) + 1) % c.file.schools.len() as u8;
+    let Activity::Sorting { streak, per, .. } = p.activity.clone() else {
+        panic!("sorting")
+    };
+    assert_eq!(streak, 2);
+    let mut want = vec![0u8; c.file.schools.len()];
+    want[first as usize] += 1;
+    want[second as usize] += 1;
+    assert_eq!(per, want, "one on each right shelf");
+    p.act(&c, "sort.shelf", &wrong.to_string()).unwrap();
+    let Activity::Sorting {
+        streak, per: after, ..
+    } = p.activity.clone()
+    else {
+        panic!("sorting")
+    };
+    assert_eq!(
+        (streak, after),
+        (0, want),
+        "a miss ends the streak and shelves nothing"
+    );
+}

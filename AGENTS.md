@@ -23,6 +23,10 @@
 11. Use each term in the sense `GLOSSARY.md` gives it, and never a word from its `Not:` line. A new term gets an entry before it appears in a string.
 12. Reader-visible text follows `TONE.md`. A string that looks wrong is reported in `SECOND-ORDER.md`, not repaired. A string you write yourself is listed at the foot of `SECOND-ORDER.md` for the person to read. A list you generate that a reader will see (names, labels, word lists) is a worklist row for the person.
 
+## Looks
+
+13. A screen with an approved mockup is compared with the mockup's picture, side by side in a screenshot of the running game, before it is handed over. What differs on purpose is a notebook row; what differs by accident is fixed (SECOND-ORDER R6.1).
+
 ## Stopping
 
 Write `PLAN.md` from the brief and stop until the person has read it, unless `BRIEF.md`'s Autonomy paragraph approves the plan in advance. When a rule in `BUILDER-SPEC.md` seems to block the work, stop and say so in a worklist row; do not loosen a check to make it pass. When a request is refused on safety grounds, leave the feature out and say so; do not reword the request to get past the refusal.

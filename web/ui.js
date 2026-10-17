@@ -36,7 +36,8 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
   }
 
   function button(a) {
-    const b = make("button", "act", a.label);
+    const b = make("button", a.on ? "act on" : "act", a.label);
+    if (a.num) b.prepend(make("i", "num", a.num));
     if (a.icon) b.prepend(iconOf(a.icon, a.view, "act-icon"));
     if (a.hint) b.title = a.hint;
     if (a.mana) b.append(manaOf(a.mana));
@@ -44,7 +45,18 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     b.disabled = !a.enabled;
     b.dataset.action = a.name;
     b.dataset.value = a.value;
+    grabbing(b, a);
     return b;
+  }
+
+  // drag and drop (T32): a button with a grab acts the moment it is
+  // pressed; letting go over a button marked drop acts that button
+  function grabbing(b, a) {
+    if (a.grab) {
+      b.dataset.grabAction = a.grab.name;
+      b.dataset.grabValue = a.grab.value;
+    }
+    if (a.drop) b.dataset.drop = "1";
   }
 
   function buttons(list, cls) {
@@ -62,7 +74,21 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
   }
 
   function rowOf(r) {
-    const li = make("li", r.school ? `row school-${r.school}` : "row");
+    const li = make("li", `${r.school ? `row school-${r.school}` : "row"}${r.on ? " on" : ""}${r.dim ? " dim" : ""}`);
+    if (r.press) {
+      const b = button(r.press);
+      b.className = `act row-press${r.on ? " on" : ""}`;
+      b.textContent = "";
+      li.append(b);
+      fillRow(b, r);
+      return li;
+    }
+    fillRow(li, r);
+    return li;
+  }
+
+  function fillRow(li, r) {
+    if (r.swatch) li.append(make("span", `sw sw-${r.swatch}`));
     const text = make("div", "row-text");
     const label = make("span", "row-label", r.label);
     mark(label);
@@ -82,9 +108,174 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       li.append(bar);
     }
     if (r.mana) li.append(manaOf(r.mana));
-    if (r.chip) li.append(make("span", "chip", r.chip));
+    if (r.chip) li.append(make("span", r.chip_tone ? `chip tone-${r.chip_tone}` : "chip", r.chip));
     if (r.actions) li.append(buttons(r.actions, "row-actions"));
-    return li;
+  }
+
+  // a bar with a label and a number; a leaning bar fills from the middle
+  function metersOf(list) {
+    const box = make("div", "meters");
+    for (const m of list) {
+      const label = make("span", "m-label", m.label);
+      mark(label);
+      const track = make("span", m.centre ? "track centre" : "track");
+      const fill = make("i", m.tone ? `tone-${m.tone}` : "");
+      fill.style.left = m.left;
+      fill.style.width = m.width;
+      track.append(fill);
+      box.append(label, track, make("b", "m-value", m.value));
+    }
+    return box;
+  }
+
+  function cellOf(c) {
+    const td = make("td");
+    if (c.mana) td.append(manaOf(c.mana));
+    else if (c.b) td.append(make("b", "", c.b));
+    else td.textContent = c.text;
+    return td;
+  }
+
+  function tableOf(t) {
+    const table = make("table", "table");
+    const head = make("tr");
+    for (const h of t.head) head.append(make("th", "", h));
+    table.append(head);
+    for (const r of t.rows) {
+      const tr = make("tr");
+      for (const c of r) tr.append(cellOf(c));
+      table.append(tr);
+    }
+    return table;
+  }
+
+  // a picture of the field made of boxes the core placed, in percent
+  function boardOf(b) {
+    const box = make("div", "board");
+    box.style.aspectRatio = b.aspect;
+    for (const it of b.items) {
+      const node = it.action ? button(it.action) : make("div", "", it.text);
+      node.classList.add("bi", `bi-${it.kind}`);
+      if (it.on) node.classList.add("on");
+      if (it.tone) node.classList.add(it.tone);
+      if (it.action) node.textContent = it.text || "";
+      if (it.hint) node.title = it.hint;
+      node.style.left = it.left;
+      node.style.top = it.top;
+      node.style.width = it.w;
+      node.style.height = it.h;
+      box.append(node);
+    }
+    return box;
+  }
+
+  function keysOf(parts) {
+    const p = make("p", "keys");
+    for (const k of parts) p.append(k.key ? make("kbd", "", k.key) : document.createTextNode(k.text));
+    return p;
+  }
+
+  function noteOf(b) {
+    const d = make("div", "note");
+    if (b.lead) d.append(make("b", "", b.lead), document.createTextNode(" "));
+    d.append(document.createTextNode(b.text));
+    return d;
+  }
+
+  function progressOf(b) {
+    const d = make("div", "progress");
+    const top = make("div", "progress-top");
+    top.append(make("b", "", b.label), make("b", "", b.value));
+    const track = make("span", "track");
+    const fill = make("i", "tone-good");
+    fill.style.width = b.width;
+    track.append(fill);
+    d.append(top, track);
+    return d;
+  }
+
+  function chipsOf(list) {
+    const d = make("div", "chip-row");
+    for (const c of list) d.append(make("span", c.tone ? `chip tone-${c.tone}` : "chip", c.text));
+    return d;
+  }
+
+  function bigOf(b) {
+    const p = make("p", "big", b.text);
+    if (b.small) p.append(make("small", "", b.small));
+    return p;
+  }
+
+  function pileOf(b) {
+    const d = make("div", "pile");
+    d.append(make("b", "", b.label));
+    const books = make("div", "pile-books");
+    for (const k of b.books) books.append(make("span", `pile-book school-${k}`));
+    d.append(books);
+    return d;
+  }
+
+  // the sorting game's shelves: a button each, with the books shelved on it
+  function shelvesOf(list) {
+    const d = make("div", "shelves");
+    for (const s of list) {
+      const b = button(s.action);
+      b.className = `act shelf school-${s.school}${s.on ? " on" : ""}`;
+      b.textContent = "";
+      const spines = make("span", "spines");
+      for (const h of s.spines) {
+        const sp = make("span", "spine");
+        sp.style.height = h;
+        spines.append(sp);
+      }
+      b.append(spines, make("span", "shelf-name", s.label), make("kbd", "", s.key));
+      d.append(b);
+    }
+    return d;
+  }
+
+  const blocks = {
+    title: (b) => {
+      const h = make("h2", "", b.text);
+      mark(h);
+      return h;
+    },
+    h: (b) => make("h3", "", b.text),
+    p: (b) => make("p", b.tone || "", b.text),
+    note: noteOf,
+    rows: (b) => {
+      const ul = make("ul", "rows");
+      for (const r of b.rows) ul.append(rowOf(r));
+      return ul;
+    },
+    meters: (b) => metersOf(b.rows),
+    table: tableOf,
+    board: boardOf,
+    actions: (b) => buttons(b.actions, b.style || "actions"),
+    keys: (b) => keysOf(b.parts),
+    progress: progressOf,
+    chips: (b) => chipsOf(b.chips),
+    big: bigOf,
+    mana: (b) => {
+      const p = make("p", "panel-mana");
+      p.append(manaOf(b.mana));
+      return p;
+    },
+    pile: pileOf,
+    shelves: (b) => shelvesOf(b.shelves),
+    lane: (b) => laneOf(b.lane),
+    tray: (b) => trayOf(b.tray),
+  };
+
+  // a panel's blocks, gathered into the columns they name, in the order
+  // each column first appears
+  function columnsOf(list) {
+    const cols = new Map();
+    for (const b of list) {
+      if (!cols.has(b.col)) cols.set(b.col, make("div", `col col-${b.col}`));
+      cols.get(b.col).append(blocks[b.t](b));
+    }
+    return [...cols.values()];
   }
 
   // a spell piece's card (T10): its glyph, name, number, school and kind,
@@ -106,20 +297,31 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
 
   // the spell builder (T17): rows of sets, each modifiers, a payload and a
   // trigger, left to right; a placed piece is a button that takes it out
-  function slotOf(t, kind, label) {
-    if (!t) return make("div", `slot ${kind} empty`, label);
+  function slotOf(t, kind, label, caption) {
+    if (!t) {
+      // an open slot takes a tile dropped on it
+      const b = button({ name: "lab.drop", value: kind, label: "", enabled: true, drop: true });
+      b.className = `act slot ${kind} empty`;
+      b.append(make("small", "", caption), make("span", "slot-name", label));
+      return b;
+    }
     const b = make("button", `act slot ${kind} filled school-${t.school}`);
     b.dataset.action = "lab.remove";
     b.dataset.value = t.i;
-    b.append(iconOf(t.icon, t.view, "slot-icon"), make("span", "slot-name", t.name));
+    b.append(make("small", "", caption));
+    if (kind !== "mod") b.append(iconOf(t.icon, t.view, "slot-icon"));
+    b.append(make("span", "slot-name", t.name));
+    if (t.does) b.append(make("span", "slot-does", t.does));
+    if (t.mana) b.append(manaOf(t.mana));
     return b;
   }
 
   function laneOf(lane) {
     const box = make("div", "lane");
     const L = lane.labels;
-    const head = make("div", "slot spell", L.your);
-    head.append(make("b", "", lane.spell));
+    const head = make("div", "slot spell");
+    head.append(make("small", "", L.your), make("b", "", lane.spell));
+    if (lane.mana) head.append(manaOf(lane.mana));
     lane.rows.forEach((row, r) => {
       const line = make("div", "lane-row");
       if (r === 0) line.append(head);
@@ -129,12 +331,13 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
           continue;
         }
         const s = make("div", set.open ? "set open" : "set");
+        s.append(make("span", "set-label", set.label));
         const mods = make("div", "mods");
-        for (const m of set.mods) mods.append(slotOf(m, "mod"));
-        if (set.open && !set.payload) mods.append(slotOf(null, "mod", L.mod));
+        for (const m of set.mods) mods.append(slotOf(m, "mod", "", L.mods));
+        if (set.open && !set.payload) mods.append(slotOf(null, "mod", L.mod, L.mods));
         s.append(mods);
-        if (set.payload || set.open) s.append(slotOf(set.payload, "pay", L.pay));
-        if (set.trigger || (set.open && set.payload)) s.append(slotOf(set.trigger, "trig", L.trig));
+        if (set.payload || set.open) s.append(slotOf(set.payload, "pay", L.pay, L.payload));
+        if (set.trigger || (set.open && set.payload)) s.append(slotOf(set.trigger, "trig", L.trig, L.trigger));
         line.append(s);
       }
       box.append(line);
@@ -142,29 +345,37 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
     return box;
   }
 
-  function trayOf(groups) {
+  // the pieces to add (T17, T32): a tab for each kind, the tiles of the
+  // open tab, and a blank for each piece of that kind not read yet
+  function trayOf(tray) {
     const box = make("div", "tray");
-    for (const g of groups) {
-      const sec = make("section", "tray-group");
-      sec.append(make("h3", "", g.label));
-      const tiles = make("div", "tiles");
-      for (const t of g.tiles) {
-        const b = make("button", `act tile ${t.kind} school-${t.school}`);
-        b.dataset.action = "lab.add";
-        b.dataset.value = t.id;
-        b.append(iconOf(t.icon, t.view, "slot-icon"), make("span", "slot-name", t.name));
-        if (t.mana) b.append(manaOf(t.mana));
-        tiles.append(b);
-      }
-      sec.append(tiles);
-      box.append(sec);
+    box.append(buttons(tray.tabs, "tabs"));
+    const tiles = make("div", "tiles");
+    for (const t of tray.tiles) {
+      const b = button({ name: "lab.add", value: t.id, label: "", enabled: true, grab: { name: "lab.hold", value: t.id } });
+      b.className = `act tile ${t.kind} school-${t.school}`;
+      b.append(iconOf(t.icon, t.view, "slot-icon"), make("span", "slot-name", t.name));
+      if (t.mana) b.append(manaOf(t.mana));
+      tiles.append(b);
     }
+    if (tray.unread_label) tiles.append(make("div", `tile ${tray.kind} unread`, tray.unread_label));
+    box.append(tiles);
     return box;
   }
 
   function panel(p) {
     const box = make("section", `panel panel-${p.kind}`);
     box.id = p.id;
+    if (p.box) {
+      box.style.left = p.box.left;
+      box.style.top = p.box.top;
+      box.style.width = p.box.width;
+      box.style.height = p.box.height;
+    }
+    if (p.blocks) {
+      box.append(...columnsOf(p.blocks));
+      return box;
+    }
     if (p.items) {
       for (const it of p.items) {
         const cell = make("div", `hud-item ${it.kind || ""}`);
@@ -236,12 +447,20 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
   let pressed = null;
   panelsEl.addEventListener("pointerdown", (e) => {
     const b = target(e);
-    pressed = b ? [b.dataset.action, b.dataset.value] : null;
+    pressed = b ? { action: b.dataset.action, value: b.dataset.value, grab: b.dataset.grabAction } : null;
+    if (b && b.dataset.grabAction) {
+      // the pointer stays free, so letting go over another button is seen there
+      if (b.hasPointerCapture && b.hasPointerCapture(e.pointerId)) b.releasePointerCapture(e.pointerId);
+      act(b.dataset.grabAction, b.dataset.grabValue);
+    }
+    document.body.dataset.dragging = b && b.dataset.grabAction ? "on" : "off";
   });
   panelsEl.addEventListener("pointerup", (e) => {
     const b = target(e);
-    if (pressed && b && b.dataset.action === pressed[0] && b.dataset.value === pressed[1]) act(pressed[0], pressed[1]);
+    if (pressed && b && b.dataset.action === pressed.action && b.dataset.value === pressed.value) act(pressed.action, pressed.value);
+    else if (pressed && pressed.grab && b && b.dataset.drop) act(b.dataset.action, b.dataset.value);
     pressed = null;
+    document.body.dataset.dragging = "off";
   });
   panelsEl.addEventListener("click", (e) => {
     const b = target(e);

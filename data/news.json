@@ -2,6 +2,17 @@
  "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
  "entries": [
   {
+   "version": "1.5.0",
+   "date": "2026-10-16",
+   "minor": false,
+   "items": [
+    "Office hours looks like its design: your class on the left, the student's stats and leanings in the middle, and a picture of the tower's seats on the right. Drag a student onto a seat, or click one.",
+    "Seat students at the map table too: open the map, choose Seat students, and drag a student's disc to another seat. Two students trade seats.",
+    "Sub-tower seats work: a student put on a sub-tower now stands on it.",
+    "The spell builder, the seal and the sorting game follow their designs: numbered sets, a tray with a tab for each kind, a dial with a ring for each piece, and shelves that fill as you sort."
+   ]
+  },
+  {
    "version": "1.4.0",
    "date": "2026-10-16",
    "minor": false,

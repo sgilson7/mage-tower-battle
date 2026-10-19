@@ -160,6 +160,24 @@ pub enum PieceKind {
         discount_pct: i32,
         life_ms: i32,
     },
+    /// A spell the archmage casts into a rival's tower from the invasion
+    /// book (T62): it blocks, slows or ices the floor there for a while.
+    Jinx {
+        shape: JinxShape,
+        mana: i32,
+    },
+}
+
+/// What a jinx does to the floor where it lands (T62).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JinxShape {
+    /// A wall of force no one walks through: `barrier_cm` long and deep.
+    Barrier,
+    /// Mud `bog_cm` across from its centre: walking at `bog_pct`.
+    Bog,
+    /// A walkway turns to ice: walking keeps sliding (`ice_grip_pct`).
+    Ice,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -333,6 +351,24 @@ pub struct Balance {
     /// Percent of a piece's mana it holds when the builder golem raised it
     /// (T61).
     pub golem_hold_pct: i32,
+    /// Walking on a walkway between stations is this percent of walking
+    /// elsewhere (T62).
+    pub walkway_pct: i32,
+    /// A jinx lasts from the first number of seconds (a drawing of 0) to
+    /// the second (100); each archmage has at most `jinx_each` in a rival's
+    /// tower at once (T62).
+    pub jinx_s: [i32; 2],
+    pub jinx_each: i32,
+    /// A barrier's length and depth, a bog's radius, in cm; walking in a
+    /// bog is `bog_pct` of the pace; on ice each tick closes `ice_grip_pct`
+    /// of the gap between how you slide and how you walk.
+    pub barrier_cm: [i32; 2],
+    pub bog_cm: i32,
+    pub bog_pct: i32,
+    pub ice_grip_pct: i32,
+    /// A computer rival does not walk, so a jinx in its tower takes this
+    /// percent of its seconds from the rival's next day instead.
+    pub bot_jinx_pct: i32,
     /// Ticks of the rehearsal played each drawn frame (T48): 20 plays a
     /// 90 s battle in about 4.5 s at 60 frames a second.
     pub rehearsal_ticks: i32,
@@ -613,6 +649,14 @@ impl Content {
             ("class_pct", b.class_pct, 0, 14),
             ("golem_hold_pct", b.golem_hold_pct, 0, 100),
             ("rehearsal_ticks", b.rehearsal_ticks, 1, 600),
+            ("walkway_pct", b.walkway_pct, 50, 300),
+            ("jinx_s", b.jinx_s[0], 1, b.jinx_s[1]),
+            ("jinx_each", b.jinx_each, 0, 8),
+            ("barrier_cm", b.barrier_cm[1], 10, b.barrier_cm[0]),
+            ("bog_cm", b.bog_cm, 20, 600),
+            ("bog_pct", b.bog_pct, 1, 100),
+            ("ice_grip_pct", b.ice_grip_pct, 1, 100),
+            ("bot_jinx_pct", b.bot_jinx_pct, 0, 100),
             ("ragdoll_cap", b.ragdoll_cap, 0, 400),
             ("max_depth", b.max_depth, 1, 4),
             ("max_chain", b.max_chain, 2, 8),

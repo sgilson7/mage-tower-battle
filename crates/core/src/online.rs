@@ -20,9 +20,11 @@ use serde::{Deserialize, Serialize};
 use crate::battle::Plan;
 use crate::content::Content;
 use crate::game::Settings;
+use crate::jinx::{self, Jinx};
 use crate::spell;
 
-pub const PROTOCOL: u32 = 1;
+/// 2: jinxes (T62).
+pub const PROTOCOL: u32 = 2;
 pub const SEATS: usize = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +60,14 @@ pub enum Msg {
         seq: u32,
         target: u8,
         chain: Vec<u16>,
+    },
+    /// A jinx cast at `target`'s tower (T62).
+    Jinx {
+        day: i32,
+        from: u8,
+        seq: u32,
+        target: u8,
+        jinx: Jinx,
     },
     Plan {
         day: i32,
@@ -104,6 +114,14 @@ pub enum Event {
         seq: u32,
         target: u8,
         chain: Vec<u16>,
+    },
+    /// A jinx cast at `target`'s tower (T62).
+    Jinx {
+        day: i32,
+        from: u8,
+        seq: u32,
+        target: u8,
+        jinx: Jinx,
     },
     Plan {
         day: i32,
@@ -195,6 +213,21 @@ pub fn sane_chain(c: &Content, chain: &[u16]) -> bool {
     chain.len() <= 24
         && chain.iter().all(|&k| (k as usize) < c.file.pieces.len())
         && spell::check(c, chain).is_ok()
+}
+
+/// A jinx from another browser (T62): a jinx piece, a walkway that is
+/// there, no longer than the longest a drawing makes, and placed where one
+/// could be cast.
+pub fn sane_jinx(c: &Content, j: &Jinx) -> bool {
+    let Some(shape) = jinx::shape(c, j.piece) else {
+        return false;
+    };
+    let ok_way =
+        jinx::fits(c, shape, j.x, j.z, j.turn).map(|w| shape != crate::content::JinxShape::Ice || w == j.way);
+    (j.way as usize) < jinx::WALKWAYS.len()
+        && j.left > 0
+        && j.left <= c.balance().jinx_s[1] * crate::geom::TPS
+        && ok_way.unwrap_or(false)
 }
 
 /// A plan from another browser: every index in range, every chain a spell.
@@ -411,11 +444,14 @@ impl Online {
                     self.share_lobby();
                 }
             }
-            (Role::Host, m @ (Msg::Invade { .. } | Msg::Plan { .. } | Msg::Sum { .. })) => {
+            (
+                Role::Host,
+                m @ (Msg::Invade { .. } | Msg::Jinx { .. } | Msg::Plan { .. } | Msg::Sum { .. }),
+            ) => {
                 // a joiner speaks only for its own seat
                 let seat = known.unwrap_or(255);
                 let honest = match &m {
-                    Msg::Invade { from, .. } => *from == seat,
+                    Msg::Invade { from, .. } | Msg::Jinx { from, .. } => *from == seat,
                     Msg::Plan { seat: s, .. } | Msg::Sum { seat: s, .. } => *s == seat,
                     _ => false,
                 };
@@ -462,7 +498,11 @@ impl Online {
             }
             (
                 Role::Joiner,
-                m @ (Msg::Invade { .. } | Msg::Plan { .. } | Msg::Sum { .. } | Msg::Left { .. }),
+                m @ (Msg::Invade { .. }
+                | Msg::Jinx { .. }
+                | Msg::Plan { .. }
+                | Msg::Sum { .. }
+                | Msg::Left { .. }),
             ) => self.take(m),
             _ => self.status = "online.garbled".into(),
         }
@@ -493,6 +533,19 @@ impl Online {
                 seat,
                 plan,
                 students,
+            },
+            Msg::Jinx {
+                day,
+                from,
+                seq,
+                target,
+                jinx,
+            } => Event::Jinx {
+                day,
+                from,
+                seq,
+                target,
+                jinx,
             },
             Msg::Sum { day, seat, hash } => Event::Sum { day, seat, hash },
             Msg::Left { seat } => Event::Left { seat },
@@ -642,11 +695,50 @@ mod tests {
                 hash: u64::MAX,
             },
             Msg::Left { seat: 2 },
+            Msg::Jinx {
+                day: 1,
+                from: 3,
+                seq: 4,
+                target: 0,
+                jinx: crate::jinx::Jinx {
+                    piece: 40,
+                    from: 3,
+                    x: -477,
+                    z: -30,
+                    turn: 2,
+                    way: 4,
+                    left: 1800,
+                },
+            },
         ];
         for m in msgs {
             let t = serde_json::to_string(&m).unwrap();
             assert_eq!(serde_json::from_str::<Msg>(&t).unwrap(), m);
         }
+    }
+
+    #[test]
+    fn a_jinx_from_another_browser_must_be_one_that_could_be_cast() {
+        let c = crate::content::shipped();
+        let j = |id: &str, x: i32, z: i32, way: u8, left: i32| crate::jinx::Jinx {
+            piece: c.piece(id).unwrap() as u16,
+            from: 1,
+            x,
+            z,
+            turn: 0,
+            way,
+            left,
+        };
+        let tps = crate::geom::TPS;
+        assert!(sane_jinx(&c, &j("bog", 0, 600, 0, 30 * tps)));
+        // the longest a drawing makes is 60 s
+        assert!(!sane_jinx(&c, &j("bog", 0, 600, 0, 61 * tps)));
+        // not a jinx at all
+        assert!(!sane_jinx(&c, &j("fire_bolt", 0, 600, 0, 30 * tps)));
+        // black ice on a walkway other than the one at its spot
+        let (x, z, _) = crate::jinx::spot(crate::content::JinxShape::Ice, 4);
+        assert!(sane_jinx(&c, &j("black_ice", x, z, 4, 30 * tps)));
+        assert!(!sane_jinx(&c, &j("black_ice", x, z, 5, 30 * tps)));
     }
 
     #[test]
@@ -886,6 +978,6 @@ mod tests {
             clean_name("  Wren\u{7}  Ashby the very long name  "),
             "Wren  Ashby the"
         );
-        assert_eq!(room_name("app", "ABCDE"), "app-p1-ABCDE");
+        assert_eq!(room_name("app", "ABCDE"), "app-p2-ABCDE");
     }
 }

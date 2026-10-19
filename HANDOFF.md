@@ -95,10 +95,18 @@ Every `SECOND-ORDER.md` row with status *person*, by number.
 - R9.3: the camera's new distances and pace near a station, to judge by playing; and What's new 1.7.1.
 - R9.6: the title's camera height, turn speed and the order of stations; and What's new 1.7.2.
 - R10.15: round 10's numbers (class penalty and bands, spell slots, 7 students, Lava Pool, the golem's half, the 10-minute limit, the 26-cell field and cameras, the stations' places), the new words and What's new 1.8.0.
+- R11.9: round 11's jinx and walkway numbers (walkway 150%, bog a third, ice grip, barrier size, 30 to 60 s, two per tower, mana costs, how often computer rivals jinx), the new words and What's new 1.9.0.
 
 R2.2, R2.5, R2.6, R2.7 and R2.8 were answered with the plan and are closed.
 
 ## What passed
+
+19 October 2026, round 11 (TRIAGE T62–T66, jinxes and walkways), built and not deployed:
+
+- `cargo test --workspace`: 237 core tests and the other suites passed; `python3 scripts/break_tests.py` on the 18 new rows: 18 of 18 caught. Four older rows (walking speed, placing, the golem, a refund) had rotted with rounds 10 and 11 and were re-aimed.
+- `tests/browser/online.py chromium`: `ONLINE CHECK PASSED`, now with one browser jinxing the other.
+- Each new screen beside its mockup: journal entry 11, part 3.
+- Still to do from round 10: break rows for that round's own tests, and the balance probe.
 
 17 October 2026, round 10 (TRIAGE T48–T61), pushed early for a playtest:
 

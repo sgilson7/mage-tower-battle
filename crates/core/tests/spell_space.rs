@@ -34,7 +34,7 @@ fn tokens(c: &Content) -> Vec<u16> {
         .filter(|&i| {
             !matches!(
                 c.file.pieces[i].kind,
-                PieceKind::Helper { .. } | PieceKind::SelfCast { .. }
+                PieceKind::Helper { .. } | PieceKind::SelfCast { .. } | PieceKind::Jinx { .. }
             )
         })
         .map(|i| i as u16)

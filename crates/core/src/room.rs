@@ -6,7 +6,7 @@
 //! drawn only when the camera has come down inside the room (T35). The
 //! people, flames, bubbles and floating things are rebuilt every frame.
 
-use crate::content::Content;
+use crate::content::{Content, JinxShape};
 use crate::fx::{self, Fx, ONE};
 use crate::geom::{v3, V3};
 use crate::look::{Look, Pose};
@@ -466,24 +466,105 @@ fn chandelier() -> V3 {
     prep::station_pos(Station::Book).add(v3(0, cm(880), cm(250)))
 }
 
-/// The ways worn into the floor between stations (T59): down each column
-/// and across the middle through the invasion book, so the room shows the
-/// order of the work.
-pub const PATHS: [(Station, Station); 7] = [
-    (Station::Recruit, Station::Podium),
-    (Station::Podium, Station::Office),
-    (Station::Library, Station::Lab),
-    (Station::Lab, Station::Map),
-    (Station::Podium, Station::Book),
-    (Station::Book, Station::Lab),
-    (Station::Office, Station::Book),
-];
+/// Rivals' jinxes in the room (T62): a barrier as a wall of violet light
+/// on a pale sill, a bog as dark mud with bubbles rising, black ice as a
+/// pale sheen down its walkway with a glint running along it.
+fn jinxes(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32) {
+    use crate::jinx;
+    for (n, j) in p.jinxes.iter().enumerate() {
+        let wobble = |k: i32| fx::sin(tick * 400 + k * fx::TURN / 7 + n as i32 * 911);
+        match jinx::shape(c, j.piece) {
+            Some(JinxShape::Barrier) => {
+                let at = jinx::centre(j);
+                let k = jinx::corners(c, j);
+                let along = k[1].sub(k[0]);
+                let yaw = crate::geom::yaw_of(along.x, along.z);
+                let (hl, hd) = jinx::halves(c);
+                b.push(
+                    Mesh::Cube,
+                    Pass::Glow,
+                    at.add(v3(0, cm(115), 0)),
+                    &Frame3::new(yaw, 0, 0, v3(cm(24), cm(230), hl * 2)),
+                    look.colour("jinx"),
+                    ONE / 3 + wobble(0) / 12,
+                );
+                b.solid(
+                    Mesh::Cube,
+                    at.add(v3(0, cm(4), 0)),
+                    &Frame3::new(yaw, 0, 0, v3(hd * 2, cm(8), hl * 2)),
+                    look.colour("jinx_edge"),
+                );
+                for e in [-1, 1] {
+                    b.orb(
+                        at.add(along.ratio(e, 2)).add(v3(0, cm(120) + wobble(e) / 3, 0)),
+                        cm(9),
+                        look.colour("jinx"),
+                    );
+                }
+            }
+            Some(JinxShape::Bog) => {
+                let at = jinx::centre(j);
+                let r = cm(c.balance().bog_cm);
+                b.solid(
+                    Mesh::Cyl,
+                    at.add(v3(0, cm(3), 0)),
+                    &Frame3::upright(v3(r * 2, cm(4), r * 2)),
+                    look.colour("bog"),
+                );
+                for k in 0..5 {
+                    let a = k * fx::TURN / 5 + n as i32 * 300;
+                    let rise = (tick * 2 + k * 37) % 90;
+                    let spot = at.add(v3(
+                        fx::mul(fx::sin(a), r / 2),
+                        cm(6) + cm(rise / 6),
+                        fx::mul(fx::cos(a), r / 2),
+                    ));
+                    b.solid(
+                        Mesh::Sphere,
+                        spot,
+                        &Frame3::upright(v3(cm(14), cm(10), cm(14))),
+                        look.colour("bog_bubble"),
+                    );
+                }
+            }
+            Some(JinxShape::Ice) => {
+                let (a, z) = jinx::walkway_ends(j.way as usize);
+                let d = z.sub(a).flat();
+                let yaw = crate::geom::yaw_of(d.x, d.z);
+                let mid = a.add(d.ratio(1, 2));
+                b.solid(
+                    Mesh::Cube,
+                    mid.add(v3(0, cm(5), 0)),
+                    &Frame3::new(yaw, 0, 0, v3(cm(150), cm(2), d.flat_len())),
+                    look.colour("black_ice"),
+                );
+                b.push(
+                    Mesh::Ground,
+                    Pass::Glow,
+                    mid.add(v3(0, cm(7), 0)),
+                    &Frame3::new(yaw, 0, 0, v3(cm(150), cm(1), d.flat_len())),
+                    look.colour("ice"),
+                    ONE / 8,
+                );
+                // a glint running down the ice
+                let t = (tick * 300 + n as i32 * 7000).rem_euclid(fx::TURN);
+                b.orb(
+                    a.add(d.ratio(t, fx::TURN)).add(v3(0, cm(12), 0)),
+                    cm(6),
+                    look.colour("white"),
+                );
+            }
+            None => {}
+        }
+    }
+}
 
+/// The walkways' flagstones (T59, T62), a little apart.
 fn paths(b: &mut Batch, look: &Look) {
-    for (k, (from, to)) in PATHS.iter().enumerate() {
+    for (k, (from, to)) in crate::jinx::WALKWAYS.iter().enumerate() {
         let (a, z) = (prep::station_pos(*from), prep::station_pos(*to));
         let d = z.sub(a).flat();
-        let gap = prep::PROP + cm(40);
+        let gap = crate::jinx::WALKWAY_GAP;
         let len = d.flat_len() - 2 * gap;
         if len <= 0 {
             continue;
@@ -1353,6 +1434,7 @@ pub fn room_dynamic(b: &mut Batch, look: &Look, c: &Content, p: &Prep, tick: i32
         }
         shadow(b, look, at, yaw, cm(42), cm(32));
     }
+    jinxes(b, look, c, p, tick);
     // the archmage
     let moving = p.pos != p.prev;
     let reading = matches!(p.activity, Activity::Reading { .. });

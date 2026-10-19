@@ -1370,3 +1370,47 @@ fn the_rehearsal_foretells_the_days_battle_and_says_how_a_change_moved_it() {
     let m = s.m.as_ref().unwrap();
     assert_eq!(m.seats[m.local as usize].taken.last().copied(), Some(foretold));
 }
+
+#[test]
+fn a_jinx_is_aimed_on_a_rival_s_floor_plan_drawn_and_costs_that_rival_time() {
+    let mut s = session();
+    s.act("screen.show", "setup").unwrap();
+    s.act("match.start", "versus").unwrap();
+    s.teleport(Station::Book);
+    run(&mut s, 2);
+    let book = find_panel(&s, "station").unwrap();
+    let tiles = &blocks(&book, "picks")[0]["tiles"];
+    assert_eq!(tiles.as_array().unwrap().len(), 3, "barrier, bog and black ice");
+    s.act("jinx.pick", "bog").unwrap();
+    s.act("jinx.aim", "2").unwrap();
+    assert!(find_panel(&s, "aim").is_some() && find_panel(&s, "their").is_some());
+    assert!(!s.overlay().is_empty(), "the rival's floor plan is drawn");
+    no_missing(&s.ui());
+    // R turns what is aimed
+    s.act("layout.turn", "").unwrap();
+    assert_eq!(s.aim.unwrap().turn, 1);
+    // the plan is 594 px for 3000 cm, its middle at (640, 360): (640, 478)
+    // is 0 cm across and 595 cm down, on the floor and on no walkway
+    s.act("pointer.move", "640,478,1280,720").unwrap();
+    assert_eq!(s.aim.unwrap().hover, Some((0, 595)));
+    s.act("pointer.down", "640,478,1280,720").unwrap();
+    s.act("pointer.up", "640,478,1280,720").unwrap();
+    assert!(s.aim.is_none(), "letting go places it and its drawing begins");
+    assert_eq!(s.ui()["busy"], "drawing");
+    no_missing(&s.ui());
+    s.act("pointer.down", "300,380,1280,720").unwrap();
+    s.act("pointer.up", "320,380,1280,720").unwrap();
+    run(&mut s, 1);
+    let m = s.m.as_ref().unwrap();
+    let p = m.local_prep().unwrap();
+    assert_eq!(p.cast.len(), 1);
+    let left = p.cast[0].1.left;
+    // seat 2 is the Attack Mage, a computer rival: 25% of the jinx's whole
+    // seconds come off its next day (a tick has passed since it was cast)
+    let secs = (left + 1) / TPS;
+    assert_eq!(m.seats[2].prep.as_ref().unwrap().lost_s, secs * 25 / 100);
+    s.teleport(Station::Book);
+    run(&mut s, 1);
+    let book = find_panel(&s, "station").unwrap().to_string();
+    assert!(book.contains("Bog 0:"), "the rival's card names your jinx there");
+}

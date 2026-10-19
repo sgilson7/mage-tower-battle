@@ -78,6 +78,12 @@ Not: raid
 
 The book on its lectern that lists what the next battle will bring to your tower.
 
+### Jinx
+
+A spell you cast into a rival's tower from the invasion book: a barrier no one walks through, a bog that slows walking, or black ice on a walkway. You place it on their floor plan and draw its glyph, and it lasts {jinx.lo_s} to {jinx.hi_s} seconds by how well you drew. You can have {jinx.each} in each rival's tower at once.
+
+Not: curse, trap
+
 ### Journey
 
 The short run a raider makes to reach a rival's towers: a few jumps over gaps. A fall makes them arrive later.
@@ -217,3 +223,9 @@ A spell piece that starts the rest of the spell when something happens: on hit, 
 What an enemy or a spell is made of, such as Fire, Leaf or Bone. Some types take double or half damage from others, and none is immune.
 
 Not: element
+
+### Walkway
+
+A flagstone way worn into the tower's floor between two stations. Walking on a walkway is {walkway.pct}% of the usual pace.
+
+Not: road, trail

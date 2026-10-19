@@ -276,6 +276,23 @@ export function makeUi(panelsEl, labelsEl, toastsEl, cardEl, act) {
       return p;
     },
     pile: pileOf,
+    // tiles to pick one of, side by side (T62): a name and its tag, what it
+    // does, its mana and a note
+    picks: (b) => {
+      const d = make("div", "picks");
+      for (const t of b.tiles) {
+        const btn = button(t.action);
+        btn.className = `act pick${t.on ? " on" : ""}`;
+        btn.textContent = "";
+        const top = make("span", "pick-top");
+        top.append(make("b", "", t.name), make("span", "chip pick-tag", t.tag));
+        const foot = make("span", "pick-foot");
+        foot.append(manaOf(t.mana), make("small", "", t.small));
+        btn.append(top, make("span", "pick-text", t.text), foot);
+        d.append(btn);
+      }
+      return d;
+    },
     shelves: (b) => shelvesOf(b.shelves),
     lane: (b) => laneOf(b.lane),
     tray: (b) => trayOf(b.tray),

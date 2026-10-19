@@ -29,6 +29,8 @@ pub enum ChainError {
     TooDeep,
     Helper,
     PlaceOnly,
+    /// A jinx is cast at a rival's tower, never put in a spell (T62).
+    JinxOnly,
 }
 
 impl ChainError {
@@ -47,6 +49,7 @@ impl ChainError {
             ChainError::TooDeep => "lab.too_deep",
             ChainError::Helper => "lab.helper",
             ChainError::PlaceOnly => "lab.place_only",
+            ChainError::JinxOnly => "lab.jinx_only",
         }
     }
 }
@@ -96,6 +99,9 @@ pub fn check(c: &Content, pieces: &[u16]) -> Result<(), ChainError> {
     }
     if kinds.iter().any(|k| matches!(k, PieceKind::SelfCast { .. })) {
         return Err(ChainError::SelfOnly);
+    }
+    if kinds.iter().any(|k| matches!(k, PieceKind::Jinx { .. })) {
+        return Err(ChainError::JinxOnly);
     }
     if kinds.iter().any(|k| matches!(k, PieceKind::Helper { .. })) {
         return Err(ChainError::Helper);
@@ -238,7 +244,10 @@ pub fn stats(c: &Content, pieces: &[u16]) -> Stats {
                 cd_pct = 0;
                 form = 100;
             }
-            PieceKind::Invade | PieceKind::Helper { .. } | PieceKind::SelfCast { .. } => {}
+            PieceKind::Invade
+            | PieceKind::Helper { .. }
+            | PieceKind::SelfCast { .. }
+            | PieceKind::Jinx { .. } => {}
         }
     }
     let cd = cooldown.unwrap_or(1000).max(300);

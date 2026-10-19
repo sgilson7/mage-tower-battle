@@ -19,6 +19,7 @@ pub mod game;
 pub mod geom;
 pub mod glossary;
 pub mod glyph;
+pub mod jinx;
 pub mod look;
 pub mod mesh;
 pub mod mind;

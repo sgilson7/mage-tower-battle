@@ -226,8 +226,8 @@
   {
     "name": "walking ignores the speed",
     "file": "crates/core/src/prep.rs",
-    "find": "            let step = content::cms(b.walk_cms);",
-    "replace": "            let step = content::cms(b.walk_cms * 2);",
+    "find": "        let want = d.with_len(content::cms(b.walk_cms) * pace / 100);",
+    "replace": "        let want = d.with_len(content::cms(b.walk_cms * 2) * pace / 100);",
     "test": "walking_right_for_a_second_covers_the_walking_speed"
   },
   {
@@ -275,8 +275,8 @@
   {
     "name": "placing is free",
     "file": "crates/core/src/prep.rs",
-    "find": "                self.spend(f.mana)?;",
-    "replace": "                self.spend(f.mana * 0)?;",
+    "find": "                self.hold(f.mana)?;",
+    "replace": "                self.hold(0)?;",
     "test": "a_wall_needs_its_spell_and_mana_and_may_not_close_the_route"
   },
   {
@@ -709,8 +709,8 @@
   {
     "name": "the golem stops after one book",
     "file": "crates/core/src/prep.rs",
-    "find": "                        self.jobs.push(Job { left: total, ..j });",
-    "replace": "                        let _ = (total, j);",
+    "find": "        self.jobs.push(j);",
+    "replace": "        let _ = j;",
     "test": "the_librarian_golem_finds_a_new_book_every_45_seconds"
   },
   {
@@ -730,8 +730,8 @@
   {
     "name": "a rubbed-out cell keeps its mana",
     "file": "crates/core/src/prep.rs",
-    "find": "        self.mana = (self.mana + refund * 100).min(cap);",
-    "replace": "        self.mana = (self.mana).min(cap);",
+    "find": "        self.mana = (self.mana + refund * 100).min(self.mana_cap(c));",
+    "replace": "        self.mana = (self.mana).min(self.mana_cap(c));",
     "test": "a_cell_rubbed_out_or_undone_gives_its_mana_back"
   },
   {
@@ -1244,5 +1244,131 @@
     "find": "        if self.m.is_none() {",
     "replace": "        if false {",
     "test": "the_title_turns_in_the_middle_of_the_tower_while_the_archmage_walks_its_stations"
+  },
+  {
+    "name": "walkway pace ignored",
+    "file": "crates/core/src/jinx.rs",
+    "find": "        b.walkway_pct",
+    "replace": "        100",
+    "test": "walking_on_a_walkway_is_half_again_as_fast"
+  },
+  {
+    "name": "bog pace ignored",
+    "file": "crates/core/src/jinx.rs",
+    "find": "        b.bog_pct",
+    "replace": "        100",
+    "test": "a_bog_slows_walking_to_a_third"
+  },
+  {
+    "name": "ice answers at once",
+    "file": "crates/core/src/prep.rs",
+    "find": "            self.vel = self.vel.add(want.sub(self.vel).ratio(grip, 100));",
+    "replace": "            self.vel = want;",
+    "test": "on_black_ice_the_archmage_slides_on_after_the_keys_are_let_go"
+  },
+  {
+    "name": "ice grip whole",
+    "file": "crates/core/src/prep.rs",
+    "find": "            let grip = b.ice_grip_pct;",
+    "replace": "            let grip = 50;",
+    "test": "black_ice_is_slow_to_answer_the_keys"
+  },
+  {
+    "name": "barrier lets bodies through",
+    "file": "crates/core/src/jinx.rs",
+    "find": "        if ea <= 0 || eb <= 0 {",
+    "replace": "        if true {",
+    "test": "a_barrier_stops_the_archmage_at_its_face"
+  },
+  {
+    "name": "barrier pushes along",
+    "file": "crates/core/src/jinx.rs",
+    "find": "            world(at, j.turn, a, side(b) * (hd + BODY))",
+    "replace": "            world(at, j.turn, side(a) * (hl + BODY), b)",
+    "test": "a_barrier_that_lands_on_the_archmage_puts_them_beside_it"
+  },
+  {
+    "name": "barrier may cover a station",
+    "file": "crates/core/src/jinx.rs",
+    "find": "                if gap < STATION_CLEAR {",
+    "replace": "                if false {",
+    "test": "a_barrier_cannot_cover_a_station_or_leave_the_room"
+  },
+  {
+    "name": "rival jinx at a walkway end",
+    "file": "crates/core/src/jinx.rs",
+    "find": "    let mid = a.add(b.sub(a).ratio(1, 2));",
+    "replace": "    let mid = a;",
+    "test": "a_computer_rival_s_jinx_fits_on_every_walkway"
+  },
+  {
+    "name": "jinx length ignores drawing",
+    "file": "crates/core/src/jinx.rs",
+    "find": "    lo + (hi - lo) * score.clamp(0, 100) / 100",
+    "replace": "    lo",
+    "test": "a_jinx_lasts_thirty_to_sixty_seconds_by_the_drawing"
+  },
+  {
+    "name": "jinx free",
+    "file": "crates/core/src/prep.rs",
+    "find": "        self.spend(jinx::mana(c, piece).unwrap_or(0))?;",
+    "replace": "        self.spend(0)?;",
+    "test": "a_jinx_drawn_at_the_book_is_paid_for_and_sent_to_its_rival"
+  },
+  {
+    "name": "jinxes unlimited",
+    "file": "crates/core/src/prep.rs",
+    "find": "        if there >= c.balance().jinx_each {",
+    "replace": "        if false {",
+    "test": "two_of_your_jinxes_stand_in_a_rival_s_tower_at_once"
+  },
+  {
+    "name": "jinxes never run out",
+    "file": "crates/core/src/prep.rs",
+    "find": "        self.jinxes.retain(|j| j.left > 0);",
+    "replace": "        self.jinxes.retain(|_| true);",
+    "test": "a_jinx_runs_out_and_the_next_day_clears_the_rest"
+  },
+  {
+    "name": "jinx landing nameless",
+    "file": "crates/core/src/prep.rs",
+    "find": "            who: who.to_string(),",
+    "replace": "            who: String::new(),",
+    "test": "a_jinx_s_landing_says_who_cast_it"
+  },
+  {
+    "name": "bot unharmed by jinx",
+    "file": "crates/core/src/game.rs",
+    "find": "            (SeatKind::Bot(_), Some(p)) => p.lost_s += jinx::bot_loss_s(c, &j),",
+    "replace": "            (SeatKind::Bot(_), Some(p)) => {},",
+    "test": "a_remote_jinx_lands_in_this_tower_and_costs_a_computer_rival_time"
+  },
+  {
+    "name": "rival jinxes land at once",
+    "file": "crates/core/src/game.rs",
+    "find": "                        self.pending.push((j, ticks * (4 + 2 * k as i32) / 10));",
+    "replace": "                        self.pending.push((j, 0));",
+    "test": "a_computer_rival_s_jinxes_land_partway_through_the_preparation"
+  },
+  {
+    "name": "bot day ignores lost time",
+    "file": "crates/core/src/bot.rs",
+    "find": "    let mut left = (p.day_ticks / TPS - std::mem::take(&mut p.lost_s)).max(0);",
+    "replace": "    let mut left = p.day_ticks / TPS;",
+    "test": "a_rival_whose_day_jinxes_took_does_nothing_with_it"
+  },
+  {
+    "name": "online jinx any length",
+    "file": "crates/core/src/online.rs",
+    "find": "        && j.left <= c.balance().jinx_s[1] * crate::geom::TPS",
+    "replace": "        && true",
+    "test": "a_jinx_from_another_browser_must_be_one_that_could_be_cast"
+  },
+  {
+    "name": "aim never hovers",
+    "file": "crates/core/src/session.rs",
+    "find": "                aim.hover = at;",
+    "replace": "                aim.hover = None;",
+    "test": "a_jinx_is_aimed_on_a_rival_s_floor_plan_drawn_and_costs_that_rival_time"
   }
 ]

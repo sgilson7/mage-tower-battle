@@ -23,5 +23,6 @@
  "type_fire": "#ff7a2a", "type_frost": "#9be7ff", "type_acid": "#8cff5a", "type_leaf": "#5fae4f", "type_earth": "#b08a5a", "type_bone": "#f3eee0", "type_spirit": "#c9a7ff",
  "flower_0": "#ffd76a", "flower_1": "#ff8fb8", "flower_2": "#f4f0ff", "earth": "#8a6242", "earth_dark": "#6a4832", "raider": "#ff4b5a", "shadow": "#2a1a2e", "wood_darker": "#4a2d1f", "iron": "#2d2433", "wax": "#f2e3c6", "window_sky": "#ffbf7a", "stone_light": "#7d6f92", "banner": "#7b2333", "lab_table_dark": "#3e2a49", "map_edge": "#7fe3ff", "chalkboard": "#26352e", "rune": "#9cf2ff", "flame": "#ffcf6a", "invasion_glow": "#ff4b5a", "dust": "#ffe2b0",
  "boots": "#3a2a2a", "hair": "#4a2e1c", "hair_0": "#3b2618", "hair_1": "#d9a35a", "hair_2": "#1f1612", "hair_3": "#a8452a",
+ "jinx": "#8b5cf6", "jinx_edge": "#c4b5fd", "black_ice": "#7fb3d1", "bog": "#4f4a24", "bog_bubble": "#a89a5e",
  "rival_0": "#5b3cc4", "rival_1": "#d9604a", "rival_2": "#3fae8c", "rival_3": "#e8b23a"
 }

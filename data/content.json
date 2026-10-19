@@ -887,6 +887,46 @@
    "mana": 15,
    "discount_pct": 30,
    "life_ms": 30000
+  },
+  {
+   "id": "barrier",
+   "name": "Barrier",
+   "school": "alteration",
+   "text": "Cast at a rival's tower: a wall of force no one can walk through.",
+   "glyph": [
+    "square",
+    "peak"
+   ],
+   "kind": "jinx",
+   "shape": "barrier",
+   "mana": 25
+  },
+  {
+   "id": "bog",
+   "name": "Bog",
+   "school": "conjuration",
+   "text": "Cast at a rival's tower: a patch of mud that slows walking to a third.",
+   "glyph": [
+    "ripple",
+    "hook"
+   ],
+   "kind": "jinx",
+   "shape": "bog",
+   "mana": 20
+  },
+  {
+   "id": "black_ice",
+   "name": "Black Ice",
+   "school": "destruction",
+   "text": "Cast at a rival's tower: a walkway turns to ice, and walking on it slides.",
+   "glyph": [
+    "line",
+    "ripple",
+    "line"
+   ],
+   "kind": "jinx",
+   "shape": "ice",
+   "mana": 20
   }
  ],
  "enemies": [
@@ -1177,7 +1217,10 @@
    "ice_shard",
    "glass_wall",
    "sub_tower",
-   "branch"
+   "branch",
+   "barrier",
+   "bog",
+   "black_ice"
   ],
   "ally_summon_pct": 67,
   "summons_per_student": 4,
@@ -1256,6 +1299,20 @@
    "arch"
   ],
   "golem_hold_pct": 50,
+  "walkway_pct": 150,
+  "jinx_s": [
+   30,
+   60
+  ],
+  "jinx_each": 2,
+  "barrier_cm": [
+   400,
+   80
+  ],
+  "bog_cm": 220,
+  "bog_pct": 33,
+  "ice_grip_pct": 3,
+  "bot_jinx_pct": 25,
   "rehearsal_ticks": 20,
   "books": 60,
   "band_px": [

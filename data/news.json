@@ -2,6 +2,17 @@
  "_about": "What's new: one entry for each update, newest first. The first entry's version is the game's version. A minor entry is hidden until a player asks for every patch. Rules for every string: TONE.md.",
  "entries": [
   {
+   "version": "1.9.0",
+   "date": "2026-10-19",
+   "minor": false,
+   "items": [
+    "Jinxes: at the invasion book, cast a barrier, a bog or black ice into a rival's tower. Click where it goes on their floor plan, then draw it: the better the drawing, the longer it lasts, from 30 seconds to a minute.",
+    "Walking on the walkways between stations is half again as fast. A bog slows you to a third, and on black ice you slide.",
+    "The Attack Mage and the Balanced archmage jinx whoever leads, and a jinx in a computer rival's tower costs it time the next day.",
+    "A drawing's words sit under the board now, clear of the HUD."
+   ]
+  },
+  {
    "version": "1.8.0",
    "date": "2026-10-17",
    "minor": false,

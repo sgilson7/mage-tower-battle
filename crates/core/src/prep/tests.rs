@@ -513,7 +513,16 @@ fn a_new_archmage_knows_the_starting_pieces_in_the_data() {
         .collect();
     assert_eq!(
         known,
-        vec!["fire_bolt", "ice_shard", "glass_wall", "sub_tower", "branch"]
+        vec![
+            "fire_bolt",
+            "ice_shard",
+            "glass_wall",
+            "sub_tower",
+            "branch",
+            "barrier",
+            "bog",
+            "black_ice"
+        ]
     );
 }
 

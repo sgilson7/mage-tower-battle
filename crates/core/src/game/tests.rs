@@ -330,3 +330,49 @@ fn a_battle_is_allowed_ten_minutes_whatever_the_waves_take() {
         assert_eq!(b.ticks, 600 * TPS);
     }
 }
+
+fn a_bog(c: &Content, left_s: i32) -> crate::jinx::Jinx {
+    crate::jinx::Jinx {
+        piece: c.piece("bog").unwrap() as u16,
+        from: 9,
+        x: 0,
+        z: 600,
+        turn: 0,
+        way: 0,
+        left: left_s * TPS,
+    }
+}
+
+#[test]
+fn a_remote_jinx_lands_in_this_tower_and_costs_a_computer_rival_time() {
+    let c = shipped();
+    let mut m = versus(&c);
+    // from seat 2: whoever sent it, the jinx names its real sender
+    m.take_jinx(&c, 2, 0, a_bog(&c, 40));
+    let p = m.local_prep().unwrap();
+    assert_eq!(p.jinxes.len(), 1);
+    assert_eq!(p.jinxes[0].from, 2);
+    assert_eq!(p.notes.last().unwrap().who, "B");
+    // 25% of 40 s: 10 s from the Spellcrafter's next day
+    m.take_jinx(&c, 0, 1, a_bog(&c, 40));
+    assert_eq!(m.seats[1].prep.as_ref().unwrap().lost_s, 10);
+}
+
+#[test]
+fn a_computer_rival_s_jinxes_land_partway_through_the_preparation() {
+    let c = shipped();
+    let mut m = versus(&c);
+    // after the first day the Attack Mage jinxes the leader; on equal
+    // scores that is the lowest seat, this browser's
+    m.day = 1;
+    m.settings.prep_s = 150;
+    m.start_day(&c);
+    assert_eq!(m.pending.len(), 2, "the attack mage casts two");
+    assert!(m.local_prep().unwrap().jinxes.is_empty(), "none has landed yet");
+    // the first lands four tenths of the way through 150 s: at tick 3600
+    for _ in 0..3600 {
+        m.step(&c, 0);
+    }
+    assert_eq!(m.local_prep().unwrap().jinxes.len(), 1);
+    assert_eq!(m.local_prep().unwrap().jinxes[0].from, 2);
+}

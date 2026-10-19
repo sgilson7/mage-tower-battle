@@ -60,6 +60,16 @@ pub struct Layout {
     pub seats: bool,
 }
 
+/// Aiming a jinx at a rival's floor plan (T62): the jinx, the rival, a
+/// barrier's turn, and the point under the pointer in cm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Aim {
+    pub piece: u16,
+    pub target: u8,
+    pub turn: u8,
+    pub hover: Option<(i32, i32)>,
+}
+
 pub struct Session {
     pub c: Content,
     look: Look,
@@ -116,6 +126,10 @@ pub struct Session {
     /// The student picked up at the invasion book (T40), office hours'
     /// open tab (T41), and which of your students the battle's tree shows.
     raid_held: Option<u16>,
+    /// The jinx picked at the invasion book, and the plan it is being
+    /// aimed on (T62).
+    jinx_pick: Option<u16>,
+    pub aim: Option<Aim>,
     office_tab: String,
     watch: usize,
     /// The difficulty chosen for each trial (T30).
@@ -262,6 +276,10 @@ impl Session {
             ("battle.max_min", (b.battle_max_s / 60).to_string()),
             ("golem.hold_pct", b.golem_hold_pct.to_string()),
             ("students.max", b.max_students.to_string()),
+            ("jinx.lo_s", b.jinx_s[0].to_string()),
+            ("jinx.hi_s", b.jinx_s[1].to_string()),
+            ("jinx.each", b.jinx_each.to_string()),
+            ("walkway.pct", b.walkway_pct.to_string()),
             ("match.days", b.days.to_string()),
             ("effectiveness.min", b.effect_min_pct.to_string()),
             ("effectiveness.max", b.effect_max_pct.to_string()),
@@ -331,6 +349,8 @@ impl Session {
             lab_tab: "pay".into(),
             held: None,
             raid_held: None,
+            jinx_pick: None,
+            aim: None,
             office_tab: "seats".into(),
             watch: 0,
             cams: [scene::Orbit::start(false); 4],
@@ -506,6 +526,38 @@ impl Session {
                 let id = self.raid_held.take().ok_or_else(|| self.err("raid.pick_first"))?;
                 self.forward("raid.send", &format!("{id}:{value}"))?;
             }
+            "jinx.pick" => {
+                // a jinx at the invasion book (T62); while aiming, the one aimed
+                let k = self
+                    .c
+                    .piece(value)
+                    .filter(|&k| crate::jinx::shape(&self.c, k as u16).is_some())
+                    .ok_or_else(|| self.err("jinx.bad"))? as u16;
+                self.jinx_pick = Some(k);
+                if let Some(a) = self.aim.as_mut() {
+                    a.piece = k;
+                }
+            }
+            "jinx.aim" => {
+                // a rival picked: their tower's floor plan opens (T62)
+                let target: u8 = value.parse().map_err(|_| self.err("jinx.bad"))?;
+                let m = self.m.as_ref().ok_or_else(|| self.err("jinx.bad"))?;
+                let p = m.local_prep().ok_or_else(|| self.err("jinx.bad"))?;
+                if target == m.local || !m.seats.get(target as usize).map(|t| t.active()).unwrap_or(false) {
+                    return Err(self.err("jinx.bad"));
+                }
+                let piece = self
+                    .jinx_pick
+                    .or_else(|| self.known_jinxes(p).first().copied())
+                    .ok_or_else(|| self.err("jinx.unknown"))?;
+                self.aim = Some(Aim {
+                    piece,
+                    target,
+                    turn: 0,
+                    hover: None,
+                });
+            }
+            "jinx.close" => self.aim = None,
             "office.tab" => {
                 if !["seats", "mind"].contains(&value) {
                     return Err(self.err("error.bad"));
@@ -609,7 +661,11 @@ impl Session {
                 let f = self.c.feature(value).ok_or_else(|| self.err("layout.bad"))?;
                 self.layout.feature = Some(f);
             }
-            "layout.turn" => self.layout.along_z = !self.layout.along_z,
+            "layout.turn" => match self.aim.as_mut() {
+                // R turns a barrier being aimed (T62), or what the map places
+                Some(a) => a.turn = (a.turn + 1) % crate::jinx::TURNS,
+                None => self.layout.along_z = !self.layout.along_z,
+            },
             "layout.mode" => self.layout.golem = value == "golem",
             "layout.seats" => self.layout.seats = value == "on",
             "pointer.down" | "pointer.move" | "pointer.up" => self.pointer(name, value)?,
@@ -748,6 +804,26 @@ impl Session {
                     self.play("draw_done");
                 }
                 _ => {}
+            }
+            return Ok(());
+        }
+        if let Some(a) = self.aim {
+            // a jinx on a rival's floor plan (T62): the pointer shows where
+            // it would go; letting go there places it and starts its drawing
+            let (lx, ly) = overlay::logical(n[0], n[1], n[2], n[3]);
+            let at = overlay::plan_cm(lx, ly);
+            if let Some(aim) = self.aim.as_mut() {
+                aim.hover = at;
+            }
+            if name == "pointer.up" {
+                if let Some((x, z)) = at {
+                    self.forward(
+                        "book.jinx",
+                        &format!("{},{},{x},{z},{}", a.piece, a.target, a.turn),
+                    )?;
+                    self.aim = None;
+                    self.play("place");
+                }
             }
             return Ok(());
         }
@@ -1019,6 +1095,23 @@ impl Session {
                     }),
                     _ => {}
                 },
+                Event::Jinx {
+                    day,
+                    from,
+                    target,
+                    jinx,
+                    ..
+                } => match due(day) {
+                    Some(true) if online::sane_jinx(c, &jinx) => m.take_jinx(c, from, target, jinx),
+                    None => keep.push(Event::Jinx {
+                        day,
+                        from,
+                        seq: 0,
+                        target,
+                        jinx,
+                    }),
+                    _ => {}
+                },
                 Event::Plan {
                     day,
                     seat: s,
@@ -1084,9 +1177,11 @@ impl Session {
     /// The local archmage's half of the match: each invasion as it is
     /// cast, the plan when the preparation ends, a checksum after a battle.
     fn send_online(&mut self, cast: Vec<(u8, Vec<u16>)>, before: Phase) {
-        let Some(m) = self.m.as_ref().filter(|m| m.mode == Mode::Online) else {
+        let Some(m) = self.m.as_mut().filter(|m| m.mode == Mode::Online) else {
             return;
         };
+        let jinxes = std::mem::take(&mut m.jinx_sent);
+        let m = &*m;
         let Some(o) = self.online.as_mut() else { return };
         let (day, local) = (m.day, m.local);
         for (target, chain) in cast {
@@ -1098,6 +1193,17 @@ impl Session {
                 seq,
                 target,
                 chain,
+            });
+        }
+        for (target, jinx) in jinxes {
+            o.seq += 1;
+            let seq = o.seq;
+            o.say(Msg::Jinx {
+                day,
+                from: local,
+                seq,
+                target,
+                jinx,
             });
         }
         if before == Phase::Prep && m.phase != Phase::Prep {
@@ -1301,9 +1407,21 @@ impl Session {
         }
         // a held E does not open the map again the tick after Esc closes it
         self.layout.just_closed = bits & prep::USE != 0 && !self.layout.open;
+        // a jinx's plan closes with Esc, or when the archmage is no longer
+        // free at the invasion book (T62)
+        let at_book = self
+            .m
+            .as_ref()
+            .filter(|m| m.phase == Phase::Prep)
+            .and_then(|m| m.local_prep())
+            .map(|p| p.station() == Some(Station::Book) && !p.busy())
+            .unwrap_or(false);
+        if self.aim.is_some() && (bits & prep::BACK != 0 || !at_book) {
+            self.aim = None;
+        }
         let Some(m) = self.m.as_mut() else { return };
         let before = m.phase;
-        let bits = if self.layout.open {
+        let bits = if self.layout.open || self.aim.is_some() {
             bits & !(prep::UP | prep::DOWN | prep::LEFT | prep::RIGHT | prep::USE)
         } else {
             bits
@@ -1345,6 +1463,8 @@ impl Session {
                 "recruit.joined" => "interview_fail",
                 "helper.summoned" => "summon",
                 "helper.built" => "golem_done",
+                "jinx.cast" => "summon",
+                "jinx.landed" => "error",
                 _ => "",
             };
             if !sound.is_empty() {
@@ -1361,7 +1481,9 @@ impl Session {
             if let Some(card) = card {
                 self.card = Some((card, self.c.balance().card_s.max(1) * TPS));
             } else if n.key != "draw.score" {
-                let text = self.s.f(&n.key, &[("value", n.value.clone())]);
+                let text = self
+                    .s
+                    .f(&n.key, &[("value", n.value.clone()), ("who", n.who.clone())]);
                 self.toast(text);
             }
         }
@@ -1700,7 +1822,7 @@ impl Session {
             } => {
                 let pieces: Vec<u16> = match why {
                     Draw::Teach { spell, .. } => p.spells.get(*spell as usize).cloned().unwrap_or_default(),
-                    Draw::Summon { piece, .. } => vec![*piece],
+                    Draw::Summon { piece, .. } | Draw::Jinx { piece, .. } => vec![*piece],
                 };
                 let names: Vec<String> = pieces
                     .iter()
@@ -1726,9 +1848,35 @@ impl Session {
                         "podium.summoning",
                         &[("name", self.c.file.helpers[*helper as usize].name.clone())],
                     ),
+                    Draw::Jinx { piece, target, .. } => self.s.f(
+                        "jinx.drawing",
+                        &[
+                            (
+                                "rival",
+                                m.seats
+                                    .get(*target as usize)
+                                    .map(|t| t.name.clone())
+                                    .unwrap_or_default(),
+                            ),
+                            ("name", self.c.file.pieces[*piece as usize].name.clone()),
+                        ],
+                    ),
                 };
                 let live = crate::glyph::score(guide, drawn, *band);
-                overlay::drawing(&p.activity, &names, &heading, &format!("{live}%"))
+                // a jinx's drawing sets how long it lasts (T62): a bar says so
+                let meter = matches!(why, Draw::Jinx { .. }).then(|| {
+                    let [lo, hi] = self.c.balance().jinx_s;
+                    (
+                        live,
+                        self.s.f(
+                            "jinx.lasts",
+                            &[("s", crate::jinx::seconds(&self.c, live).to_string())],
+                        ),
+                        self.s.f("jinx.lasts_lo", &[("s", lo.to_string())]),
+                        self.s.f("jinx.lasts_hi", &[("s", hi.to_string())]),
+                    )
+                });
+                overlay::drawing(&p.activity, &names, &heading, &format!("{live}%"), meter)
             }
             Activity::Interview { lane, one, .. } => {
                 let who = match one {
@@ -1765,6 +1913,38 @@ impl Session {
                 )
             }
             Activity::Sealing { rings, at } => overlay::seal(&self.c, &p.draft, rings, *at),
+            _ if self.aim.is_some() => {
+                let Some(a) = self.aim else {
+                    return Vec::new();
+                };
+                let mine: Vec<crate::jinx::Jinx> = p
+                    .cast
+                    .iter()
+                    .filter(|(t, _)| *t == a.target)
+                    .map(|(_, j)| *j)
+                    .collect();
+                let ghost = a.hover.map(|(x, z)| {
+                    let shape = crate::jinx::shape(&self.c, a.piece);
+                    let way = shape.and_then(|sh| crate::jinx::fits(&self.c, sh, x, z, a.turn).ok());
+                    let ok = p.jinx_ready(&self.c, a.piece, a.target, x, z, a.turn).is_ok();
+                    let j = crate::jinx::Jinx {
+                        piece: a.piece,
+                        from: p.seat,
+                        x,
+                        z,
+                        turn: a.turn,
+                        way: way.unwrap_or(0),
+                        left: 0,
+                    };
+                    (j, ok, way.is_some())
+                });
+                let names: Vec<String> = prep::STATIONS
+                    .iter()
+                    .map(|(st, _, _)| self.s.t(&format!("station.{}", st.key())))
+                    .collect();
+                let tags: Vec<String> = mine.iter().map(|j| self.jinx_tag(j)).collect();
+                overlay::plan(&self.c, &names, &mine, &tags, ghost)
+            }
             _ if self.layout.open => {
                 let a = p.field(&self.c);
                 let ghost = match (self.layout.hover, self.layout.feature) {
@@ -2349,7 +2529,7 @@ impl Session {
         let spell_piece = |i: usize| {
             !matches!(
                 c.file.pieces[i].kind,
-                PieceKind::Helper { .. } | PieceKind::SelfCast { .. }
+                PieceKind::Helper { .. } | PieceKind::SelfCast { .. } | PieceKind::Jinx { .. }
             ) && spell::raises(c, i as u16)
                 .map(|f| c.file.features[f].cast_life > 0)
                 .unwrap_or(true)
@@ -2406,6 +2586,7 @@ impl Session {
             PieceKind::Helper { .. } => "kind.helper",
             PieceKind::Branch => "kind.branch",
             PieceKind::SelfCast { .. } => "kind.self",
+            PieceKind::Jinx { .. } => "kind.jinx",
         };
         let school = &c.file.schools[c.piece_school[i]];
         let mut lines: Vec<String> = Vec::new();
@@ -2481,6 +2662,17 @@ impl Session {
                 };
                 lines.push(s.f("gloss.self", &[("mana", m.to_string()), ("s", how_long)]));
             }
+            PieceKind::Jinx { mana: m, .. } => {
+                let [lo, hi] = c.balance().jinx_s;
+                lines.push(s.f(
+                    "gloss.jinx",
+                    &[
+                        ("mana", m.to_string()),
+                        ("lo", lo.to_string()),
+                        ("hi", hi.to_string()),
+                    ],
+                ));
+            }
             PieceKind::Invade | PieceKind::Trigger { .. } | PieceKind::Branch => {}
         }
         let (d, view) = icon(std::slice::from_ref(&piece.glyph));
@@ -2491,7 +2683,7 @@ impl Session {
                 None => spell::stats(c, &[i as u16]).mana,
             }),
             PieceKind::Helper { helper } => c.helper(helper).map(|h| c.file.helpers[h].mana),
-            PieceKind::SelfCast { mana: m, .. } => Some(*m),
+            PieceKind::SelfCast { mana: m, .. } | PieceKind::Jinx { mana: m, .. } => Some(*m),
             _ => None,
         };
         json!({"number": s.f("gloss.number", &[("n", (i + 1).to_string())]), "name": piece.name, "kind": s.f("card.kind", &[("school", school.name.clone()), ("kind", s.t(kind))]), "school": school.id, "text": piece.text, "facts": lines.join(" "), "chip": chip, "icon": d, "view": view, "mana": cost.map(|n| mana(s, n))})
@@ -2606,6 +2798,12 @@ impl Session {
             self.rehearsal_item(),
             json!({"label": s.t("hud.mana"), "value": if held > 0 { s.f("hud.mana_held", &[("n", strings::number(p.map(|p| p.mana / 100).unwrap_or(0))), ("held", strings::number(held))]) } else { strings::number(p.map(|p| p.mana / 100).unwrap_or(0)) }, "bar": strings::css_pct(mana), "held": (held > 0).then(|| strings::css_pct((held * 100 * 1000 / max).min(1000))), "hint": s.t("hud.held_hint")}),
         ];
+        let mut items = items;
+        // a rival's jinxes in your tower, and how long each has left (T62)
+        if let Some(p) = p.filter(|p| !p.jinxes.is_empty()) {
+            let tags: Vec<String> = p.jinxes.iter().map(|j| self.jinx_tag(j)).collect();
+            items.push(json!({"label": s.t("hud.jinxed"), "value": tags.join(" · "), "kind": "jinxed"}));
+        }
         json!({"id": "hud", "kind": "hud", "items": items})
     }
 
@@ -2644,6 +2842,9 @@ impl Session {
                 }
                 _ => panels.push(json!({"id": "busy", "kind": "bottom", "text": text, "actions": [act_json("prep.cancel", "", s.t("busy.cancel"), true)]})),
             }
+        } else if let Some(a) = self.aim {
+            panels.push(self.ui_aim(m, p, a));
+            panels.push(self.ui_their_tower(m, p, a));
         } else if self.layout.open {
             panels.push(self.ui_layout(p));
             // what is rising changes every second, so the route has a
@@ -2714,8 +2915,10 @@ impl Session {
             panels.push(json!({"id": "self", "kind": "self", "actions": selves}));
         }
         panels.push(json!({"id": "ready", "kind": "corner", "actions": [act_json("day.ready", "", s.t("prep.ready"), true), act_json("match.leave", "", s.t("leave"), true)]}));
-        let labels: Vec<Value> = if busy.is_none() && !self.layout.open {
-            self.station_labels(p)
+        let labels: Vec<Value> = if busy.is_none() && !self.layout.open && self.aim.is_none() {
+            let mut l = self.station_labels(p);
+            l.extend(self.jinx_labels(p));
+            l
         } else {
             vec![]
         };
@@ -2724,7 +2927,9 @@ impl Session {
         v["station"] = json!(station.map(|s| s.key()));
         v["busy"] = json!(busy);
         v["labels"] = json!(labels);
-        v["overlay"] = json!(busy == Some("drawing") || busy == Some("interview") || self.layout.open);
+        v["overlay"] = json!(
+            busy == Some("drawing") || busy == Some("interview") || self.layout.open || self.aim.is_some()
+        );
         // the archmage's place in decimetres, for the browser check to walk by
         let dm = |v: i32| v * 10 / crate::fx::ONE;
         // the sorting game's book and the seal's ring, for a browser check
@@ -2748,6 +2953,120 @@ impl Session {
         }
         v["data"] = json!({"students": p.students.len(), "spells": p.spells.len(), "known": p.known.iter().filter(|&&k| k).count(), "placed": p.placed.len(), "x": dm(p.pos.x), "z": dm(p.pos.z), "book": book, "ring": ring});
         v
+    }
+
+    /// The jinxes this archmage knows, in the content's order (T62).
+    fn known_jinxes(&self, p: &prep::Prep) -> Vec<u16> {
+        (0..self.c.file.pieces.len() as u16)
+            .filter(|&k| p.known[k as usize] && crate::jinx::shape(&self.c, k).is_some())
+            .collect()
+    }
+
+    /// A jinx's name and the time it has left: "Bog 0:31".
+    fn jinx_tag(&self, j: &crate::jinx::Jinx) -> String {
+        self.s.f(
+            "jinx.tag",
+            &[
+                ("name", self.c.file.pieces[j.piece as usize].name.clone()),
+                ("t", strings::clock(j.left)),
+            ],
+        )
+    }
+
+    /// Each jinx in your tower named over where it stands (T62).
+    fn jinx_labels(&self, p: &prep::Prep) -> Vec<Value> {
+        let cam = scene::room_camera(p);
+        let (w, h) = self.canvas;
+        let aspect = (w.max(1) as i64 * crate::fx::ONE as i64 / h.max(1) as i64) as i32;
+        let mtx = cam.matrix(aspect);
+        p.jinxes
+            .iter()
+            .filter_map(|j| {
+                let at = crate::jinx::label_at(&self.c, j).add(v3(0, crate::fx::ONE * 5 / 2, 0));
+                geom::project(&mtx, at).map(|(x, y)| json!({"text": self.jinx_tag(j), "left": strings::css_pct(x), "top": strings::css_pct(y), "kind": "jinx"}))
+            })
+            .collect()
+    }
+
+    /// Aiming a jinx (T62), after its mockup: the jinx, the keys, the other
+    /// jinxes to switch to, on the left of the rival's floor plan.
+    fn ui_aim(&self, m: &Match, p: &prep::Prep, a: Aim) -> Value {
+        let s = &self.s;
+        let rival = m
+            .seats
+            .get(a.target as usize)
+            .map(|t| t.name.clone())
+            .unwrap_or_default();
+        let mut bl = vec![
+            json!({"t": "title", "col": "aim", "text": s.t("jinx.aim_title"), "help": s.t("jinx.aim_help")}),
+            json!({"t": "h", "col": "aim", "text": s.f("jinx.their_tower", &[("rival", rival)])}),
+            json!({"t": "picks", "col": "aim", "tiles": self.jinx_tiles(p, a.piece)}),
+            json!({"t": "keys", "col": "aim", "parts": [
+                {"key": s.t("jinx.key_click")}, {"text": s.t("jinx.key_click_does")},
+                {"key": "R"}, {"text": s.t("jinx.key_turn_does")},
+                {"key": "Esc"}, {"text": s.t("jinx.key_esc_does")},
+            ]}),
+        ];
+        bl.push(json!({"t": "actions", "col": "aim", "style": "soft", "actions": [act_json("jinx.close", "", s.t("jinx.close"), true)]}));
+        json!({"id": "aim", "kind": "aim", "blocks": bl})
+    }
+
+    /// The rival's tower beside its plan (T62): your jinxes standing there,
+    /// and what each colour on the plan is.
+    fn ui_their_tower(&self, _m: &Match, p: &prep::Prep, a: Aim) -> Value {
+        let s = &self.s;
+        let mine: Vec<String> = p
+            .cast
+            .iter()
+            .filter(|(t, _)| *t == a.target)
+            .map(|(_, j)| self.jinx_tag(j))
+            .collect();
+        let each = self.c.balance().jinx_each;
+        let here = if mine.is_empty() {
+            s.f("jinx.none_here", &[("each", each.to_string())])
+        } else {
+            s.f(
+                "jinx.here",
+                &[
+                    ("list", mine.join(" · ")),
+                    ("n", mine.len().to_string()),
+                    ("each", each.to_string()),
+                ],
+            )
+        };
+        let legend = |sw: &str, key: &str| json!({"label": s.t(key), "swatch": sw});
+        json!({"id": "their", "kind": "route", "blocks": [
+            json!({"t": "title", "col": "their", "text": s.t("jinx.their_heading")}),
+            json!({"t": "p", "col": "their", "text": here}),
+            json!({"t": "rows", "col": "their", "rows": [
+                legend("walkway", "jinx.legend_walkway"),
+                legend("jinx", "jinx.legend_barrier"),
+                legend("bog", "jinx.legend_bog"),
+                legend("ice", "jinx.legend_ice"),
+            ]}),
+        ]})
+    }
+
+    /// The jinx tiles (T62): each known jinx, its mana and how long it lasts.
+    fn jinx_tiles(&self, p: &prep::Prep, on: u16) -> Vec<Value> {
+        let s = &self.s;
+        let [lo, hi] = self.c.balance().jinx_s;
+        self.known_jinxes(p)
+            .into_iter()
+            .map(|k| {
+                let piece = &self.c.file.pieces[k as usize];
+                let cost = crate::jinx::mana(&self.c, k).unwrap_or(0);
+                json!({
+                    "name": piece.name,
+                    "tag": s.t("kind.jinx"),
+                    "text": s.t(&format!("jinx.short.{}", piece.id)),
+                    "mana": mana(s, cost),
+                    "small": s.f("jinx.range", &[("lo", lo.to_string()), ("hi", hi.to_string())]),
+                    "on": k == on,
+                    "action": act_json("jinx.pick", &piece.id, piece.name.clone(), true),
+                })
+            })
+            .collect()
     }
 
     fn station_labels(&self, p: &prep::Prep) -> Vec<Value> {
@@ -2813,7 +3132,8 @@ impl Session {
             Station::Lab => {
                 let mut rows = Vec::new();
                 for (i, piece) in c.file.pieces.iter().enumerate() {
-                    if !p.known[i] || matches!(piece.kind, PieceKind::Helper { .. }) {
+                    if !p.known[i] || matches!(piece.kind, PieceKind::Helper { .. } | PieceKind::Jinx { .. })
+                    {
                         continue;
                     }
                     let kind = match piece.kind {
@@ -2825,6 +3145,7 @@ impl Session {
                         PieceKind::Helper { .. } => "kind.helper",
                         PieceKind::Branch => "kind.branch",
                         PieceKind::SelfCast { .. } => "kind.self",
+                        PieceKind::Jinx { .. } => "kind.jinx",
                     };
                     // a payload's own mana; a modifier's depends on the spell it is in
                     let cost = matches!(piece.kind, PieceKind::Payload { .. })
@@ -3375,6 +3696,13 @@ impl Session {
                 .filter(|st| st.raid.map(|r| r.0 as usize) == Some(t))
                 .collect();
             let names: Vec<String> = mine.iter().map(|st| st.name.clone()).collect();
+            // your jinxes standing in their tower (T62)
+            let jinxed: Vec<String> = p
+                .cast
+                .iter()
+                .filter(|(to, _)| *to as usize == t)
+                .map(|(_, j)| self.jinx_tag(j))
+                .collect();
             let text = if names.is_empty() {
                 s.f(
                     "raid.rival_none",
@@ -3393,6 +3721,11 @@ impl Session {
                     ],
                 )
             };
+            let text = if jinxed.is_empty() {
+                text
+            } else {
+                s.f("jinx.card", &[("text", text), ("list", jinxed.join(" · "))])
+            };
             let mut a = act_json(
                 "raid.drop",
                 &t.to_string(),
@@ -3410,7 +3743,8 @@ impl Session {
         if rivals.is_empty() {
             items.push(json!({"kind": "note", "text": s.t("raid.no_rivals"), "left": "20%", "top": "38%", "w": "60%", "h": "24%"}));
         }
-        bl.push(json!({"t": "board", "col": "road", "aspect": "26 / 9", "items": items}));
+        // a lower road leaves the jinxes room beneath it (T62)
+        bl.push(json!({"t": "board", "col": "road", "aspect": "26 / 7", "items": items}));
         let home = p.students.iter().filter(|st| st.raid.is_none()).count();
         bl.push(json!({"t": "h", "col": "home", "text": s.t("raid.home_heading")}));
         bl.push(json!({"t": "p", "col": "home", "text": s.f("raid.home", &[("n", home.to_string()), ("of", p.students.len().to_string())])}));
@@ -3426,6 +3760,27 @@ impl Session {
         bl.push(json!({"t": "rows", "col": "spells", "rows": wild_rows}));
         if !spell_actions.is_empty() {
             bl.push(json!({"t": "actions", "col": "spells", "actions": spell_actions}));
+        }
+        // jinxes for a rival's tower (T62): pick one, then a rival
+        let known = self.known_jinxes(p);
+        if !known.is_empty() {
+            bl.push(json!({"t": "h", "col": "jinx", "text": s.t("jinx.heading"), "help": s.t("jinx.how")}));
+            if rivals.is_empty() {
+                bl.push(json!({"t": "p", "col": "jinx", "tone": "muted", "text": s.t("jinx.no_rivals")}));
+            } else {
+                let on = self.jinx_pick.filter(|k| known.contains(k)).unwrap_or(known[0]);
+                bl.push(json!({"t": "picks", "col": "jinx", "tiles": self.jinx_tiles(p, on)}));
+                bl.push(json!({"t": "p", "col": "jinx", "tone": "lead", "text": s.f("jinx.cast_at", &[("name", c.file.pieces[on as usize].name.clone())])}));
+                let each = c.balance().jinx_each as usize;
+                let at: Vec<Value> = rivals
+                    .iter()
+                    .map(|&t| {
+                        let there = p.cast.iter().filter(|(to, _)| *to as usize == t).count();
+                        act_json("jinx.aim", &t.to_string(), m.seats[t].name.clone(), there < each)
+                    })
+                    .collect();
+                bl.push(json!({"t": "actions", "col": "jinx", "style": "chips", "actions": at}));
+            }
         }
         json!({"id": "station", "kind": "raid", "blocks": bl})
     }

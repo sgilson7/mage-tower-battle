@@ -14,6 +14,7 @@ use crate::content::{self, Content, PieceKind};
 use crate::fx::{Fx, ONE};
 use crate::geom::{v3, TPS, V3};
 use crate::glyph;
+use crate::jinx::{self, Jinx};
 use crate::rhythm::Lane;
 use crate::rng::Rng;
 use crate::spell;
@@ -221,6 +222,15 @@ pub enum Draw {
         piece: u16,
         work: Work,
     },
+    /// A jinx for a rival's tower (T62), placed before it is drawn.
+    Jinx {
+        piece: u16,
+        target: u8,
+        x: i32,
+        z: i32,
+        turn: u8,
+        way: u8,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -305,6 +315,9 @@ pub struct Record {
 pub struct Note {
     pub key: String,
     pub value: String,
+    /// Who did it, for a note about a rival (T62); empty otherwise.
+    #[serde(default)]
+    pub who: String,
 }
 
 #[derive(Debug, Clone)]
@@ -351,6 +364,17 @@ pub struct Prep {
     pub last_read: Option<Book>,
     /// The last lesson's results, until the next (T48).
     pub lesson: Option<Lesson>,
+    /// Jinxes standing in this tower (T62).
+    pub jinxes: Vec<Jinx>,
+    /// Jinxes this archmage has standing in rivals' towers, by target seat,
+    /// counted down here as they are there.
+    pub cast: Vec<(u8, Jinx)>,
+    /// Jinxes cast and not yet sent on, by target seat.
+    pub jinx_out: Vec<(u8, Jinx)>,
+    /// How the archmage is moving, per tick: on black ice it carries on.
+    pub vel: V3,
+    /// Seconds jinxes took from a computer rival's next day.
+    pub lost_s: i32,
     next_id: u16,
     rng: Rng,
 }
@@ -451,6 +475,11 @@ impl Prep {
             ready: false,
             last_read: None,
             lesson: None,
+            jinxes: Vec::new(),
+            cast: Vec::new(),
+            jinx_out: Vec::new(),
+            vel: V3::ZERO,
+            lost_s: 0,
             next_id: 1,
             rng,
         };
@@ -539,7 +568,12 @@ impl Prep {
         self.ready = false;
         self.pos = v3(0, 0, 3 * ONE);
         self.prev = self.pos;
+        self.vel = V3::ZERO;
         self.dip = 0;
+        // a jinx lasts one preparation at most (T62)
+        self.jinxes.clear();
+        self.cast.clear();
+        self.jinx_out.clear();
     }
 
     pub fn station(&self) -> Option<Station> {
@@ -553,6 +587,7 @@ impl Prep {
         self.notes.push(Note {
             key: key.to_string(),
             value: value.into(),
+            who: String::new(),
         });
         if self.notes.len() > 6 {
             self.notes.remove(0);
@@ -577,6 +612,15 @@ impl Prep {
             bn.1 -= 1;
         }
         self.boons.retain(|bn| bn.1 > 0);
+        // jinxes here and the ones you cast elsewhere run out (T62)
+        for j in self.jinxes.iter_mut() {
+            j.left -= 1;
+        }
+        self.jinxes.retain(|j| j.left > 0);
+        for (_, j) in self.cast.iter_mut() {
+            j.left -= 1;
+        }
+        self.cast.retain(|(_, j)| j.left > 0);
         let (regen_pct, _, discount) = self.boon_pcts(c);
         self.discount = discount.clamp(0, 90);
         let regen = b.archmage_regen * 100 * (100 + regen_pct) / 100 / TPS;
@@ -719,9 +763,11 @@ impl Prep {
             self.note("prep.cancelled", "");
         }
         if self.busy() {
+            self.vel = V3::ZERO;
             return;
         }
-        // walking
+        // walking: quicker on a walkway, slow in a bog, and on black ice
+        // the way you were going carries on (T62)
         let mut d = V3::ZERO;
         if bits & UP != 0 {
             d.z -= ONE;
@@ -735,10 +781,20 @@ impl Prep {
         if bits & RIGHT != 0 {
             d.x += ONE;
         }
+        let pace = jinx::pace_pct(c, &self.jinxes, self.pos);
+        let want = d.with_len(content::cms(b.walk_cms) * pace / 100);
+        if jinx::icy(c, &self.jinxes, self.pos) {
+            let grip = b.ice_grip_pct;
+            self.vel = self.vel.add(want.sub(self.vel).ratio(grip, 100));
+        } else {
+            self.vel = want;
+        }
         if d != V3::ZERO {
-            let step = content::cms(b.walk_cms);
-            self.pos = self.pos.add(d.with_len(step));
             self.yaw = crate::geom::yaw_of(d.x, d.z);
+        }
+        if self.vel != V3::ZERO {
+            let from = self.pos;
+            self.pos = self.pos.add(self.vel);
             let r = self.pos.flat_len();
             let lim = ROOM_RADIUS - BODY;
             if r > lim {
@@ -756,6 +812,15 @@ impl Prep {
                     });
                 }
             }
+            // no one walks through a barrier; sliding into one stops you
+            self.pos = jinx::push_out(c, &self.jinxes, self.pos);
+            self.vel = self.pos.sub(from);
+            if d == V3::ZERO && self.vel.flat_len() < content::cms(b.walk_cms) / 20 {
+                self.vel = V3::ZERO;
+            }
+        } else {
+            // a barrier that lands where you stand puts you beside it
+            self.pos = jinx::push_out(c, &self.jinxes, self.pos);
         }
         if down & USE != 0 {
             let _ = self.primary(c);
@@ -1258,7 +1323,9 @@ impl Prep {
                 .iter()
                 .map(|&p| c.file.pieces[p as usize].glyph.clone())
                 .collect(),
-            Draw::Summon { piece, .. } => vec![c.file.pieces[*piece as usize].glyph.clone()],
+            Draw::Summon { piece, .. } | Draw::Jinx { piece, .. } => {
+                vec![c.file.pieces[*piece as usize].glyph.clone()]
+            }
         };
         glyphs.extend(class_glyphs(c, audience));
         let guide = glyph::incantation(&glyphs);
@@ -1595,6 +1662,16 @@ impl Prep {
                         self.record.summoned_kinds |= 1 << helper.min(31);
                         self.note("helper.summoned", score.to_string());
                     }
+                    Draw::Jinx {
+                        piece,
+                        target,
+                        x,
+                        z,
+                        turn,
+                        way,
+                    } => {
+                        self.cast_jinx(c, piece, target, (x, z, turn, way), score)?;
+                    }
                 }
                 self.note("draw.score", score.to_string());
             }
@@ -1734,6 +1811,29 @@ impl Prep {
                     self.erase(c, cell);
                 }
             }
+            "book.jinx" => {
+                // value: piece, target seat, x and z in cm, turn (T62).
+                // Placed first, then drawn: the drawing sets how long it lasts
+                self.at(Station::Book)?;
+                let n: Vec<i32> = value.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                let &[piece, target, x, z, turn] = n.as_slice() else {
+                    return Err("jinx.bad");
+                };
+                let (piece, target, turn) = (piece as u16, target as u8, turn.clamp(0, 255) as u8);
+                let way = self.jinx_ready(c, piece, target, x, z, turn)?;
+                self.begin_drawing(
+                    c,
+                    Draw::Jinx {
+                        piece,
+                        target,
+                        x,
+                        z,
+                        turn,
+                        way,
+                    },
+                    1,
+                );
+            }
             "book.cast" => {
                 // value: the spell; an invasion goes to every rival (T29)
                 self.at(Station::Book)?;
@@ -1771,6 +1871,95 @@ impl Prep {
             _ => return Err("prep.unknown"),
         }
         Ok(())
+    }
+
+    /// Whether a jinx can be cast now (T62): a known jinx, at a rival, with
+    /// room for another of yours in their tower, where it fits, and the
+    /// mana for it. The walkway it lies on, for black ice.
+    pub fn jinx_ready(
+        &self,
+        c: &Content,
+        piece: u16,
+        target: u8,
+        x: i32,
+        z: i32,
+        turn: u8,
+    ) -> Result<u8, &'static str> {
+        let shape = jinx::shape(c, piece).ok_or("jinx.bad")?;
+        if !self.known.get(piece as usize).copied().unwrap_or(false) {
+            return Err("jinx.unknown");
+        }
+        if target == self.seat || target >= 4 {
+            return Err("jinx.bad");
+        }
+        let there = self.cast.iter().filter(|(t, _)| *t == target).count() as i32;
+        if there >= c.balance().jinx_each {
+            return Err("jinx.full");
+        }
+        let way = jinx::fits(c, shape, x, z, turn)?;
+        let cost = jinx::mana(c, piece).unwrap_or(0) * 100 * (100 - self.discount) / 100;
+        if self.mana < cost {
+            return Err("prep.no_mana");
+        }
+        Ok(way)
+    }
+
+    /// Pays for a jinx drawn `score` well and sends it on (T62).
+    fn cast_jinx(
+        &mut self,
+        c: &Content,
+        piece: u16,
+        target: u8,
+        at: (i32, i32, u8, u8),
+        score: i32,
+    ) -> Result<(), &'static str> {
+        let (x, z, turn, way) = at;
+        self.jinx_ready(c, piece, target, x, z, turn)?;
+        self.spend(jinx::mana(c, piece).unwrap_or(0))?;
+        let j = Jinx {
+            piece,
+            from: self.seat,
+            x,
+            z,
+            turn,
+            way,
+            left: jinx::seconds(c, score) * TPS,
+        };
+        self.cast.push((target, j));
+        self.jinx_out.push((target, j));
+        self.note("jinx.cast", c.file.pieces[piece as usize].name.clone());
+        Ok(())
+    }
+
+    /// A rival's jinx lands in this tower (T62).
+    pub fn take_jinx(&mut self, c: &Content, j: Jinx, who: &str) {
+        if jinx::shape(c, j.piece).is_none() {
+            return;
+        }
+        self.jinxes.push(j);
+        self.notes.push(Note {
+            key: "jinx.landed".into(),
+            value: c.file.pieces[j.piece as usize].name.clone(),
+            who: who.to_string(),
+        });
+        if self.notes.len() > 6 {
+            self.notes.remove(0);
+        }
+    }
+
+    /// A computer rival's jinx: placed by rule, drawn by its skill.
+    pub fn bot_jinx(
+        &mut self,
+        c: &Content,
+        piece: u16,
+        target: u8,
+        way: usize,
+        score: i32,
+    ) -> Result<(), &'static str> {
+        let shape = jinx::shape(c, piece).ok_or("jinx.bad")?;
+        let (x, z, turn) = jinx::spot(shape, way);
+        let way = jinx::fits(c, shape, x, z, turn)?;
+        self.cast_jinx(c, piece, target, (x, z, turn, way), score)
     }
 
     /// A student of a set quality with no school leanings, for trials.

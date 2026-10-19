@@ -100,6 +100,33 @@ def open_page(browser, origin, who, seen):
     return page
 
 
+def jinx_online(page):
+    """Walks to the invasion book, aims a bog on seat 0's floor plan at
+    (0, 600) cm, and draws it. The plan is 594 overlay pixels for 3000 cm,
+    its middle at (640, 360) of 1280 × 720 (crates/core/src/overlay.rs)."""
+    # the reply code's box is still open, and its text box has the keys
+    if page.is_visible("#ask"):
+        page.click("#ask button >> nth=-1")
+    page.keyboard.down("KeyW")
+    for _ in range(200):
+        if page.get_attribute("body", "data-station") == "book":
+            break
+        page.wait_for_timeout(30)
+    page.keyboard.up("KeyW")
+    page.click("button[data-action='jinx.pick'][data-value='bog']", timeout=TIMEOUT_MS)
+    page.click("button[data-action='jinx.aim'][data-value='0']", timeout=TIMEOUT_MS)
+    page.wait_for_selector("body[data-overlay='on']", state="attached", timeout=TIMEOUT_MS)
+    box = page.locator("#overlay").bounding_box()
+    sx, sy = box["width"] / 1280, box["height"] / 720
+    page.mouse.click(box["x"] + 640 * sx, box["y"] + (360 + 600 * 594 / 3000) * sy)
+    page.wait_for_selector("body[data-busy='drawing']", state="attached", timeout=TIMEOUT_MS)
+    page.mouse.move(box["x"] + 500 * sx, box["y"] + 380 * sy)
+    page.mouse.down()
+    page.mouse.move(box["x"] + 540 * sx, box["y"] + 380 * sy)
+    page.mouse.up()
+    page.wait_for_selector("body[data-busy='']", state="attached", timeout=TIMEOUT_MS)
+
+
 def run(p, engine, origin):
     print(f"\n[{engine}] online, two browsers, pasted codes, one day")
     browser = getattr(p, engine).launch(**LAUNCH.get(engine, {}))
@@ -150,6 +177,16 @@ def run(p, engine, origin):
         except Exception:
             ok = False
         check(ok, f"the {who} is in the match")
+    # a jinx cast online (T62): the joiner walks to the invasion book, aims
+    # a bog on the host's floor plan, draws it, and it lands in the host's
+    # tower
+    jinx_online(joiner)
+    try:
+        host.wait_for_selector(".hud-item.jinxed", timeout=TIMEOUT_MS)
+        landed = True
+    except Exception:
+        landed = False
+    check(landed, "a jinx cast in one browser lands in the other's tower")
     # the joiner ends its preparation first and waits for the host's plan
     joiner.click(DAY_READY)
     joiner.wait_for_selector("body[data-phase='waiting']", state="attached", timeout=TIMEOUT_MS)

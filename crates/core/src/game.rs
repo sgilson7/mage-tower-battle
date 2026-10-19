@@ -13,6 +13,7 @@ use crate::battle::{Battle, Incoming, Plan, Wild};
 use crate::bot::{self, Style};
 use crate::content::Content;
 use crate::geom::TPS;
+use crate::jinx::{self, Jinx};
 use crate::prep::Prep;
 use crate::rng::Rng;
 use crate::spell;
@@ -134,6 +135,12 @@ pub struct Match {
     /// For trials: ticks since the trial began.
     pub elapsed: i32,
     pub trial_done: Option<i32>,
+    /// Computer rivals' jinxes on their way to this browser's tower, with
+    /// the preparation tick each lands on (T62).
+    pub pending: Vec<(Jinx, i32)>,
+    /// This browser's jinxes for remote players' towers, for the online
+    /// layer to send.
+    pub jinx_sent: Vec<(u8, Jinx)>,
     rng: Rng,
     used_main: Vec<u16>,
 }
@@ -191,6 +198,8 @@ impl Match {
             results: Vec::new(),
             elapsed: 0,
             trial_done: None,
+            pending: Vec::new(),
+            jinx_sent: Vec::new(),
             rng: Rng::new(seed ^ 0xa11ce),
             used_main: Vec::new(),
         };
@@ -254,6 +263,8 @@ impl Match {
         self.battles = vec![None, None, None, None];
         let ticks = self.prep_ticks();
         let day = self.day;
+        self.pending.clear();
+        self.jinx_sent.clear();
         for i in 0..self.seats.len() {
             self.seats[i].incoming.clear();
             self.seats[i].plan = None;
@@ -285,6 +296,19 @@ impl Match {
                     .as_ref()
                     .map(|p| p.sent.clone())
                     .unwrap_or_default();
+                // its jinxes land partway through the preparation too (T62)
+                let jinxes = self.seats[i]
+                    .prep
+                    .as_mut()
+                    .map(|p| std::mem::take(&mut p.jinx_out))
+                    .unwrap_or_default();
+                for (k, (t, j)) in jinxes.into_iter().enumerate() {
+                    if t == self.local && self.seats[t as usize].kind == SeatKind::Local {
+                        self.pending.push((j, ticks * (4 + 2 * k as i32) / 10));
+                    } else {
+                        self.land(c, t, j);
+                    }
+                }
                 for (k, (_, s)) in sent.into_iter().enumerate() {
                     let chain = self.seats[i]
                         .prep
@@ -305,6 +329,31 @@ impl Match {
                 }
             }
         }
+    }
+
+    /// A jinx reaches a tower (T62): this browser's archmage walks with it;
+    /// a computer rival loses time from its next day; a remote player's
+    /// own browser takes it, so nothing happens here.
+    fn land(&mut self, c: &Content, target: u8, j: Jinx) {
+        let who = self
+            .seats
+            .get(j.from as usize)
+            .map(|s| s.name.clone())
+            .unwrap_or_default();
+        let Some(seat) = self.seats.get_mut(target as usize) else {
+            return;
+        };
+        match (seat.kind, seat.prep.as_mut()) {
+            (SeatKind::Local, Some(p)) => p.take_jinx(c, j, &who),
+            (SeatKind::Bot(_), Some(p)) => p.lost_s += jinx::bot_loss_s(c, &j),
+            _ => {}
+        }
+    }
+
+    /// A remote archmage's jinx, cast during today's preparation (T62).
+    pub fn take_jinx(&mut self, c: &Content, from: u8, target: u8, mut j: Jinx) {
+        j.from = from;
+        self.land(c, target, j);
     }
 
     /// An invasion from `inv.from` to every other active seat (T29). Sent
@@ -379,6 +428,36 @@ impl Match {
         out
     }
 
+    /// This browser's jinxes cast this tick go on: to a remote player by
+    /// the online layer, to a computer rival here; and computer rivals'
+    /// jinxes due now land in this browser's tower (T62).
+    fn route_local_jinxes(&mut self, c: &Content) {
+        let l = self.local as usize;
+        let out = self
+            .seats
+            .get_mut(l)
+            .and_then(|s| s.prep.as_mut())
+            .map(|p| std::mem::take(&mut p.jinx_out))
+            .unwrap_or_default();
+        for (t, j) in out {
+            match self.seats.get(t as usize).map(|s| s.kind) {
+                Some(SeatKind::Remote) => self.jinx_sent.push((t, j)),
+                _ => self.land(c, t, j),
+            }
+        }
+        let now = self.prep_tick;
+        let mut due = Vec::new();
+        self.pending.retain(|&(j, at)| {
+            if at <= now {
+                due.push(j);
+            }
+            at > now
+        });
+        for j in due {
+            self.land(c, self.local, j);
+        }
+    }
+
     /// One display tick. Returns the local invasions cast this tick, for
     /// the online layer.
     pub fn step(&mut self, c: &Content, bits: u32) -> Vec<(u8, Vec<u16>)> {
@@ -397,6 +476,7 @@ impl Match {
                     }
                 }
                 sent = self.route_local_invasions(c);
+                self.route_local_jinxes(c);
                 if let Mode::Trial(k) = self.mode {
                     if let Some(t) = self.trial_time_done(c, k) {
                         self.trial_done = Some(t);

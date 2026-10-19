@@ -45,6 +45,7 @@ const INTERVIEW_S: i32 = 9;
 const TEACH_S_PER_GLYPH: i32 = 3;
 const CRAFT_S: i32 = 6;
 const PLACE_S: i32 = 4;
+const JINX_S: i32 = 6;
 
 fn put(p: &mut Prep, s: Station) {
     let at = crate::prep::station_pos(s);
@@ -126,7 +127,8 @@ fn wanted(c: &Content, p: &Prep, style: Style) -> Vec<Vec<u16>> {
 /// one quiet day (SECOND-ORDER R3.30).
 #[allow(clippy::too_many_arguments)]
 pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, invade: bool, rng: &mut Rng) {
-    let mut left = p.day_ticks / TPS;
+    // jinxes in its tower yesterday cost it time today (T62)
+    let mut left = (p.day_ticks / TPS - std::mem::take(&mut p.lost_s)).max(0);
     let spend = |s: i32, left: &mut i32| -> bool {
         if *left < s {
             return false;
@@ -202,6 +204,25 @@ pub fn day(c: &Content, p: &mut Prep, style: Style, skill: i32, leader: u8, inva
         }
     }
     p.finish_raises(c);
+    // jinxes (T62), before the lessons so a long day of teaching cannot
+    // crowd them out: the attack mage puts two in the leader's tower, the
+    // balanced archmage one, each across a walkway picked by chance
+    if invade && (style == Style::AttackMage || style == Style::Balanced) && leader != p.seat {
+        let mine: Vec<u16> = (0..c.file.pieces.len())
+            .filter(|&i| p.known[i] && crate::jinx::shape(c, i as u16).is_some())
+            .map(|i| i as u16)
+            .collect();
+        let casts = if style == Style::AttackMage { 2 } else { 1 };
+        for _ in 0..casts {
+            if mine.is_empty() || !spend(JINX_S, &mut left) {
+                break;
+            }
+            let piece = mine[rng.below(mine.len() as u32) as usize];
+            let way = rng.below(crate::jinx::WALKWAYS.len() as u32) as usize;
+            let score = roll(rng);
+            let _ = p.bot_jinx(c, piece, leader, way, score);
+        }
+    }
     // teaching, best spells first, while time lasts. The mass teacher
     // teaches the class; the others teach each student one-on-one, which
     // earns far more for the drawing (T52), as their slots allow (T50)
@@ -311,6 +332,21 @@ mod tests {
         let mut p = Prep::new(c, seat, 5, 5);
         p.start_day(c, TPS * 240);
         p
+    }
+
+    #[test]
+    fn a_rival_whose_day_jinxes_took_does_nothing_with_it() {
+        let c = shipped();
+        let run = |lost_s: i32| {
+            let mut p = bot_prep(&c, 1);
+            p.lost_s = lost_s;
+            day(&c, &mut p, Style::Spellcrafter, 65, 0, false, &mut Rng::new(3));
+            (p.record.books, p.lost_s)
+        };
+        // a 240 s day spends about half its time reading
+        assert!(run(0).0 > 0);
+        // all 240 s lost: no book read, and the loss is used up
+        assert_eq!(run(240), (0, 0));
     }
 
     #[test]

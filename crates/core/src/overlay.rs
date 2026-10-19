@@ -6,9 +6,12 @@
 use crate::arena::{self, Arena, Cell};
 use crate::battle::Placed;
 use crate::content::Content;
+use crate::content::JinxShape;
 use crate::draw::{Align, Color, DrawList, Scale, Shape};
+use crate::geom::V3;
 use crate::glyph;
-use crate::prep::{self, Activity};
+use crate::jinx::{self, Jinx};
+use crate::prep::{self, Activity, Station};
 use crate::rhythm::{Lane, CAST_LANE};
 
 /// The layout map's top-left corner and cell size in overlay pixels.
@@ -38,7 +41,13 @@ pub fn map_cell(lx: i32, ly: i32) -> Option<(i32, i32)> {
 
 /// The drawing board: the guide, its band, the player's line, and each
 /// glyph's name under it.
-pub fn drawing(a: &Activity, names: &[String], heading: &str, live: &str) -> Vec<i32> {
+pub fn drawing(
+    a: &Activity,
+    names: &[String],
+    heading: &str,
+    live: &str,
+    meter: Option<(i32, String, String, String)>,
+) -> Vec<i32> {
     let mut d = DrawList::new();
     let Activity::Drawing {
         guide,
@@ -79,6 +88,125 @@ pub fn drawing(a: &Activity, names: &[String], heading: &str, live: &str) -> Vec
         d.text(x, oy + glyph::BOX / u + 30, 18, Color::Ink, Align::Center, n);
     }
     d.text(draw_w() - 80, 186, 30, Color::Good, Align::Right, live);
+    // how long a jinx drawn this well lasts (T62): a bar from 0% to 100%
+    if let Some((pct, label, lo, hi)) = meter {
+        let [x, y, w, h] = METER_BOX;
+        d.text(x - 14, y + h / 2, 18, Color::Ink, Align::Right, &label);
+        d.rect(x - 3, y - 3, w + 6, h + 6, Color::Ink);
+        d.rect(x, y, w, h, Color::Paper);
+        d.rect(x, y, w * pct.clamp(0, 100) / 100, h, Color::Jinx);
+        d.text(x, y + h + 12, 13, Color::Muted, Align::Left, &lo);
+        d.text(x + w, y + h + 12, 13, Color::Muted, Align::Right, &hi);
+    }
+    d.finish()
+}
+
+/// The bar under a jinx's drawing, in overlay pixels: x, y, w, h.
+pub const METER_BOX: [i32; 4] = [500, 580, 400, 10];
+
+/// A rival tower's floor plan (T62): a square of `PLAN_PX` overlay pixels
+/// at (`PLAN_X`, `PLAN_Y`) showing `PLAN_CM` centimetres of floor across,
+/// the room's centre in the middle.
+pub const PLAN_X: i32 = 343;
+pub const PLAN_Y: i32 = 63;
+pub const PLAN_PX: i32 = 594;
+pub const PLAN_CM: i32 = 3000;
+
+fn plan_px(cm: i32) -> i32 {
+    cm * PLAN_PX / PLAN_CM
+}
+
+fn plan_at(p: V3) -> (i32, i32) {
+    let cm = |v: crate::fx::Fx| (v as i64 * 100 / crate::fx::ONE as i64) as i32;
+    (
+        PLAN_X + PLAN_PX / 2 + plan_px(cm(p.x)),
+        PLAN_Y + PLAN_PX / 2 + plan_px(cm(p.z)),
+    )
+}
+
+/// The floor under a logical point of the plan, in cm, if it is on the plan.
+pub fn plan_cm(lx: i32, ly: i32) -> Option<(i32, i32)> {
+    let (x, y) = (lx - PLAN_X, ly - PLAN_Y);
+    ((0..PLAN_PX).contains(&x) && (0..PLAN_PX).contains(&y)).then(|| {
+        (
+            (x - PLAN_PX / 2) * PLAN_CM / PLAN_PX,
+            (y - PLAN_PX / 2) * PLAN_CM / PLAN_PX,
+        )
+    })
+}
+
+/// A filled disc: a line of two points a pixel apart, as wide as the disc,
+/// drawn with round ends.
+fn disc(d: &mut DrawList, at: (i32, i32), r: i32, fill: Color) {
+    d.line(&[at, (at.0 + 1, at.1)], fill, r * 2);
+}
+
+/// A jinx on the plan in `fill`: a barrier as a thick bar, a bog as a
+/// disc, black ice along its walkway.
+fn plan_jinx(d: &mut DrawList, c: &Content, j: &Jinx, fill: Color) {
+    let b = c.balance();
+    match jinx::shape(c, j.piece) {
+        Some(JinxShape::Barrier) => {
+            let k = jinx::corners(c, j);
+            let a = plan_at(k[0].add(k[3]).ratio(1, 2));
+            let z = plan_at(k[1].add(k[2]).ratio(1, 2));
+            d.line(&[a, z], fill, plan_px(b.barrier_cm[1]).max(4));
+        }
+        Some(JinxShape::Bog) => disc(d, plan_at(jinx::centre(j)), plan_px(b.bog_cm), fill),
+        Some(JinxShape::Ice) => {
+            let (a, z) = jinx::walkway_ends(j.way as usize);
+            d.line(&[plan_at(a), plan_at(z)], fill, plan_px(150));
+        }
+        None => {}
+    }
+}
+
+/// The floor plan (T62): the room from above with its walkways, stations
+/// and the rug, your jinxes standing there with their time left (`tags`),
+/// and the one being aimed: gold where it can go, red where it cannot.
+pub fn plan(
+    c: &Content,
+    names: &[String],
+    mine: &[Jinx],
+    tags: &[String],
+    ghost: Option<(Jinx, bool, bool)>,
+) -> Vec<i32> {
+    let mut d = DrawList::new();
+    d.rect(0, 0, draw_w(), draw_h(), Color::Shade);
+    d.rect(PLAN_X, PLAN_Y, PLAN_PX, PLAN_PX, Color::Panel);
+    let mid = (PLAN_X + PLAN_PX / 2, PLAN_Y + PLAN_PX / 2);
+    disc(&mut d, mid, plan_px(1450), Color::Wall);
+    disc(&mut d, mid, plan_px(1400), Color::Floor);
+    disc(
+        &mut d,
+        plan_at(prep::station_pos(Station::Book)),
+        plan_px(520),
+        Color::Accent,
+    );
+    for k in 0..jinx::WALKWAYS.len() {
+        let (a, z) = jinx::walkway_ends(k);
+        d.line(&[plan_at(a), plan_at(z)], Color::Walkway, plan_px(110));
+    }
+    for j in mine {
+        plan_jinx(&mut d, c, j, Color::Jinx);
+    }
+    for (k, (st, _, _)) in prep::STATIONS.iter().enumerate() {
+        let at = plan_at(prep::station_pos(*st));
+        disc(&mut d, at, plan_px(150), Color::Ink);
+        disc(&mut d, at, plan_px(125), Color::Station);
+        if let Some(n) = names.get(k) {
+            d.text(at.0, at.1 + plan_px(230), 15, Color::Ivory, Align::Center, n);
+        }
+    }
+    for (j, t) in mine.iter().zip(tags) {
+        let (x, y) = plan_at(jinx::label_at(c, j));
+        d.text(x, y - 18, 14, Color::Gold, Align::Center, t);
+    }
+    if let Some((j, ok, placed)) = ghost {
+        if placed || jinx::shape(c, j.piece) != Some(JinxShape::Ice) {
+            plan_jinx(&mut d, c, &j, if ok { Color::GhostOk } else { Color::GhostBad });
+        }
+    }
     d.finish()
 }
 
@@ -492,6 +620,6 @@ mod tests {
             -(crate::fx::ONE * 18 / 10),
         ));
         p.act(&c, "podium.teach", "").unwrap();
-        assert!(walk(&drawing(&p.activity, &["Fire Bolt".into()], "Teach", "0%")).is_some());
+        assert!(walk(&drawing(&p.activity, &["Fire Bolt".into()], "Teach", "0%", None)).is_some());
     }
 }

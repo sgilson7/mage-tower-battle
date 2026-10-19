@@ -164,6 +164,15 @@ One row per assumption, surprise or open item. **Kind** is *divergence* (what wa
 | R10.13 | finding | Every wild group has at least one enemy. | A heavy enemy's late group could round to none, and the book said "0 Hill Giant". | At least one. | `game.rs` wild count | done |
 | R10.14 | divergence | A smaller field (T58). | | 26 × 26 cells (39 m), rocks in proportion (12), the map table's cells 22 px so its picture stays the same size, the battle views 50 m and 32 m from the field. | `arena::SIZE`, `the_starting_orbits_look_as_the_old_fixed_cameras_did_from_a_fifth_closer` | done |
 | R10.15 | worklist | Round 10's numbers are mine. | | To judge by playing: `class_pct` 8 and the bands, the slot thresholds, 7 students, Lava Pool 10 a second for 20 mana, the golem's 50%, the 10-minute limit, the 26-cell field and the cameras, the stations' places; and the new words and What's new 1.8.0 (at the foot). | | person |
+| R11.1 | divergence | How a spell reaches a rival's room (T62) was left to me. | Spells are chains made at the laboratory and cast by students in a battle; a rival's room is not in any battle. | Jinxes are a kind of piece of their own, cast by the archmage at the invasion book and never put in a spell (`lab.jinx_only`): Barrier, Bog and Black Ice, known from the first day. You pick one and a rival, click where it goes on their floor plan, then draw its glyph. Two of yours stand in each rival's tower at once (`jinx_each`); a jinx lasts one preparation at most. | `jinx.rs`, `PieceKind::Jinx`, `a_jinx_drawn_at_the_book_is_paid_for_and_sent_to_its_rival`, `two_of_your_jinxes_stand_in_a_rival_s_tower_at_once` | done |
+| R11.2 | divergence | A computer rival can be jinxed and can jinx. | A computer rival does not walk: it spends its day from a budget of seconds at the start (`bot.rs`). | A jinx in its tower takes 25% of the jinx's seconds from its next day (`bot_jinx_pct`). From the second day the Attack Mage casts two jinxes and the Balanced archmage one, at the rival leading on score, before their lessons; they land 40% and 60% of the way through the preparation. So against the computer you are jinxed only while you lead. | `jinx::bot_loss_s`, `a_rival_whose_day_jinxes_took_does_nothing_with_it`, `a_computer_rival_s_jinxes_land_partway_through_the_preparation` | done |
+| R11.3 | divergence | All mages run faster on the paths (T63). | Only the archmage walks in the room; the students sit. And *path* already means the enemies' way across the field. | The worn ways are walkways (a new glossary entry); walking on one is 150% (`walkway_pct`). In a bog the bog wins. | `jinx::pace_pct`, `walking_on_a_walkway_is_half_again_as_fast` | done |
+| R11.4 | divergence | A jinx's strength (T64). | Nothing in a jinx had a strength; a lesson's strength is its drawing. | Strength is the drawing, at the invasion book with one student's band: 0% lasts 30 s, 100% 60 s, and a bar under the board says how long. The sizes are fixed: a barrier 4 m by 0.8 m, turned in steps of 45° with R; a bog 2.2 m across from its centre at a third of the pace; black ice the whole walkway, 3% grip. | `jinx::seconds`, `a_jinx_lasts_thirty_to_sixty_seconds_by_the_drawing` | done |
+| R11.5 | divergence | A barrier must not shut anyone out of a station. | Barriers from three rivals could close a station's ways in. | A barrier stays 2.1 m from every station's centre (`STATION_CLEAR`) and inside the room, so one alone never covers a station, and one that lands on the archmage pushes them out the short way. Several together can still close a station for under a minute; I left that, since it is the point. | `jinx::fits`, `a_barrier_cannot_cover_a_station_or_leave_the_room` | done |
+| R11.6 | divergence | Jinxes online. | Each browser prepares alone and the battles are checked by checksum (`online.rs`). | A jinx is a message (protocol 2, so a 1.8 browser and a 1.9 browser do not meet). The target's browser walks with it; every browser applies one aimed at a computer rival, so that rival's next day is the same everywhere. A jinx is checked on arrival (`sane_jinx`). The online check now has one browser jinx the other. | `Msg::Jinx`, `a_jinx_from_another_browser_must_be_one_that_could_be_cast`, `tests/browser/online.py` | done |
+| R11.7 | finding | The drawing's words were readable. | On 1.8.0 the panel with a drawing's instructions and Cancel sat at the top of the screen, under the HUD (found taking the mockups' backgrounds). | It sits under the board now, clear of the corner's buttons. | `web/style.css` | done |
+| R11.8 | divergence | The build matches its mockups. | | Differences on purpose: the plan draws each walkway as one band and the rug as a disc; the barrier is a wall of light rather than hatched glass; a bog is an eight-sided pool; the mockup's light running along the walkways is left out, since the quicker walking shows by itself. The book's road is lower, so the jinxes fit under it. | journal entry 11, part 3 | done |
+| R11.9 | worklist | Round 11's numbers are mine. | | To judge by playing: walkways 150%, a bog 33%, ice 3% grip, the barrier's size, 30 to 60 s, two in a tower, 25, 20 and 20 mana, a computer rival's 25% and the Attack Mage's two a day; and the new words and What's new 1.9.0 (at the foot). | | person |
 
 ## Strings written by the agent
 
@@ -593,3 +602,95 @@ Every string in `data/strings.json` (263). The names in `data/content.json` are 
 | `news 1.7.0` | Send students to raid a rival from the invasion book. After a short run of jumps they join that rival's next battle, cast their own spells and attack the tower and its students. They are off your own towers while they are away. |
 | `news 1.7.0` | Each student has a temperament, such as Hunter or Steadfast. Office hours draws how they decide as a tree, and in a battle you can watch it light up. |
 | `news 1.7.0` | A student's health and speed grow with the spells they know: add up their effectiveness over every spell. |
+| `setup.battle` | Enemies arrive over |
+| `recruit.text` | {n} applicants today. Your college has {have} of {max} students. |
+| `recruit.leans` | {good}, not {bad} |
+| `podium.teach_all` | Teach the class ({n}), {pct}% each |
+| `map.golem_cost` | half the mana held, {s} s for a golem |
+| `help.4.text` | Interview applicants one at a time with a short rhythm game. A better interview brings a better student, who holds more spells. The college holds {students_max} students. |
+| `help.5.text` | Teach a spell by drawing its glyphs in one stroke. One student alone gets the drawing's whole effectiveness; each student more in a class adds a stroke, narrows the line and gives everyone less. A student who is full forgets their weakest spell to learn a new one alone, and a class passes them over. |
+| `help.6.text` | You start knowing Glass Wall and Raise Sub-tower; books teach more. Pick one at the map table and drag across cells. Each cell holds its mana out of your maximum for as long as it stands, and rises up to {raise_max} s later while you do other things; rub it out to get the mana back. A slow golem builds for half the mana instead. A wall may bend the route but never close it. |
+| `help.8.text` | Students cast from the tower and sub-towers. Some types hurt others double or half; none is immune. An enemy that reaches your tower strikes it once and is gone. The battle lasts until every enemy has fallen or reached the tower, ten minutes at most. |
+| `gloss.payload` | Power {power} · cooldown {cooldown} s |
+| `office.about` | Quality {q} · holds {slots} spells |
+| `builder.tray_mod` | Modifiers |
+| `raid.rival_none` | {rival} · {score} |
+| `hud.mana_held` | {n} · {held} held |
+| `hud.held_hint` | Walls, pools and sub-towers hold their mana for as long as they stand. The striped end of the bar is what they hold; rub one out at the map table to get its mana back. |
+| `recruit.full_text` | Your college is full: {n} students is as many as it holds. |
+| `recruit.full` | Your college is full. |
+| `podium.row` | {eff} · {n} of {slots} spells |
+| `podium.forgets` | forgets {spell} |
+| `podium.class_full` | Nobody in the class has room for this spell. |
+| `podium.bad` | That student is not in the class. |
+| `lesson.heading` | {spell}: drawn at {score}%, {pct}% of it to each |
+| `lesson.up` | {from}% → {to}% |
+| `lesson.same` | still {to}% |
+| `lesson.new` | new, {to}% |
+| `jobs.waiting` | waiting for {mana} mana |
+| `jobs.again` | {t}, then {mana} mana to go again |
+| `jobs.dismiss` | Send away |
+| `helper.no_work` | {value} has nothing left to do and went away. |
+| `helper.dismissed` | {value} went away. |
+| `helper.bad` | That is not a helper at work. |
+| `rehearsal.label` | If the battle began now |
+| `rehearsal.loss` | −{n} |
+| `rehearsal.first` | playing it… |
+| `rehearsal.updating` | playing it again… |
+| `rehearsal.better` | {n} better |
+| `rehearsal.worse` | {n} worse |
+| `rehearsal.same` | no change |
+| `rehearsal.hint` | Today's battle played against your plan as it stands: your students, their spells and seats, what is on the field, the day's enemies and the invasions already in your book. Rivals' raiders and what their students send are not known until the battle. |
+| `kind.jinx` | Jinx |
+| `gloss.jinx` | {mana} mana; it lasts {lo} to {hi} s, by your drawing. |
+| `lab.jinx_only` | A jinx is cast at a rival's tower from the invasion book, not put in a spell. |
+| `jinx.bad` | That jinx cannot be cast there. |
+| `jinx.unknown` | You do not know that jinx yet. |
+| `jinx.full` | That tower already holds as many of your jinxes as it can. Wait for one to run out. |
+| `jinx.outside` | A barrier has to stand inside the room. |
+| `jinx.on_station` | A barrier cannot cover a station. |
+| `jinx.no_walkway` | Black Ice goes on a walkway: click nearer one. |
+| `jinx.cast` | {value} is on its way. |
+| `jinx.landed` | {who} cast {value} in your tower. |
+| `jinx.drawing` | {rival}: {name} |
+| `jinx.lasts` | It lasts {s} s |
+| `jinx.lasts_lo` | {s} s at 0% |
+| `jinx.lasts_hi` | {s} s at 100% |
+| `jinx.tag` | {name} {t} |
+| `hud.jinxed` | Jinxes on your tower |
+| `jinx.heading` | Jinxes |
+| `jinx.how` | Pick a jinx, then a rival. Click where it goes on their floor plan, then draw its glyph: the better the drawing, the longer it lasts. |
+| `jinx.no_rivals` | No rivals in practice: jinxes are for a match against others. |
+| `jinx.cast_at` | Cast {name} at |
+| `jinx.card` | {text} · your jinxes: {list} |
+| `jinx.range` | {lo} to {hi} s |
+| `jinx.short.barrier` | A wall of force no one can walk through. |
+| `jinx.short.bog` | A patch of mud that slows walking. |
+| `jinx.short.black_ice` | A walkway turns to ice, and walking on it slides. |
+| `jinx.aim_title` | Jinx a tower |
+| `jinx.aim_help` | Click where it goes on the plan, then draw its glyph. A barrier cannot cover a station. |
+| `jinx.their_tower` | {rival}'s tower |
+| `jinx.key_click` | Click |
+| `jinx.key_click_does` |  where it goes   |
+| `jinx.key_turn_does` |  turn it   |
+| `jinx.key_esc_does` |  put it away |
+| `jinx.close` | Close the plan |
+| `jinx.their_heading` | Their tower |
+| `jinx.none_here` | None of your jinxes stand here. You can have {each} at a time in each tower. |
+| `jinx.here` | Your jinxes here: {list}. {n} of {each}. |
+| `jinx.legend_walkway` | Walkway: quicker walking |
+| `jinx.legend_barrier` | Barrier: no one walks through |
+| `jinx.legend_bog` | Bog: slow walking |
+| `jinx.legend_ice` | Black Ice: walking slides |
+| `news 1.8.0` | While you prepare, the HUD shows what today's battle would take off your score if it began now, and how your last change moved it. |
+| `news 1.8.0` | Teaching one student alone is far better than teaching a class: each student more adds a stroke, narrows the line and gives everyone less. A student holds two to four spells, and a new one replaces their weakest. |
+| `news 1.8.0` | Interviews are one applicant at a time, and the college holds seven students. |
+| `news 1.8.0` | Walls, pools and sub-towers hold their mana for as long as they stand, so building more leaves less for everything else. Lava Pool burns far less and holds far more. |
+| `news 1.8.0` | Helpers take their mana again each time they finish, and go on until you send them away. |
+| `news 1.8.0` | A battle lasts until every enemy has fallen or reached the tower, ten minutes at most. |
+| `news 1.8.0` | The tower is laid out in two columns: the students' stations on the left, yours on the right, the invasion book between them, with paths worn across the floor. The field is smaller and the battle cameras closer. |
+| `news 1.8.0` | Fewer words on each panel: how to use it is behind the ? by its title. A book you drag follows the pointer, and clicking an empty slot in the laboratory opens its tab. |
+| `news 1.9.0` | Jinxes: at the invasion book, cast a barrier, a bog or black ice into a rival's tower. Click where it goes on their floor plan, then draw it: the better the drawing, the longer it lasts, from 30 seconds to a minute. |
+| `news 1.9.0` | Walking on the walkways between stations is half again as fast. A bog slows you to a third, and on black ice you slide. |
+| `news 1.9.0` | The Attack Mage and the Balanced archmage jinx whoever leads, and a jinx in a computer rival's tower costs it time the next day. |
+| `news 1.9.0` | A drawing's words sit under the board now, clear of the HUD. |

@@ -91,9 +91,18 @@ pub enum Color {
     RingTrig = 36,
     /// Nothing: a clear in this colour leaves the canvas see-through.
     Clear = 37,
+    /// A rival tower's floor plan (T62): the floor, its wall, a station,
+    /// a walkway, and the three jinxes.
+    Floor = 38,
+    Wall = 39,
+    Station = 40,
+    Walkway = 41,
+    Jinx = 42,
+    Bog = 43,
+    Ice = 44,
 }
 
-pub const PALETTE: [(Color, &str); 38] = [
+pub const PALETTE: [(Color, &str); 45] = [
     (Color::Paper, "paper"),
     (Color::Ink, "ink"),
     (Color::Muted, "muted"),
@@ -132,6 +141,13 @@ pub const PALETTE: [(Color, &str); 38] = [
     (Color::RingMod, "ring_mod"),
     (Color::RingTrig, "ring_trig"),
     (Color::Clear, "clear"),
+    (Color::Floor, "floor"),
+    (Color::Wall, "wall"),
+    (Color::Station, "station"),
+    (Color::Walkway, "walkway"),
+    (Color::Jinx, "jinx"),
+    (Color::Bog, "bog"),
+    (Color::Ice, "ice"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

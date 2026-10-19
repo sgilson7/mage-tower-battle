@@ -40,6 +40,15 @@
   --ring_pay: rgba(224, 69, 58, 0.25);
   --ring_mod: rgba(74, 95, 209, 0.25);
   --ring_trig: rgba(232, 194, 26, 0.32);
+  /* a rival tower's floor plan (T62), the same in either theme: a picture
+     of the room, not a panel */
+  --floor: #b06a42;
+  --wall: #4a3c5c;
+  --station: #6b4a32;
+  --walkway: #d8cbbb;
+  --jinx: rgba(139, 92, 246, 0.6);
+  --bog: #6b5f2c;
+  --ice: #c4ecff;
   --line: 3px;
   --radius: 16px;
   /* a button's text stays dark on gold, and a chip's background follows
@@ -128,7 +137,10 @@ body[data-screen="play"] .panel-hint { position: absolute; left: 12px; top: 84px
 body[data-phase="battle"] #gl { cursor: grab; }
 /* the map's own panel sits left of the map, so it stays usable while the map is open (T3) */
 body[data-screen="play"] .panel-map { position: absolute; left: 12px; top: 84px; bottom: 70px; width: min(320px, 25%); overflow: auto; }
-body[data-busy="drawing"] .panel-bottom, body[data-busy="interview"] .panel-bottom { top: 12px; bottom: auto; }
+body[data-busy="interview"] .panel-bottom { top: 12px; bottom: auto; }
+/* the drawing's words sit under the board, clear of the HUD above it and
+   the corner's buttons beside it (found in round 11) */
+body[data-busy="drawing"] .panel-bottom { bottom: 12px; width: min(600px, 50%); padding: 8px 12px; font-size: 14px; }
 body[data-busy="sealing"] .panel-bottom, body[data-busy="sorting"] .panel-bottom { top: 44px; bottom: auto; left: auto; right: 12px; transform: none; width: 300px; font-size: 13px; padding: 8px 10px; }
 
 .label3d { position: absolute; transform: translate(-50%, -100%); font: 800 14px var(--font); white-space: nowrap; }
@@ -440,7 +452,7 @@ body[data-screen="play"] .panel-journey { position: absolute; background: linear
 .panel-journey kbd { color: #2b2140; }
 
 /* the invasion book (T40, T44): your students, the road to each rival */
-body[data-screen="play"] .panel-raid { position: absolute; left: 12px; right: 12px; top: 84px; bottom: 70px; display: grid; grid-template-columns: 30% minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "list road road" "list home spells"; grid-template-rows: auto minmax(0, 1fr); gap: 12px 14px; }
+body[data-screen="play"] .panel-raid { position: absolute; left: 12px; right: 12px; top: 84px; bottom: 70px; display: grid; grid-template-columns: 28% minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 1.7fr); grid-template-areas: "list road road road" "list home spells jinx"; grid-template-rows: auto minmax(0, 1fr); gap: 12px 14px; }
 .panel-raid .col { min-height: 0; overflow: auto; }
 .panel-raid .col-list { grid-area: list; }
 .panel-raid .col-road { grid-area: road; }
@@ -492,3 +504,28 @@ body[data-dragging="on"] .board .act.on { opacity: 0.35; }
 .hud-item .hud-note.tone-good { color: #7ff0b0; opacity: 1; }
 .hud-item .hud-note.tone-bad { color: #ff9a8a; opacity: 1; }
 .hud-item.rehearsal.stale .hud-value { opacity: 0.55; }
+
+/* jinxes (T62): the invasion book's tiles, the rival's floor plan beside
+   its panels, the HUD's warning and the names over jinxes in the room */
+.panel-raid .col-jinx { grid-area: jinx; border: var(--line) solid var(--ink); border-radius: 14px; background: var(--card-bg); padding: 10px 12px; box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.55); }
+.picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin: 6px 0; }
+.act.pick { display: grid; gap: 3px; text-align: left; align-content: start; background: var(--card-bg); color: var(--ink); padding: 7px 9px; font-weight: 600; }
+.act.pick.on { background: var(--on-bg); box-shadow: 0 0 0 4px var(--gold); }
+.pick-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.pick-top b { font-size: 15px; }
+.pick-tag { background: #8b5cf6; color: #fff; border-color: #8b5cf6; font-size: 10px; }
+.pick-text { font-size: 12.5px; line-height: 1.25; color: var(--muted); }
+.pick-foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.pick-foot small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+p.lead { font-weight: 700; margin: 8px 0 2px; }
+body[data-screen="play"] .panel-aim { position: absolute; left: 12px; top: 84px; bottom: 70px; width: calc(27.5% - 24px); overflow: auto; }
+.panel-aim .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 8px; align-items: center; font-size: 14px; }
+.panel-route .row { padding: 4px 8px; border-left-width: 2px; background: var(--card-bg); }
+.sw-walkway { background: var(--walkway); } .sw-jinx { background: var(--jinx); } .sw-bog { background: var(--bog); } .sw-ice { background: var(--ice); }
+body[data-screen="play"] .hud-item.jinxed { border-color: rgba(167, 139, 250, 0.85); box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.45), 0 6px 18px rgba(0, 0, 0, 0.3); }
+body[data-screen="play"] .hud-item.jinxed .hud-value { color: var(--glass-gold); font-size: 15px; }
+.label3d.jinx { background: var(--glass-bg); color: var(--glass-gold); border: 1px solid rgba(167, 139, 250, 0.9); border-radius: 999px; padding: 3px 12px 4px; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.35); }
+.panel-raid .col-jinx .chips { margin: 2px 0 0; }
+.panel-raid .col-jinx .chips .act { font-size: 13px; padding: 2px 9px; box-shadow: 0 2px 0 var(--ink); }
+.panel-raid .col-jinx p.lead { margin: 4px 0 0; font-size: 14px; }
+.panel-raid .col-jinx .picks { margin: 4px 0; }
